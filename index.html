@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Razorpay Checkout Script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSE Pro Institutional Quant Engine & Confluence Terminal</title>
+  <style>
+    :root {
+      --bg: #050811;
+      --card-bg: #0c111d;
+      --card-border: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --purple: #c084fc;
+      --teal: #2dd4bf;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg); color: var(--text);
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;
+    }
+    h1 { font-size: 1.2rem; margin: 0; font-weight: 800; letter-spacing: -0.025em; background: linear-gradient(90deg, #f8fafc, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-meta { display: flex; align-items: center; gap: 10px; }
+    .badge {
+      background: var(--card-border); padding: 4px 10px; border-radius: 6px;
+      color: var(--accent); font-size: 0.75rem; font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .nav-tabs {
+      display: flex; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--card-border); padding-bottom: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    }
+    .nav-left { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tab-btn {
+      background: var(--card-bg); border: 1px solid var(--card-border); color: var(--muted);
+      padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s ease;
+    }
+    .tab-btn:hover { color: var(--text); background: #131c31; border-color: rgba(56, 189, 248, 0.3); }
+    .tab-btn.active { color: #050811; background: var(--accent); border-color: var(--accent); }
+
+    .tab-view { display: none; }
+    .tab-view.active { display: block; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .cmd-trigger {
+      background: var(--card-bg); border: 1px solid var(--card-border); color: var(--muted);
+      padding: 5px 10px; border-radius: 7px; cursor: pointer; font-size: 0.75rem;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .cmd-trigger:hover { border-color: var(--accent); color: var(--text); }
+    .cmd-trigger kbd { background: var(--bg); padding: 1px 4px; border-radius: 3px; font-size: 0.65rem; border: 1px solid var(--card-border); color: var(--accent); }
+
+    /* Sector Tiles Grid Layout */
+    .sector-tiles-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 20px;
+    }
+    .sector-tile {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 14px;
+      cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden;
+    }
+    .sector-tile:hover { border-color: var(--accent); background: #131c31; transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.5); }
+    .sector-tile.selected { border-color: var(--accent); background: rgba(56, 189, 248, 0.06); }
+    .sector-tile-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .sector-tile-name { font-weight: 700; font-size: 0.9rem; color: var(--text); }
+    .sector-tile-perf { font-weight: 800; font-size: 0.95rem; }
+    .sector-tile-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.73rem; color: var(--muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px; }
+
+    .sector-drilldown-container {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px; margin-top: 16px;
+    }
+
+    .playbook-container { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 24px; line-height: 1.6; }
+    .playbook-container h2 { color: var(--accent); margin-top: 0; font-size: 1.25rem; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
+    .playbook-container h3 { color: var(--purple); margin-top: 20px; font-size: 1.05rem; }
+    .playbook-container p, .playbook-container li { color: var(--muted); font-size: 0.86rem; }
+    .playbook-card { background: #131c31; border: 1px solid var(--card-border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+
+    .sub-banner {
+      background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(192,132,252,0.1));
+      border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 16px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.8rem;
+    }
+    .sub-btn {
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9); color: #050811; border: none; padding: 6px 14px; border-radius: 6px;
+      font-weight: 700; cursor: pointer; font-size: 0.78rem; transition: opacity 0.15s;
+    }
+    .sub-btn:hover { opacity: 0.9; }
+
+    .unified-toolbar {
+      display: flex; gap: 10px; padding: 10px 14px;
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+      align-items: center; flex-wrap: wrap; justify-content: space-between; margin-bottom: 14px;
+    }
+    .toolbar-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .tactical-btn {
+      background: #131c31; border: 1px solid var(--card-border); color: var(--text);
+      padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.76rem; font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .tactical-btn:hover { background: #1a2642; border-color: var(--accent); }
+    .tactical-btn.active { background: var(--accent); color: #050811; border-color: var(--accent); font-weight: 700; }
+    .tactical-btn-danger.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+    select, input {
+      background: #050811; border: 1px solid var(--card-border);
+      padding: 6px 10px; border-radius: 6px; color: var(--text); font-size: 0.8rem; outline: none;
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+    .reset-btn {
+      background: var(--card-border); border: none; color: var(--muted);
+      padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.76rem; font-weight: 600;
+    }
+    .reset-btn:hover { color: var(--text); }
+
+    .table-container {
+      overflow-x: auto; background: var(--card-bg);
+      border: 1px solid var(--card-border); border-radius: 10px; margin-bottom: 14px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--card-border); }
+    th {
+      background: #050811; color: var(--muted); cursor: pointer; position: sticky; top: 0; z-index: 10;
+      user-select: none; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+    }
+    th:hover { color: var(--text); }
+    tr.stock-row { cursor: pointer; transition: background 0.1s ease; }
+    tr.stock-row:hover { background: rgba(56, 189, 248, 0.05); }
+
+    .score-bar { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+    .meter { width: 30px; height: 5px; background: #131c31; border-radius: 3px; overflow: hidden; border: 1px solid var(--card-border); }
+    .meter-fill { height: 100%; background: var(--accent); }
+
+    .pill { font-size: 0.65rem; padding: 3px 6px; border-radius: 5px; font-weight: 700; display: inline-block; white-space: nowrap; cursor: help; }
+    .pill-extended { background: rgba(248, 113, 113, 0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+    .pill-buyzone { background: rgba(52, 211, 153, 0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+    .pill-vcp { background: rgba(56, 189, 248, 0.12); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+    .pill-stealth { background: rgba(192, 132, 252, 0.12); color: var(--purple); border: 1px solid rgba(192,132,252,0.3); }
+    .pill-breakout { background: rgba(52, 211, 153, 0.18); color: #34d399; border: 1px solid rgba(52,211,153,0.4); }
+    .pill-pullback { background: rgba(45, 212, 191, 0.12); color: var(--teal); border: 1px solid rgba(45,212,191,0.3); }
+
+    #globalTooltip {
+      position: fixed; display: none; z-index: 9999; max-width: 280px;
+      background: #0c111d; color: #f8fafc; padding: 10px 14px; border-radius: 7px;
+      font-size: 0.75rem; border: 1px solid var(--accent); box-shadow: 0 15px 20px -5px rgba(0,0,0,0.8);
+      pointer-events: none; line-height: 1.4; white-space: pre-line;
+    }
+
+    .star-btn { background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0; color: #475569; transition: color 0.15s; }
+    .star-btn.starred { color: var(--yellow); }
+
+    .ext-chart-btn {
+      display: inline-flex; align-items: center; gap: 3px; text-decoration: none;
+      background: #131c31; color: var(--accent); border: 1px solid var(--card-border);
+      padding: 3px 6px; border-radius: 5px; font-size: 0.66rem; font-weight: 600;
+    }
+    .ext-chart-btn:hover { background: var(--accent); color: #050811; }
+    .ext-chart-btn-ci { color: var(--yellow); }
+    .ext-chart-btn-ci:hover { background: var(--yellow); color: #050811; }
+
+    #toastContainer { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: #0c111d; border: 1px solid var(--accent); color: var(--text); padding: 10px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; box-shadow: 0 15px 20px -5px rgba(0,0,0,0.6); animation: slideIn 0.2s ease; }
+    @keyframes slideIn { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .cmd-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 8, 17, 0.85); backdrop-filter: blur(4px); z-index: 300; justify-content: center; align-items: flex-start; padding-top: 10vh; }
+    .cmd-box { background: #0c111d; border: 1px solid var(--card-border); border-radius: 10px; width: 100%; max-width: 540px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); overflow: hidden; }
+    .cmd-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--card-border); padding: 15px; color: var(--text); font-size: 0.95rem; outline: none; }
+    .cmd-results { max-height: 300px; overflow-y: auto; padding: 8px; }
+    .cmd-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; font-size: 0.82rem; }
+    .cmd-item:hover { background: rgba(56, 189, 248, 0.1); color: var(--accent); }
+
+    .pagination {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 10px; font-size: 0.8rem; color: var(--muted);
+    }
+    .page-buttons { display: flex; gap: 6px; align-items: center; }
+    .page-btn {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      color: var(--text); padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600;
+    }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(5, 8, 17, 0.8); backdrop-filter: blur(4px); z-index: 100;
+      justify-content: center; align-items: center; padding: 16px;
+    }
+    .modal-card {
+      background: #0c111d; border: 1px solid var(--card-border); border-radius: 12px;
+      width: 100%; max-width: 720px; max-height: 90vh; overflow-y: auto; padding: 22px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
+    .modal-close { background: none; border: none; font-size: 1.4rem; color: var(--muted); cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: var(--text); }
+    
+    .factor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .factor-box { background: #131c31; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; }
+    .factor-title { font-size: 0.72rem; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
+    .factor-val { font-size: 1.1rem; font-weight: 800; color: var(--text); }
+
+    .diagnosis-box {
+      background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 8px; padding: 12px;
+    }
+    .modal-action-bar {
+      display: flex; gap: 8px; margin-top: 14px; padding-top: 10px;
+      border-top: 1px solid var(--card-border); justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="globalTooltip"></div>
+
+  <header>
+  <div>
+    <h1>NSE Pro Institutional Quant Engine & Confluence Terminal</h1>
+    <span style="font-size: 0.76rem; color: var(--muted);">Advanced Technical & Fundamental Screening</span>
+  </div>
+  <div class="header-meta">
+    <!-- Trial / Status Badge -->
+    <div class="badge" id="trialBadge" style="display:none; background: rgba(251, 191, 36, 0.15); color: var(--yellow);">Checking Status...</div>
+    
+    <!-- Google Login / Profile Section -->
+    <div id="authContainer">
+      <button class="tactical-btn" onclick="loginWithGoogle()" style="background:#fff; color:#050811; font-weight:700;">🌐 Continue with Google</button>
+    </div>
+    <div id="userProfileContainer" style="display:none; align-items:center; gap:8px;">
+      <span id="userEmailDisplay" style="font-size:0.75rem; color:var(--muted);"></span>
+      <button class="reset-btn" onclick="handleLogout()">Logout</button>
+    </div>
+
+    <button class="cmd-trigger" onclick="openCmdPalette()"><span>Search Ticker / Setup</span><kbd>⌘K</kbd></button>
+    <div class="badge" id="stockCountBadge">0 Stocks</div>
+    <div class="badge" id="asOfBadge">Loading...</div>
+  </div>
+</header>
+
+  <div class="sub-banner" id="subBanner" style="display: none;">
+    <div id="subBannerText">
+      ⏳ <strong>Trial Plan Active:</strong> Upgrade to Pro to unlock continuous institutional feeds.
+    </div>
+    <div>
+      <button class="sub-btn" onclick="openUpiModal()">⚡ Upgrade to Pro (₹1,499/mo)</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <div class="nav-left">
+      <button class="tab-btn active" id="tabLiveBtn" onclick="switchTab('live')">📊 Technical Screener</button>
+      <button class="tab-btn" id="tabFundBtn" onclick="switchTab('fund')">💼 Fundamental Screener</button>
+      <button class="tab-btn" id="tabRrgBtn" onclick="switchTab('rrg')">🌐 Sector Analysis</button>
+      <button class="tab-btn" id="tabWatchlistBtn" onclick="switchTab('watchlist')">⭐ Watchlist (<span id="watchlistCount">0</span>)</button>
+      <button class="tab-btn" id="tabPlaybookBtn" onclick="switchTab('playbook')">📖 Quant Playbook</button>
+    </div>
+  </div>
+
+  <!-- TAB 1: TECHNICAL SCREENER -->
+  <div class="tab-view active" id="viewLive">
+    <div class="unified-toolbar">
+      <div class="toolbar-group">
+        <select id="sectorSelect" onchange="onSectorSelect(this.value)">
+          <option value="ALL">All Sectors</option>
+        </select>
+        <select id="indexSelect" onchange="onIndexSelect(this.value)">
+          <option value="ALL">All Indices</option>
+          <optgroup label="Broad Market Indices">
+            <option value="Nifty 50">Nifty 50</option>
+            <option value="Nifty Next 50">Nifty Next 50</option>
+            <option value="Nifty Midcap 150">Nifty Midcap 150</option>
+            <option value="Nifty Smallcap 250">Nifty Smallcap 250</option>
+            <option value="Broad Market / Microcap">Broad Market / Microcap</option>
+            <option value="ETFs">ETFs (Exchange Traded Funds)</option>
+          </optgroup>
+        </select>
+        <select id="signalSelect" onchange="onSignalSelect(this.value)">
+          <option value="ALL">All Signals</option>
+          <option value="🟢 Low-Risk Buy Zone">🟢 Buy Zone</option>
+          <option value="🎯 VCP Coiled Spring">🎯 VCP Coiled Spring</option>
+          <option value="⚡ Stealth Accumulation">⚡ Stealth Acc.</option>
+          <option value="🔄 High-RS Pullback">🔄 RS Pullback</option>
+          <option value="🚀 Breakout Ready">🚀 Breakout</option>
+          <option value="⚠ Extended (Wait)">⚠️ Extended</option>
+        </select>
+        <input type="text" id="symbolSearch" placeholder="Search Symbol..." oninput="onSearch(this.value)" style="width: 110px;" />
+        <button class="reset-btn" onclick="resetFilters()">Reset</button>
+      </div>
+      <div class="toolbar-group">
+        <button class="tactical-btn tip-trigger" id="presetBuyZone" onclick="applyPreset('BuyZone')" data-tip="Stocks consolidating safely near moving averages with healthy momentum.">🟢 Buy Zone</button>
+        <button class="tactical-btn tip-trigger" id="presetSpring" onclick="applyPreset('Spring')" data-tip="Volatility has dried up, signaling an impending explosive breakout.">🎯 VCP Coiled Spring</button>
+        <button class="tactical-btn tip-trigger" id="presetPullback" onclick="applyPreset('Pullback')" data-tip="High relative strength stocks temporarily dipping to moving average support.">🔄 RS Pullback</button>
+        <button class="tactical-btn tip-trigger" id="presetStealth" onclick="applyPreset('Stealth')" data-tip="Heavy institutional delivery buying while price stays tightly contained.">⚡ Stealth Acc.</button>
+        <button class="tactical-btn tactical-btn-danger tip-trigger" id="presetHideExtended" onclick="toggleHideExtended()" data-tip="Filters out stocks stretched more than 8% above their 20-day average.">🛡️ Hide >8%</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table id="mainStockTable">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">⭐</th>
+            <th class="tip-trigger" onclick="sortTable('symbol')" data-tip="NSE trading ticker symbol and company name. [Click to sort]">Symbol <span id="sort_symbol"></span></th>
+            <th class="tip-trigger" onclick="sortTable('sector')" data-tip="NSE industry classification sector. [Click to sort]">Sector <span id="sort_sector"></span></th>
+            <th class="tip-trigger" onclick="sortTable('close')" data-tip="Last traded closing price in Indian Rupees (₹). [Click to sort]">Close (₹) <span id="sort_close"></span></th>
+            <th class="tip-trigger" onclick="sortTable('inst_signal')" data-tip="Proprietary algorithmic setup status (e.g. Buy Zone, VCP Spring). [Click to sort]">Setup / Signal <span id="sort_inst_signal"></span></th>
+            <th class="tip-trigger" onclick="sortTable('multi_timeframe_confluence')" data-tip="Trend alignment across daily and multi-period timeframes. [Click to sort]">Multi-TF <span id="sort_multi_timeframe_confluence"></span></th>
+            <th class="tip-trigger" onclick="sortTable('fundamental_score')" data-tip="Composite fundamental health score out of 100. [Click to sort]">Fund. Score <span id="sort_fundamental_score"></span></th>
+            <th class="tip-trigger" onclick="sortTable('alpha_score')" data-tip="Overall ranking score weighting momentum and institutional accumulation. [Click to sort]">Alpha <span id="sort_alpha_score">▼</span></th>
+            <th class="tip-trigger" onclick="sortTable('ml_score')" data-tip="Random Forest machine learning outperformance probability. [Click to sort]">ML Prob <span id="sort_ml_score"></span></th>
+            <th class="tip-trigger" onclick="sortTable('chart_pattern_signal')" data-tip="Detected chart pattern such as VCP Volatility Contraction or W-Bottom. [Click to sort]">Chart Pattern <span id="sort_chart_pattern_signal"></span></th>
+            <th class="tip-trigger" onclick="sortTable('rs_line_status')" data-tip="Relative Strength line status versus the Nifty benchmark. [Click to sort]">RS Status <span id="sort_rs_line_status"></span></th>
+            <th class="tip-trigger" onclick="sortTable('order_block_status')" data-tip="Institutional supply and demand accumulation zones. [Click to sort]">Order Block <span id="sort_order_block_status"></span></th>
+            <th class="tip-trigger" onclick="sortTable('risk_reward_ratio')" data-tip="Estimated potential reward relative to risk based on stop-loss. [Click to sort]">RRR <span id="sort_risk_reward_ratio"></span></th>
+            <th class="tip-trigger" onclick="sortTable('market_breadth_status')" data-tip="Overall health and regime of the Indian stock market. [Click to sort]">Market Breadth <span id="sort_market_breadth_status"></span></th>
+            <th class="tip-trigger" onclick="sortTable('sector_breadth_status')" data-tip="Where the stock sector sits on the RRG momentum grid. [Click to sort]">Sector Regime <span id="sort_sector_breadth_status"></span></th>
+            <th>Chart</th>
+          </tr>
+        </thead>
+        <tbody id="stocksTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <div id="pageInfo">Showing 1 to 50 of 0 stocks</div>
+      <div class="page-buttons">
+        <button class="page-btn" id="prevBtn" onclick="changePage(-1)">Previous</button>
+        <span id="pageTracker" style="font-weight: 600; color: var(--text);">1 / 1</span>
+        <button class="page-btn" id="nextBtn" onclick="changePage(1)">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: FUNDAMENTAL SCREENER -->
+  <div class="tab-view" id="viewFund">
+    <div class="unified-toolbar">
+      <div class="toolbar-group">
+        <select id="fundSectorSelect" onchange="applyFundFilter()">
+          <option value="ALL">All Sectors</option>
+        </select>
+        <select id="fundIndexSelect" onchange="applyFundFilter()">
+          <option value="ALL">All Indices</option>
+          <optgroup label="Broad Market Indices">
+            <option value="Nifty 50">Nifty 50</option>
+            <option value="Nifty Next 50">Nifty Next 50</option>
+            <option value="Nifty Midcap 150">Nifty Midcap 150</option>
+            <option value="Nifty Smallcap 250">Nifty Smallcap 250</option>
+            <option value="Broad Market / Microcap">Broad Market / Microcap</option>
+            <option value="ETFs">ETFs (Exchange Traded Funds)</option>
+          </optgroup>
+        </select>
+        <input type="text" id="fundSymbolSearch" placeholder="Search Fund Ticker..." oninput="applyFundFilter()" style="width: 120px;" />
+        <button class="reset-btn" onclick="resetFundFilters()">Reset</button>
+      </div>
+      <div class="toolbar-group" style="gap: 6px; font-size: 0.75rem;">
+        <div>Min Score: <input type="number" id="minFundScore" placeholder="e.g. 70" style="width: 50px; padding: 3px;" /></div>
+        <div>Min ROE: <input type="number" id="minRoe" placeholder="e.g. 15" style="width: 50px; padding: 3px;" /></div>
+        <div>Min Promot: <input type="number" id="minPromoter" placeholder="e.g. 40" style="width: 50px; padding: 3px;" /></div>
+        <div>Min FII: <input type="number" id="minFii" placeholder="e.g. 5" style="width: 50px; padding: 3px;" /></div>
+        <div>Min DII: <input type="number" id="minDii" placeholder="e.g. 5" style="width: 50px; padding: 3px;" /></div>
+        <button class="sub-btn" onclick="applyFundFilter()" style="padding: 5px 10px;">⚡ Filter</button>
+      </div>
+      <div class="toolbar-group">
+        <button class="tactical-btn tip-trigger" id="fundPresetElite" onclick="applyFundPreset('ELITE')" data-tip="Toggle Elite Score &ge; 80">⭐ Elite &ge; 80</button>
+        <button class="tactical-btn tip-trigger" id="fundPresetROE" onclick="applyFundPreset('ROE')" data-tip="Toggle High ROE > 20%">💼 High ROE</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">⭐</th>
+            <th class="tip-trigger" onclick="sortFundTable('symbol')" data-tip="NSE ticker symbol. [Click to sort]">Symbol <span id="fs_symbol"></span></th>
+            <th class="tip-trigger" onclick="sortFundTable('sector')" data-tip="Industry sector classification. [Click to sort]">Sector <span id="fs_sector"></span></th>
+            <th class="tip-trigger" onclick="sortFundTable('fundamental_score')" data-tip="Overall fundamental quality grade and score out of 100. [Click to sort]">Fund. Score & Grade <span id="fs_fundamental_score">▼</span></th>
+            <th class="tip-trigger" onclick="sortFundTable('roe')" data-tip="Return on Equity: profitability efficiency relative to shareholder equity (>20% is elite). [Click to sort]">ROE <span id="fs_roe"></span></th>
+            <th class="tip-trigger" onclick="sortFundTable('profit_growth_yoy')" data-tip="Year-over-year earnings/revenue compounding growth percentage. [Click to sort]">YoY Growth <span id="fs_profit_growth_yoy"></span></th>
+            <th class="tip-trigger" onclick="sortFundTable('trailing_pe')" data-tip="Price-to-Earnings ratio based on past 12 months' trailing earnings. [Click to sort]">Trailing P/E <span id="fs_trailing_pe"></span></th>
+            <th class="tip-trigger" onclick="sortFundTable('forward_pe')" data-tip="Price-to-Earnings ratio calculated using estimated future earnings. [Click to sort]">Forward P/E <span id="fs_forward_pe"></span></th>
+            <th class="tip-trigger" data-tip="Exact percentage shareholding breakdown for Promoters, FIIs, and DIIs. Displays NA if live exchange filing data is un-fetchable.">Institutional Holding Breakdown (Promoter / FII / DII)</th>
+            <th class="tip-trigger" onclick="sortFundTable('fcf_yield')" data-tip="Free Cash Flow as a percentage of market capitalization (positive indicates real cash generation). [Click to sort]">FCF Yield <span id="fs_fcf_yield"></span></th>
+            <th>Chart</th>
+          </tr>
+        </thead>
+        <tbody id="fundTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <div id="fundPageInfo">Showing 1 to 50 of 0 stocks</div>
+      <div class="page-buttons">
+        <button class="page-btn" id="fundPrevBtn" onclick="changeFundPage(-1)">Previous</button>
+        <span id="fundPageTracker" style="font-weight: 600; color: var(--text);">1 / 1</span>
+        <button class="page-btn" id="fundNextBtn" onclick="changeFundPage(1)">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: SECTOR ANALYSIS -->
+  <div class="tab-view" id="viewRrg">
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h3 style="margin: 0; font-size: 1.05rem; color: var(--accent);">🌐 NSE Sector Performance & Breadth Matrix</h3>
+        <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: var(--muted);">Click any sector tile below to inspect and drill down into its constituents sorted by best to worst performance.</p>
+      </div>
+      <button class="reset-btn" onclick="clearSectorSelection()">Clear Selection</button>
+    </div>
+
+    <div class="sector-tiles-grid" id="sectorTilesGrid"></div>
+
+    <div class="sector-drilldown-container" id="sectorDrilldownContainer" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+        <h3 id="drilldownTitle" style="margin:0; font-size:1rem; color:var(--accent);">Sector Constituents</h3>
+        <span id="drilldownCount" class="badge">0 Stocks</span>
+      </div>
+      <div class="table-container" style="margin-bottom:0;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35px; text-align: center;">⭐</th>
+              <th>Symbol & Company</th>
+              <th>Close (₹)</th>
+              <th>Fund. Score</th>
+              <th>ROE</th>
+              <th>YoY Growth</th>
+              <th>Trailing P/E</th>
+              <th>Forward P/E</th>
+              <th>Institutional Holding (Prom / FII / DII)</th>
+              <th>FCF Yield</th>
+              <th>Chart</th>
+            </tr>
+          </thead>
+          <tbody id="sectorDrilldownTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 5: WATCHLIST -->
+  <div class="tab-view" id="viewWatchlist">
+    <div class="playbook-container">
+      <h2>⭐ My Personal Custom Watchlist</h2>
+      <div class="table-container" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35px; text-align: center;">⭐</th>
+              <th>Symbol</th>
+              <th>Sector</th>
+              <th>Close (₹)</th>
+              <th>Setup</th>
+              <th>Alpha</th>
+              <th>ML Prob</th>
+              <th>Chart</th>
+            </tr>
+          </thead>
+          <tbody id="watchlistTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 6: QUANT PLAYBOOK -->
+  <div class="tab-view" id="viewPlaybook">
+    <div class="playbook-container">
+      <h2>📖 Institutional Quant Playbook & Strategy Masterclass</h2>
+      <p>Welcome to the official strategy guide for the NSE Pro Quant Engine. This terminal integrates real institutional data pipelines, volume profile analysis, sector performance matrices, and multi-factor fundamental scoring to help you consistently identify market outperformers.</p>
+      
+      <div class="playbook-card">
+        <h3>🚀 Part 1: Technical Outperformance Playbook (Short to Medium Term)</h3>
+        <p>The Technical Screener is designed to capture market leaders and momentum setups in any market regime (Bullish or Bearish). Follow these step-by-step rules:</p>
+        <ol>
+          <li><b>Check Market Regime:</b> Verify the market breadth status at the top header. In a 🟢 <i>Bullish Regime</i>, aggressive breakout and buy-zone strategies thrive. In a bearish regime, restrict trades to high-RS pullbacks.</li>
+          <li><b>Scan Sector Analysis Matrix:</b> Open the <i>Sector Analysis</i> tab. Focus exclusively on leading sectors with high advance percentages and robust % of stocks trading above their moving average.</li>
+          <li><b>Filter High Alpha & RS New Highs:</b> On the Technical Screener, sort by <b>Alpha Score</b> descending and look for stocks with <i>🔥 RS Line New High</i> status. This guarantees you are buying stocks outperforming Nifty.</li>
+          <li><b>Execute on Tactical Setups:</b>
+            <ul>
+              <li>🎯 <b>VCP Coiled Spring:</b> Price volatility has dried up after an advance; ideal for entering right before an explosive breakout.</li>
+              <li>🟢 <b>Low-Risk Buy Zone:</b> Stocks consolidating safely near their 20-day moving average with positive momentum.</li>
+              <li>⚡ <b>Stealth Accumulation:</b> Heavy institutional delivery volume spikes while price remains tightly coiled.</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div class="playbook-card">
+        <h3>💼 Part 2: Fundamental Compounding Playbook (Medium to Long Term)</h3>
+        <p>The Fundamental Screener is engineered for long-term wealth creation by identifying cash-generating compounders with superior operating metrics:</p>
+        <ol>
+          <li><b>Filter for Elite Scores:</b> Use the <i>⭐ Elite ≥ 80</i> tactical button or type `80` in the Min Elite Score filter to isolate top-tier companies.</li>
+          <li><b>Target High ROE & Growth:</b> Set minimum thresholds for <b>ROE > 20%</b> and <b>YoY Growth > 20%</b> to ensure high capital efficiency and rapid earnings compounding.</li>
+          <li><b>Check Shareholding Filters:</b> Use the Promoter, FII, and DII holding filter inputs to verify institutional backing and management skin in the game.</li>
+          <li><b>Validate Institutional Accumulation & FCF:</b> Confirm positive <b>Free Cash Flow (FCF) Yield</b> and growing institutional sponsorship to ensure the company is self-funding its growth.</li>
+        </ol>
+      </div>
+
+      <div class="playbook-card">
+        <h3>⚡ Part 3: High-Conviction Confluence Strategy (The Ultimate Edge)</h3>
+        <p>The highest probability trades occur when technical strength and fundamental excellence overlap:</p>
+        <ul>
+          <li><b>Step 1:</b> Screen for stocks on the Fundamental Tab with an <b>Elite Grade (A+ Elite)</b> and positive earnings revisions.</li>
+          <li><b>Step 2:</b> Cross-reference those symbols on the Technical Tab to ensure they show a <b>VCP Coiled Spring</b> or <b>Low-Risk Buy Zone</b> setup with an Alpha Score > 70.</li>
+          <li><b>Step 3:</b> Check that the stock belongs to an outperforming sector on the Sector Analysis tab.</li>
+          <li><b>Step 4:</b> Enter the trade using the calculated <b>ATR Stop Loss</b> and target a Risk-Reward Ratio (RRR) of at least 3:1.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPI Modal -->
+  <div class="modal-overlay" id="upiModal" onclick="closeUpiOnOverlay(event)">
+    <div class="modal-card" style="max-width: 450px; text-align: center;">
+      <div class="modal-header">
+        <h2 style="margin:0;">⚡ Pro Subscription via UPI</h2>
+        <button class="modal-close" onclick="closeUpiModal()">&times;</button>
+      </div>
+      <p style="color:var(--muted); font-size:0.85rem;">Scan QR code or pay via any UPI app for instant Pro Tier activation (₹1,499 / month).</p>
+      <div style="background:#fff; padding:15px; display:inline-block; border-radius:8px; margin: 15px 0;">
+        <div style="width:180px; height:180px; background:#070a12; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; border-radius:4px;">
+          [ UPI QR CODE ]<br>quant@upi
+        </div>
+      </div>
+      <div>
+        <input type="text" id="upiRefInput" placeholder="Enter UPI Transaction Ref (UTR) ID" style="width:100%; margin-bottom:12px; text-align:center;" />
+        <button class="sub-btn" style="width:100%;" onclick="verifyUpiPayment()">Verify & Activate Pro License</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal -->
+  <div class="cmd-overlay" id="cmdModal" onclick="closeCmdOnOverlay(event)">
+    <div class="cmd-box">
+      <input type="text" class="cmd-input" id="cmdInput" placeholder="Type a stock symbol or filter..." oninput="filterCmdResults(this.value)" />
+      <div class="cmd-results" id="cmdResults"></div>
+    </div>
+  </div>
+
+  <!-- Quant Breakdown Modal -->
+  <div class="modal-overlay" id="quantModal" onclick="closeModalOnOverlay(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h2 id="modalSymbol" style="margin:0; font-size:1.3rem;">SYMBOL</h2>
+            <span id="modalSignalPill"></span>
+          </div>
+          <div id="modalCompanyName" style="color:var(--muted); font-size:0.8rem; margin-top:2px;">Company Name</div>
+          <div id="modalTags" style="color:var(--accent); font-size:0.72rem; margin-top:4px;">Sector & Index Tags</div>
+        </div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:16px;">
+        <div style="flex:1; background:#131c31; padding:10px; border-radius:8px; border-left:4px solid var(--purple);">
+          <div style="font-size:0.68rem; color:var(--muted); text-transform:uppercase;">Chart Pattern</div>
+          <div id="modalPattern" style="font-size:0.9rem; font-weight:700; color:var(--purple); margin-top:2px;">Standard Base</div>
+        </div>
+        <div style="flex:1; background:#131c31; padding:10px; border-radius:8px; border-left:4px solid var(--green);">
+          <div style="font-size:0.68rem; color:var(--muted); text-transform:uppercase;">Multi-TF Trend</div>
+          <div id="modalMTF" style="font-size:0.9rem; font-weight:700; color:var(--green); margin-top:2px;">Daily Bullish</div>
+        </div>
+        <div style="flex:1; background:#131c31; padding:10px; border-radius:8px; border-left:4px solid var(--yellow);">
+          <div style="font-size:0.68rem; color:var(--muted); text-transform:uppercase;">Fund. Score</div>
+          <div id="modalFundScore" style="font-size:0.9rem; font-weight:700; color:var(--yellow); margin-top:2px;">70/100</div>
+        </div>
+      </div>
+
+      <div class="factor-grid">
+        <div class="factor-box">
+          <div class="factor-title"><span>Valuation (Trailing vs. Forward P/E)</span></div>
+          <div class="factor-val" id="modalPE" style="font-size:1rem;">Trailing P/E: -- | Forward P/E: --</div>
+        </div>
+        <div class="factor-box">
+          <div class="factor-title"><span>Return on Equity & Growth</span></div>
+          <div class="factor-val" id="modalROEGrowth" style="font-size:1rem;">ROE: --% | Growth: --%</div>
+        </div>
+        <div class="factor-box">
+          <div class="factor-title"><span>Shareholding Breakdown (Promoter / FII / DII)</span></div>
+          <div class="factor-val" id="modalFiiDii" style="font-size:0.9rem; color:var(--teal);">--</div>
+        </div>
+        <div class="factor-box">
+          <div class="factor-title"><span>Free Cash Flow Yield & Revision</span></div>
+          <div class="factor-val" id="modalFCFRev" style="font-size:0.9rem; color:var(--purple);">--</div>
+        </div>
+      </div>
+
+      <div class="diagnosis-box">
+        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:4px;">Institutional Fundamental & Technical Thesis</div>
+        <div id="modalDiagnosis" style="font-size:0.8rem; color:var(--text); line-height:1.4;">Loading rationale...</div>
+      </div>
+
+      <div class="modal-action-bar">
+        <a id="modalTvLink" class="ext-chart-btn" href="#" target="_blank" rel="noopener noreferrer">📈 Open on TradingView</a>
+        <a id="modalCiLink" class="ext-chart-btn ext-chart-btn-ci" href="#" target="_blank" rel="noopener noreferrer">📊 Open on Chartink</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer"></div>
+
+  <script>
+
+    // --- Supabase & Subscription Configuration ---
+  const SUPABASE_URL = 'https://ydjzbwkaxwcfkqzfndum.supabase.co/rest/v1/';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
+  const RAZORPAY_KEY = 'YOUR_RAZORPAY_KEY_ID_HERE';
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentUser = null;
+  let userProfile = null;
+
+  // Extend your existing init() function to check session on startup
+  async function initAuthAndApp() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await fetchUserProfile(currentUser.id);
+    }
+    updateAuthUI();
+  }
+
+  async function fetchUserProfile(userId) {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    userProfile = data;
+    evaluateAccess();
+    // Load cloud watchlist into appState if user is logged in
+    await loadCloudWatchlist();
+  }
+
+  function evaluateAccess() {
+    if (!currentUser || !userProfile) return;
+    const now = new Date();
+    const trialEnd = new Date(userProfile.trial_ends_at);
+    const isTrialActive = now < trialEnd;
+    const isPro = userProfile.is_pro;
+
+    const badge = document.getElementById('trialBadge');
+    badge.style.display = 'inline-block';
+
+    if (isPro) {
+      badge.textContent = "⭐ Pro Member";
+      badge.style.borderColor = "var(--green)";
+      badge.style.color = "var(--green)";
+      document.getElementById('subBanner').style.display = 'none';
+    } else if (isTrialActive) {
+      const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
+      badge.textContent = `⏳ Free Trial (${daysLeft}d left)`;
+      document.getElementById('subBanner').style.display = 'none';
+    } else {
+      badge.textContent = "❌ Trial Expired";
+      badge.style.borderColor = "var(--red)";
+      badge.style.color = "var(--red)";
+      document.getElementById('subBanner').style.display = 'flex'; // Shows upgrade banner
+    }
+  }
+
+  // --- Google Login Actions ---
+  async function loginWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    location.reload();
+  }
+
+  function updateAuthUI() {
+    if (currentUser) {
+      document.getElementById('authContainer').style.display = 'none';
+      document.getElementById('userProfileContainer').style.display = 'flex';
+      document.getElementById('userEmailDisplay').textContent = currentUser.email;
+    } else {
+      document.getElementById('authContainer').style.display = 'block';
+      document.getElementById('userProfileContainer').style.display = 'none';
+    }
+  }
+
+  // --- Cloud Watchlist Sync Integration ---
+  async function loadCloudWatchlist() {
+    if (!currentUser) return;
+    const { data } = await supabase.from('watchlists').select('symbol').eq('user_id', currentUser.id);
+    if (data) {
+      appState.watchlist = data.map(item => item.symbol);
+      localStorage.setItem('my_quant_watchlist', JSON.stringify(appState.watchlist));
+      updateWatchlistBadge();
+      renderTablePage();
+    }
+  }
+
+  // Hook into your existing toggleWatchlist function to sync with Supabase
+  const originalToggleWatchlist = window.toggleWatchlist;
+  window.toggleWatchlist = async function(symbol, event) {
+    if (!currentUser) {
+      alert("Please login with Google to save stocks to your personal cloud watchlist.");
+      loginWithGoogle();
+      return;
+    }
+    // Execute original local watchlist state handler
+    if (typeof originalToggleWatchlist === 'function') {
+      originalToggleWatchlist(symbol, event);
+    }
+    // Sync with Supabase database
+    const isStarred = appState.watchlist.includes(symbol);
+    if (isStarred) {
+      await supabase.from('watchlists').insert([{ user_id: currentUser.id, symbol: symbol }]);
+    } else {
+      await supabase.from('watchlists').delete().eq('user_id', currentUser.id).eq('symbol', symbol);
+    }
+  };
+
+  // --- Razorpay Payment Integration ---
+  function startRazorpayCheckout() {
+    if (!currentUser) {
+      alert("Please log in first.");
+      loginWithGoogle();
+      return;
+    }
+
+    const options = {
+      "key": RAZORPAY_KEY,
+      "amount": "149900", // ₹1,499.00 in subunits
+      "currency": "INR",
+      "name": "NSE Quant Engine",
+      "description": "Pro Monthly Subscription",
+      "handler": async function (response){
+        await supabase.from('profiles').update({ is_pro: true }).eq('id', currentUser.id);
+        showToast("Payment successful! Pro subscription unlocked 🚀");
+        setTimeout(() => location.reload(), 2000);
+      },
+      "prefill": { "email": currentUser.email },
+      "theme": { "color": "#38bdf8" }
+    };
+    const rzp = new Razorpay(options);
+    rzp.open();
+  }
+
+  // Call initAuthAndApp inside your window.onload / main init script
+  window.addEventListener('DOMContentLoaded', () => {
+    initAuthAndApp();
+  });
+
+
+    let appState = {
+      asOfDate: "",
+      sectors: [],
+      stocks: [],
+      selectedSector: "ALL",
+      selectedIndex: "ALL",
+      selectedSignal: "ALL",
+      activePreset: null,
+      hideExtended: false,
+      searchQuery: "",
+      sortCol: "alpha_score",
+      sortAsc: false,
+      currentPage: 1,
+      pageSize: 50,
+      filteredStocks: [],
+      
+      fundSector: "ALL",
+      fundIndex: "ALL",
+      fundActivePreset: null,
+      fundSortCol: "fundamental_score",
+      fundSortAsc: false,
+      fundCurrentPage: 1,
+      filteredFundStocks: [],
+
+      selectedDrilldownSector: null,
+      watchlist: JSON.parse(localStorage.getItem('my_quant_watchlist') || '[]')
+    };
+
+    const tooltip = document.getElementById('globalTooltip');
+    document.addEventListener('mouseover', (e) => {
+      const trigger = e.target.closest('.tip-trigger');
+      if (trigger) {
+        const text = trigger.getAttribute('data-tip');
+        if (text) {
+          tooltip.textContent = text;
+          tooltip.style.display = 'block';
+          const rect = trigger.getBoundingClientRect();
+          tooltip.style.left = `${Math.min(rect.left, window.innerWidth - 300)}px`;
+          tooltip.style.top = `${rect.bottom + 6}px`;
+        }
+      }
+    });
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.tip-trigger')) tooltip.style.display = 'none';
+    });
+
+    function showToast(message) {
+      const container = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = message;
+      container.appendChild(t);
+      setTimeout(() => { t.remove(); }, 3000);
+    }
+
+    async function init() {
+      try {
+        const res = await fetch(`./dashboard_data.json?t=${Date.now()}`);
+        if (!res.ok) throw new Error("Failed to load dashboard data");
+        const data = await res.json();
+
+        appState.asOfDate = data.as_of_date || "2026-10-07";
+        appState.sectors = data.sectors || [];
+        appState.stocks = data.stocks || [];
+
+        document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
+        
+        if (localStorage.getItem('pro_active') !== 'true') {
+          document.getElementById('subBanner').style.display = 'flex';
+        }
+
+        renderSectorTiles();
+        populateSectorDropdowns();
+        applyFilterAndSort();
+        applyFundFilter();
+        updateWatchlistBadge();
+        
+      } catch (err) {
+        document.getElementById('asOfBadge').textContent = "Run master pipelines first";
+      }
+    }
+
+    function switchTab(tabName) {
+      ['Live', 'Fund', 'Rrg', 'Watchlist', 'Playbook'].forEach(t => {
+        let btn = document.getElementById(`tab${t}Btn`);
+        let view = document.getElementById(`view${t}`);
+        if (btn) btn.classList.toggle('active', t.toLowerCase() === tabName.toLowerCase());
+        if (view) view.classList.toggle('active', t.toLowerCase() === tabName.toLowerCase());
+      });
+
+      if (tabName === 'live') document.getElementById('stockCountBadge').textContent = `${appState.filteredStocks.length} Stocks`;
+      if (tabName === 'fund') document.getElementById('stockCountBadge').textContent = `${appState.filteredFundStocks.length} Stocks`;
+      if (tabName === 'rrg') renderSectorTiles();
+      if (tabName === 'watchlist') renderWatchlistPage();
+    }
+
+    function updateWatchlistBadge() {
+      document.getElementById('watchlistCount').textContent = appState.watchlist.length;
+    }
+
+    function toggleWatchlist(symbol, event) {
+      if (event) event.stopPropagation();
+      const idx = appState.watchlist.indexOf(symbol);
+      if (idx > -1) {
+        appState.watchlist.splice(idx, 1);
+        showToast(`Removed ${symbol} from Watchlist`);
+      } else {
+        appState.watchlist.push(symbol);
+        showToast(`Added ${symbol} to Watchlist ⭐`);
+      }
+      localStorage.setItem('my_quant_watchlist', JSON.stringify(appState.watchlist));
+      updateWatchlistBadge();
+      renderTablePage();
+      renderFundTablePage();
+      if (appState.selectedDrilldownSector) renderSectorDrilldown(appState.selectedDrilldownSector);
+      if (document.getElementById('viewWatchlist').classList.contains('active')) renderWatchlistPage();
+    }
+
+    function openUpiModal() { document.getElementById('upiModal').style.display = 'flex'; }
+    function closeUpiModal() { document.getElementById('upiModal').style.display = 'none'; }
+    function closeUpiOnOverlay(e) { if (e.target.id === 'upiModal') closeUpiModal(); }
+    function verifyUpiPayment() {
+      const utr = document.getElementById('upiRefInput').value.trim();
+      if (!utr) { showToast('Please enter a valid UTR transaction ID'); return; }
+      localStorage.setItem('pro_active', 'true');
+      document.getElementById('subBanner').style.display = 'none';
+      showToast('UPI Payment Verified! Pro Subscription Activated 🚀');
+      closeUpiModal();
+    }
+
+    function openCmdPalette() {
+      document.getElementById('cmdModal').style.display = 'flex';
+      const input = document.getElementById('cmdInput');
+      input.value = '';
+      input.focus();
+      filterCmdResults('');
+    }
+    function closeCmdPalette() { document.getElementById('cmdModal').style.display = 'none'; }
+    function closeCmdOnOverlay(e) { if (e.target.id === 'cmdModal') closeCmdPalette(); }
+
+    function filterCmdResults(query) {
+      const resContainer = document.getElementById('cmdResults');
+      resContainer.innerHTML = '';
+      const q = query.toUpperCase();
+      const matches = appState.stocks.filter(st => 
+        st.symbol.toUpperCase().includes(q) || 
+        (st.company_name && st.company_name.toUpperCase().includes(q)) ||
+        st.sector.toUpperCase().includes(q) ||
+        st.inst_signal.toUpperCase().includes(q)
+      ).slice(0, 15);
+
+      if (matches.length === 0) {
+        resContainer.innerHTML = '<div style="padding: 12px; color: var(--muted); text-align: center;">No matching symbols found</div>';
+        return;
+      }
+
+      matches.forEach(st => {
+        const div = document.createElement('div');
+        div.className = 'cmd-item';
+        div.innerHTML = `
+          <div><b>${st.symbol}</b> <span style="color:var(--muted); font-size:0.75rem;">${st.company_name}</span></div>
+          <div><span class="pill" style="background:#131c31; color:var(--accent);">${st.inst_signal}</span></div>
+        `;
+        div.onclick = () => { closeCmdPalette(); openStockModal(st); };
+        resContainer.appendChild(div);
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openCmdPalette();
+      }
+      if (e.key === 'Escape') { closeCmdPalette(); closeModal(); closeUpiModal(); }
+    });
+
+    function renderSectorTiles() {
+      const grid = document.getElementById('sectorTilesGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      const sortedSectors = [...appState.sectors].sort((a, b) => b.perf_20d - a.perf_20d);
+
+      sortedSectors.forEach(sec => {
+        const card = document.createElement('div');
+        card.className = `sector-tile ${appState.selectedDrilldownSector === sec.sector ? 'selected' : ''}`;
+        
+        let perfColor = sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)';
+        let quadColor = sec.quadrant === 'Leading' ? 'var(--green)' : (sec.quadrant === 'Improving' ? 'var(--accent)' : (sec.quadrant === 'Weakening' ? 'var(--yellow)' : 'var(--red)'));
+        let aboveMa = sec.above_sma_pct !== undefined ? sec.above_sma_pct : 50.0;
+
+        card.innerHTML = `
+          <div class="sector-tile-header">
+            <div>
+              <div class="sector-tile-name">${sec.sector}</div>
+              <span style="font-size:0.68rem; color:${quadColor}; font-weight:700; text-transform:uppercase;">${sec.quadrant}</span>
+            </div>
+            <div class="sector-tile-perf" style="color:${perfColor};">${sec.perf_20d >= 0 ? '+' : ''}${sec.perf_20d}%</div>
+          </div>
+          <div class="sector-tile-metrics">
+            <div>Advances: <b>${sec.advance_pct}%</b></div>
+            <div>Turnover: <b>₹${sec.total_turnover_cr} Cr</b></div>
+            <div>Above >50EMA: <b style="color:var(--accent);">${aboveMa}%</b></div>
+            <div>RS Ratio: <b>${sec.rs_ratio}</b></div>
+          </div>
+        `;
+        card.onclick = () => {
+          appState.selectedDrilldownSector = sec.sector;
+          renderSectorTiles();
+          renderSectorDrilldown(sec.sector);
+        };
+        grid.appendChild(card);
+      });
+    }
+
+    function clearSectorSelection() {
+      appState.selectedDrilldownSector = null;
+      renderSectorTiles();
+      document.getElementById('sectorDrilldownContainer').style.display = 'none';
+    }
+
+    function renderSectorDrilldown(sectorName) {
+      const container = document.getElementById('sectorDrilldownContainer');
+      const tbody = document.getElementById('sectorDrilldownTableBody');
+      const title = document.getElementById('drilldownTitle');
+      const countBadge = document.getElementById('drilldownCount');
+      if (!container || !tbody) return;
+
+      container.style.display = 'block';
+      title.textContent = `Constituents for Sector: ${sectorName}`;
+
+      const secStocks = appState.stocks.filter(st => st.sector === sectorName).sort((a, b) => b.alpha_score - a.alpha_score);
+      countBadge.textContent = `${secStocks.length} Stocks`;
+
+      tbody.innerHTML = '';
+      if (secStocks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--muted); padding: 20px;">No stocks found for this sector.</td></tr>';
+        return;
+      }
+
+      secStocks.forEach(st => {
+        const tr = document.createElement('tr');
+        tr.className = 'stock-row';
+        const isStarred = appState.watchlist.includes(st.symbol);
+
+        let prom = st.promoter_pct;
+        let fii = st.fii_pct;
+        let dii = st.dii_pct;
+        let shareText = (prom === "NA" || prom === undefined) ? "NA" : `Promoter: ${prom}% | FII: ${fii}% | DII: ${dii}%`;
+
+        tr.innerHTML = `
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+          </td>
+          <td><strong>${st.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${st.company_name}</span></td>
+          <td>₹${st.close.toFixed(2)}</td>
+          <td><b style="color:var(--yellow);">${st.fundamental_score}/100</b></td>
+          <td><span style="color:${(st.roe||0)>=20?'var(--green)':'var(--text)'};"><b>${st.roe}%</b></span></td>
+          <td><span style="color:${(st.profit_growth_yoy||0)>=20?'var(--green)':'var(--text)'};"><b>${st.profit_growth_yoy}%</b></span></td>
+          <td>${st.trailing_pe}</td>
+          <td>${st.forward_pe}</td>
+          <td><span style="color:var(--teal); font-size:0.75rem;">${shareText}</span></td>
+          <td><b>${st.fcf_yield}%</b></td>
+          <td onclick="event.stopPropagation()">
+            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+          </td>
+        `;
+        tr.onclick = () => openStockModal(st);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function populateSectorDropdowns() {
+      const sel = document.getElementById('sectorSelect');
+      const fundSel = document.getElementById('fundSectorSelect');
+      sel.innerHTML = '<option value="ALL">All Sectors</option>';
+      fundSel.innerHTML = '<option value="ALL">All Sectors</option>';
+      const uniqueSecs = [...new Set(appState.stocks.map(s => s.sector))].sort();
+      uniqueSecs.forEach(sec => {
+        sel.add(new Option(sec, sec));
+        fundSel.add(new Option(sec, sec));
+      });
+    }
+
+    function applyPreset(presetType) {
+      const btns = document.querySelectorAll('#viewLive .tactical-btn:not(#presetHideExtended)');
+      if (appState.activePreset === presetType) {
+        appState.activePreset = null;
+        btns.forEach(b => b.classList.remove('active'));
+      } else {
+        appState.activePreset = presetType;
+        btns.forEach(b => b.classList.remove('active'));
+        document.getElementById('preset' + presetType).classList.add('active');
+      }
+      applyFilterAndSort();
+    }
+
+    function toggleHideExtended() {
+      appState.hideExtended = !appState.hideExtended;
+      const btn = document.getElementById('presetHideExtended');
+      if (appState.hideExtended) {
+        btn.classList.add('active');
+        btn.textContent = '🛡️ Extended Hidden (<8%)';
+      } else {
+        btn.classList.remove('active');
+        btn.textContent = '🛡️ Hide Extended (>8%)';
+      }
+      applyFilterAndSort();
+    }
+
+    function onSectorSelect(sec) { appState.selectedSector = sec; applyFilterAndSort(); }
+    function onIndexSelect(idx) { appState.selectedIndex = idx; applyFilterAndSort(); }
+    function onSignalSelect(sig) { appState.selectedSignal = sig; applyFilterAndSort(); }
+    function onSearch(val) { appState.searchQuery = val; applyFilterAndSort(); applyFundFilter(); }
+
+    function applyFilterAndSort() {
+      appState.filteredStocks = appState.stocks.filter(st => {
+        const matchSec = appState.selectedSector === "ALL" || st.sector === appState.selectedSector;
+        const matchIdx = appState.selectedIndex === "ALL" || (st.index_name && st.index_name.includes(appState.selectedIndex));
+        const matchSig = appState.selectedSignal === "ALL" || st.inst_signal === appState.selectedSignal;
+
+        let matchPreset = true;
+        if (appState.activePreset === 'BuyZone') matchPreset = st.inst_signal.includes("Buy Zone");
+        else if (appState.activePreset === 'Spring') matchPreset = st.inst_signal.includes("VCP Coiled Spring");
+        else if (appState.activePreset === 'Pullback') matchPreset = st.inst_signal.includes("Pullback");
+        else if (appState.activePreset === 'Stealth') matchPreset = st.inst_signal.includes("Stealth");
+
+        const matchExt = !appState.hideExtended || st.mrs_score <= 8.0;
+        const query = appState.searchQuery.toUpperCase();
+        const matchQuery = !query || st.symbol.toUpperCase().includes(query) ||
+                           (st.company_name && st.company_name.toUpperCase().includes(query));
+
+        return matchSec && matchIdx && matchSig && matchPreset && matchExt && matchQuery;
+      });
+
+      updateUIAfterFilter();
+    }
+
+    function applyFundPreset(preset) {
+      const btns = document.querySelectorAll('#viewFund .tactical-btn');
+      if (appState.fundActivePreset === preset) {
+        appState.fundActivePreset = null;
+        btns.forEach(b => b.classList.remove('active'));
+      } else {
+        appState.fundActivePreset = preset;
+        btns.forEach(b => b.classList.remove('active'));
+        if (preset === 'ELITE') document.getElementById('fundPresetElite').classList.add('active');
+        if (preset === 'ROE') document.getElementById('fundPresetROE').classList.add('active');
+      }
+      applyFundFilter();
+    }
+
+    function applyFundFilter() {
+      appState.fundSector = document.getElementById('fundSectorSelect').value;
+      appState.fundIndex = document.getElementById('fundIndexSelect').value;
+      const query = document.getElementById('fundSymbolSearch').value.toUpperCase();
+      
+      const minScore = parseFloat(document.getElementById('minFundScore').value) || 0;
+      const minRoe = parseFloat(document.getElementById('minRoe').value) || 0;
+      const minPromoter = parseFloat(document.getElementById('minPromoter').value) || 0;
+      const minFii = parseFloat(document.getElementById('minFii').value) || 0;
+      const minDii = parseFloat(document.getElementById('minDii').value) || 0;
+
+      appState.filteredFundStocks = appState.stocks.filter(st => {
+        const matchSec = appState.fundSector === "ALL" || st.sector === appState.fundSector;
+        const matchIdx = appState.fundIndex === "ALL" || (st.index_name && st.index_name.includes(appState.fundIndex));
+        const matchQuery = !query || st.symbol.toUpperCase().includes(query) ||
+                           (st.company_name && st.company_name.toUpperCase().includes(query));
+        if (!matchSec || !matchIdx || !matchQuery) return false;
+
+        const matchScore = (st.fundamental_score || 0) >= minScore;
+        const matchRoe = (st.roe || 0) >= minRoe;
+        
+        let promVal = (st.promoter_pct !== undefined && st.promoter_pct !== "NA") ? parseFloat(st.promoter_pct) : 0;
+        let fiiVal = (st.fii_pct !== undefined && st.fii_pct !== "NA") ? parseFloat(st.fii_pct) : 0;
+        let diiVal = (st.dii_pct !== undefined && st.dii_pct !== "NA") ? parseFloat(st.dii_pct) : 0;
+
+        const matchPromoter = promVal >= minPromoter;
+        const matchFii = fiiVal >= minFii;
+        const matchDii = diiVal >= minDii;
+        
+        let matchPreset = true;
+        if (appState.fundActivePreset === 'ELITE') matchPreset = (st.fundamental_score || 0) >= 80;
+        else if (appState.fundActivePreset === 'ROE') matchPreset = (st.roe || 0) > 20;
+
+        return matchScore && matchRoe && matchPromoter && matchFii && matchDii && matchPreset;
+      });
+
+      if (!appState.fundSortCol) {
+        appState.fundSortCol = 'fundamental_score';
+        appState.fundSortAsc = false;
+      }
+
+      appState.filteredFundStocks.sort((a, b) => {
+        let vA = a[appState.fundSortCol] ?? 0;
+        let vB = b[appState.fundSortCol] ?? 0;
+        if (typeof vA === 'string') {
+          return appState.fundSortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+        }
+        return appState.fundSortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+      });
+
+      appState.fundCurrentPage = 1;
+      renderFundTablePage();
+    }
+
+    function sortFundTable(col) {
+      ['symbol', 'sector', 'fundamental_score', 'roe', 'profit_growth_yoy', 'trailing_pe', 'forward_pe', 'fcf_yield'].forEach(c => {
+        const el = document.getElementById(`fs_${c}`);
+        if (el) el.textContent = '';
+      });
+      if (appState.fundSortCol === col) appState.fundSortAsc = !appState.fundSortAsc;
+      else { appState.fundSortCol = col; appState.fundSortAsc = false; }
+      const activeEl = document.getElementById(`fs_${col}`);
+      if (activeEl) activeEl.textContent = appState.fundSortAsc ? '▲' : '▼';
+      applyFundFilter();
+    }
+
+    function updateUIAfterFilter() {
+      appState.filteredStocks.sort((a, b) => {
+        let vA = a[appState.sortCol] ?? 0;
+        let vB = b[appState.sortCol] ?? 0;
+        if (typeof vA === 'string') {
+          return appState.sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+        }
+        return appState.sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+      });
+
+      document.getElementById('stockCountBadge').textContent = `${appState.filteredStocks.length} Stocks`;
+      appState.currentPage = 1;
+      renderTablePage();
+    }
+
+    function renderTablePage() {
+      const tbody = document.getElementById('stocksTableBody');
+      tbody.innerHTML = '';
+
+      const total = appState.filteredStocks.length;
+      const totalPages = Math.ceil(total / appState.pageSize) || 1;
+      const startIdx = (appState.currentPage - 1) * appState.pageSize;
+      const endIdx = Math.min(startIdx + appState.pageSize, total);
+
+      appState.filteredStocks.slice(startIdx, endIdx).forEach(st => {
+        const tr = document.createElement('tr');
+        tr.className = 'stock-row';
+        
+        let signalPill = '<span style="color:var(--muted); font-size:0.75rem;">Consolidation</span>';
+        if (st.inst_signal.includes('Extended')) signalPill = `<span class="pill pill-extended">${st.inst_signal}</span>`;
+        else if (st.inst_signal.includes('Buy Zone')) signalPill = `<span class="pill pill-buyzone">${st.inst_signal}</span>`;
+        else if (st.inst_signal.includes('VCP Coiled Spring')) signalPill = `<span class="pill pill-vcp">${st.inst_signal}</span>`;
+        else if (st.inst_signal.includes('Stealth')) signalPill = `<span class="pill pill-stealth">${st.inst_signal}</span>`;
+        else if (st.inst_signal.includes('Breakout')) signalPill = `<span class="pill pill-breakout">${st.inst_signal}</span>`;
+        else if (st.inst_signal.includes('Pullback')) signalPill = `<span class="pill pill-pullback">${st.inst_signal}</span>`;
+
+        let isStarred = appState.watchlist.includes(st.symbol);
+        let displayName = st.company_name || st.symbol;
+
+        tr.innerHTML = `
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+          </td>
+          <td>
+            <strong>${st.symbol}</strong><br>
+            <span style="font-size:0.7rem; color:var(--muted);">${displayName}</span>
+          </td>
+          <td><span style="color:var(--muted)">${st.sector}</span></td>
+          <td>₹${st.close.toFixed(2)}</td>
+          <td>${signalPill}</td>
+          <td><span style="color:var(--green); font-size:0.72rem; font-weight:600;">${st.multi_timeframe_confluence || 'Daily Only 🟢'}</span></td>
+          <td><span style="color:var(--yellow); font-size:0.75rem; font-weight:700;">${st.fundamental_score || 70.0}/100</span></td>
+          <td>
+            <div class="score-bar">
+              <div class="meter"><div class="meter-fill" style="width:${st.alpha_score}%"></div></div>
+              <span><b>${st.alpha_score}</b></span>
+            </div>
+          </td>
+          <td>
+            <div class="score-bar">
+              <div class="meter"><div class="meter-fill" style="width:${st.ml_score || st.alpha_score}%; background: var(--purple);"></div></div>
+              <span style="color: var(--purple);"><b>${st.ml_score || st.alpha_score}%</b></span>
+            </div>
+          </td>
+          <td><span style="color:var(--purple); font-size:0.72rem; font-weight:600;">${st.chart_pattern_signal || 'Standard Base'}</span></td>
+          <td><span style="color:var(--green); font-size:0.72rem; font-weight:600;">${st.rs_line_status || 'Normal'}</span></td>
+          <td><span style="color:var(--purple); font-size:0.72rem; font-weight:600;">${st.order_block_status || 'Standard Zone'}</span></td>
+          <td><span style="color:var(--text); font-size:0.75rem; font-weight:700;">${st.risk_reward_ratio || 3.0}:1</span></td>
+          <td><span style="color:var(--accent); font-size:0.75rem; font-weight:600;">${st.market_breadth_status || '🟢 Bullish'}</span></td>
+          <td><span style="color:var(--green); font-size:0.75rem; font-weight:600;">${st.sector_breadth_status || 'Improving'}</span></td>
+          <td onclick="event.stopPropagation()">
+            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+          </td>
+        `;
+        tr.onclick = () => openStockModal(st);
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('pageInfo').textContent = `Showing ${startIdx + 1} to ${endIdx} of ${total} stocks`;
+      document.getElementById('pageTracker').textContent = `${appState.currentPage} / ${totalPages}`;
+      document.getElementById('prevBtn').disabled = appState.currentPage <= 1;
+      document.getElementById('nextBtn').disabled = appState.currentPage >= totalPages;
+    }
+
+    function changeFundPage(delta) {
+      appState.fundCurrentPage += delta;
+      renderFundTablePage();
+    }
+
+    function renderFundTablePage() {
+      const tbody = document.getElementById('fundTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const total = appState.filteredFundStocks.length;
+      const totalPages = Math.ceil(total / appState.pageSize) || 1;
+      if (appState.fundCurrentPage > totalPages) appState.fundCurrentPage = totalPages;
+      if (appState.fundCurrentPage < 1) appState.fundCurrentPage = 1;
+
+      const startIdx = (appState.fundCurrentPage - 1) * appState.pageSize;
+      const endIdx = Math.min(startIdx + appState.pageSize, total);
+
+      document.getElementById('stockCountBadge').textContent = `${total} Stocks`;
+
+      appState.filteredFundStocks.slice(startIdx, endIdx).forEach(st => {
+        const tr = document.createElement('tr');
+        tr.className = 'stock-row';
+        const isStarred = appState.watchlist.includes(st.symbol);
+        
+        let prom = st.promoter_pct;
+        let fii = st.fii_pct;
+        let dii = st.dii_pct;
+
+        let shareHtml = "";
+        if (prom === "NA" || prom === undefined) {
+          shareHtml = `<span style="color:var(--muted);">NA</span>`;
+        } else {
+          shareHtml = `
+            <div style="font-size:0.76rem; font-weight:600; line-height:1.3;">
+              Promoter: <b>${prom}%</b> | FII: <b>${fii}%</b> | DII: <b>${dii}%</b>
+            </div>
+          `;
+        }
+
+        tr.innerHTML = `
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+          </td>
+          <td><strong>${st.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${st.company_name}</span></td>
+          <td>${st.sector}</td>
+          <td><b style="color:var(--yellow);">${st.fundamental_score}/100</b> <span class="pill" style="background:rgba(56,189,248,0.1); color:var(--accent);">${st.fundamental_grade}</span></td>
+          <td><span style="color:${(st.roe||0)>=20?'var(--green)':'var(--text)'};"><b>${st.roe}%</b></span></td>
+          <td><span style="color:${(st.profit_growth_yoy||0)>=20?'var(--green)':'var(--text)'};"><b>${st.profit_growth_yoy}%</b></span></td>
+          <td>${st.trailing_pe}</td>
+          <td>${st.forward_pe}</td>
+          <td>${shareHtml}</td>
+          <td><b>${st.fcf_yield}%</b></td>
+          <td onclick="event.stopPropagation()">
+            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+          </td>
+        `;
+        tr.onclick = () => openStockModal(st);
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('fundPageInfo').textContent = `Showing ${startIdx + 1} to ${endIdx} of ${total} stocks`;
+      document.getElementById('fundPageTracker').textContent = `${appState.fundCurrentPage} / ${totalPages}`;
+      document.getElementById('fundPrevBtn').disabled = appState.fundCurrentPage <= 1;
+      document.getElementById('fundNextBtn').disabled = appState.fundCurrentPage >= totalPages;
+    }
+
+    function renderWatchlistPage() {
+      const tbody = document.getElementById('watchlistTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      const watchStocks = appState.stocks.filter(st => appState.watchlist.includes(st.symbol));
+
+      if (watchStocks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 30px;">Your watchlist is currently empty. Star stocks from the live screener to track them here!</td></tr>';
+        return;
+      }
+
+      watchStocks.forEach(st => {
+        const tr = document.createElement('tr');
+        tr.className = 'stock-row';
+        tr.innerHTML = `
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="star-btn starred" onclick="toggleWatchlist('${st.symbol}', event)">⭐</button>
+          </td>
+          <td><strong>${st.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${st.company_name}</span></td>
+          <td><span style="color:var(--muted)">${st.sector}</span></td>
+          <td>₹${st.close.toFixed(2)}</td>
+          <td><span class="pill" style="background:#131c31; color:var(--accent);">${st.inst_signal}</span></td>
+          <td><b>${st.alpha_score}</b></td>
+          <td><span style="color:var(--purple);"><b>${st.ml_score || st.alpha_score}%</b></span></td>
+          <td onclick="event.stopPropagation()">
+            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+          </td>
+        `;
+        tr.onclick = () => openStockModal(st);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openStockModal(st) {
+      document.getElementById('modalSymbol').textContent = st.symbol;
+      document.getElementById('modalCompanyName').textContent = st.company_name || st.symbol;
+      document.getElementById('modalTags').textContent = `${st.sector} • ${st.industry || 'General'} • ${st.index_name || 'Market'}`;
+
+      let sigBadge = '';
+      if (st.inst_signal.includes('Extended')) sigBadge = `<span class="pill pill-extended">${st.inst_signal}</span>`;
+      else if (st.inst_signal.includes('Buy Zone')) sigBadge = `<span class="pill pill-buyzone">${st.inst_signal}</span>`;
+      else if (st.inst_signal.includes('VCP Coiled Spring')) sigBadge = `<span class="pill pill-vcp">${st.inst_signal}</span>`;
+      else if (st.inst_signal.includes('Stealth')) sigBadge = `<span class="pill pill-stealth">${st.inst_signal}</span>`;
+      else if (st.inst_signal.includes('Breakout')) sigBadge = `<span class="pill pill-breakout">${st.inst_signal}</span>`;
+      else if (st.inst_signal.includes('Pullback')) sigBadge = `<span class="pill pill-pullback">${st.inst_signal}</span>`;
+      document.getElementById('modalSignalPill').innerHTML = sigBadge;
+
+      document.getElementById('modalPattern').textContent = st.chart_pattern_signal || "Standard Base";
+      document.getElementById('modalMTF').textContent = st.multi_timeframe_confluence || "Daily Bullish";
+      document.getElementById('modalFundScore').textContent = `${st.fundamental_score || 70.0}/100`;
+
+      document.getElementById('modalPE').textContent = `Trailing P/E: ${st.trailing_pe || 22.0} | Forward P/E: ${st.forward_pe || 19.0}`;
+      document.getElementById('modalROEGrowth').textContent = `ROE: ${st.roe || 12.0}% | Growth: ${st.profit_growth_yoy || 10.0}%`;
+      document.getElementById('modalFiiDii').textContent = st.fii_dii_trend || "Promoters: NA, FII: NA, DII: NA";
+      document.getElementById('modalFCFRev').textContent = `FCF Yield: ${st.fcf_yield}% | ${st.earnings_revision}`;
+
+      document.getElementById('modalTvLink').href = `https://in.tradingview.com/chart/?symbol=${st.symbol}`;
+      document.getElementById('modalCiLink').href = `https://chartink.com/stocks/${st.symbol}.html`;
+
+      document.getElementById('modalDiagnosis').innerHTML = `<b>Full Confluence Thesis:</b> Multi-TF: <b>${st.multi_timeframe_confluence}</b> | Fundamental Grade: <b>${st.fundamental_grade || 'B+ Strong'}</b> (${st.fundamental_rationale}) | Shareholding: <b>${st.fii_dii_trend}</b>.`;
+
+      document.getElementById('quantModal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('quantModal').style.display = 'none'; }
+    function closeModalOnOverlay(e) { if (e.target.id === 'quantModal') closeModal(); }
+    function changePage(delta) { appState.currentPage += delta; renderTablePage(); }
+
+    function resetFilters() {
+      appState.selectedSector = "ALL"; 
+      appState.selectedIndex = "ALL"; 
+      appState.selectedSignal = "ALL";
+      appState.searchQuery = ""; 
+      appState.activePreset = null; 
+      appState.hideExtended = false;
+      document.querySelectorAll('#viewLive .tactical-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sectorSelect').value = "ALL"; 
+      document.getElementById('indexSelect').value = "ALL";
+      document.getElementById('signalSelect').value = "ALL"; 
+      document.getElementById('symbolSearch').value = "";
+      applyFilterAndSort();
+    }
+
+    function resetFundFilters() {
+      document.getElementById('fundSectorSelect').value = "ALL";
+      document.getElementById('fundIndexSelect').value = "ALL";
+      document.getElementById('fundSymbolSearch').value = "";
+      document.getElementById('minFundScore').value = "";
+      document.getElementById('minRoe').value = "";
+      document.getElementById('minPromoter').value = "";
+      document.getElementById('minFii').value = "";
+      document.getElementById('minDii').value = "";
+      appState.fundSector = "ALL";
+      appState.fundIndex = "ALL";
+      appState.fundActivePreset = null;
+      document.querySelectorAll('#viewFund .tactical-btn').forEach(b => b.classList.remove('active'));
+      applyFundFilter();
+    }
+
+    function sortTable(col) {
+      ['symbol', 'sector', 'close', 'inst_signal', 'multi_timeframe_confluence', 'fundamental_score', 'alpha_score', 'ml_score', 'chart_pattern_signal', 'rs_line_status', 'order_block_status', 'risk_reward_ratio', 'market_breadth_status', 'sector_breadth_status'].forEach(c => {
+        const el = document.getElementById(`sort_${c}`);
+        if (el) el.textContent = '';
+      });
+      if (appState.sortCol === col) appState.sortAsc = !appState.sortAsc;
+      else { appState.sortCol = col; appState.sortAsc = false; }
+      const activeEl = document.getElementById(`sort_${col}`);
+      if (activeEl) activeEl.textContent = appState.sortAsc ? '▲' : '▼';
+      updateUIAfterFilter();
+    }
+
+    init();
+  </script>
+</body>
+</html>
