@@ -3,7 +3,7 @@
 <head>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  Razorpay Checkout Script -->
+  <!-- Razorpay Checkout Script -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -618,7 +618,7 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
     const RAZORPAY_KEY = 'YOUR_RAZORPAY_KEY_ID_HERE';
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
     let userProfile = null;
 
@@ -698,7 +698,7 @@
         updateWatchlistBadge();
 
         // 2. Resolve User Session & Cloud Watchlist after stocks are loaded
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await sb.auth.getSession();
         if (session) {
           currentUser = session.user;
           await fetchUserProfile(currentUser.id);
@@ -712,7 +712,7 @@
     }
 
     async function fetchUserProfile(userId) {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      const { data } = await sb.from('profiles').select('*').eq('id', userId).single();
       userProfile = data;
       evaluateAccess();
       await loadCloudWatchlist();
@@ -747,14 +747,14 @@
 
     // --- Google Login Actions ---
     async function loginWithGoogle() {
-      await supabase.auth.signInWithOAuth({
+      await sb.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin }
       });
     }
 
     async function handleLogout() {
-      await supabase.auth.signOut();
+      await sb.auth.signOut();
       location.reload();
     }
 
@@ -772,7 +772,7 @@
     // --- Cloud Watchlist Sync Integration ---
     async function loadCloudWatchlist() {
       if (!currentUser) return;
-      const { data } = await supabase.from('watchlists').select('symbol').eq('user_id', currentUser.id);
+      const { data } = await sb.from('watchlists').select('symbol').eq('user_id', currentUser.id);
       if (data) {
         appState.watchlist = data.map(item => item.symbol);
         localStorage.setItem('my_quant_watchlist', JSON.stringify(appState.watchlist));
@@ -792,11 +792,11 @@
       const idx = appState.watchlist.indexOf(symbol);
       if (idx > -1) {
         appState.watchlist.splice(idx, 1);
-        await supabase.from('watchlists').delete().eq('user_id', currentUser.id).eq('symbol', symbol);
+        await sb.from('watchlists').delete().eq('user_id', currentUser.id).eq('symbol', symbol);
         showToast(`Removed ${symbol} from Watchlist`);
       } else {
         appState.watchlist.push(symbol);
-        await supabase.from('watchlists').insert([{ user_id: currentUser.id, symbol: symbol }]);
+        await sb.from('watchlists').insert([{ user_id: currentUser.id, symbol: symbol }]);
         showToast(`Added ${symbol} to Watchlist ⭐`);
       }
 
@@ -823,7 +823,7 @@
         "name": "NSE Quant Engine",
         "description": "Pro Monthly Subscription",
         "handler": async function (response){
-          await supabase.from('profiles').update({ is_pro: true }).eq('id', currentUser.id);
+          await sb.from('profiles').update({ is_pro: true }).eq('id', currentUser.id);
           showToast("Payment successful! Pro subscription unlocked 🚀");
           setTimeout(() => location.reload(), 2000);
         },
