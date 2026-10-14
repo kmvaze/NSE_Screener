@@ -3,24 +3,15 @@ import io
 import json
 import os
 import subprocess
-import time
 import zipfile
 from datetime import date, datetime, timedelta
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CSV_STORE = os.path.join(DATA_DIR, "csv_store")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
-FUNDAMENTALS_FILE = os.path.join(DATA_DIR, "fundamentals_master.csv")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 
@@ -28,796 +19,665 @@ os.makedirs(CSV_STORE, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        " (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nseindia.com/",
 }
 
+# Embedded official constituent mappings to eliminate missing-index bugs
+NIFTY_50_SYMBOLS = {
+    "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", 
+    "BAJFINANCE", "BEL", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA", "COALINDIA", "DRREDDY", 
+    "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", 
+    "HINDUNILVR", "ICICIBANK", "INDUSINDBK", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", 
+    "M&M", "MARUTI", "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", 
+    "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", 
+    "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
+}
+
+NIFTY_NEXT_50_SYMBOLS = {
+    "ABB", "AMBUJACEM", "BANKBARODA", "BERGEPAINT", "BHEL", "BOSCHLTD", "CANBK", "CHOLAFIN", 
+    "COLPAL", "DLF", "GAIL", "GODREJCP", "HAL", "HAVELLS", "ICICIGI", "ICICIPRULI", "INDIGO", 
+    "IOC", "IRCTC", "JINDALSTEL", "JIOFIN", "LTIM", "MOTHERSON", "NAUKRI", "PIDILITIND", 
+    "PFC", "PNB", "RECLTD", "SIEMENS", "SRF", "TORNTPHARM", "TVSMOTOR", "UNITDSPR", "VBL", 
+    "VEDL", "ZYDUSLIFE", "ZOMATO"
+}
+
 def download_with_curl(url: str) -> bytes:
     cookie_file = os.path.join(DATA_DIR, "nse_cookies.txt")
-    init_cmd = [
-        "curl", "-s", "-c", cookie_file, "-b", cookie_file,
-        "-A", HEADERS["User-Agent"],
-        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "-H", "Accept-Language: en-US,en;q=0.9",
-        "https://www.nseindia.com/"
-    ]
-    try:
-        subprocess.run(init_cmd, capture_output=True, timeout=10)
-    except Exception:
-        pass
+    init_cmd = ["curl", "-s", "-c", cookie_file, "-b", cookie_file, "-A", HEADERS["User-Agent"], "https://www.nseindia.com/"]
+    try: subprocess.run(init_cmd, capture_output=True, timeout=10)
+    except: pass
 
-    cmd = [
-        "curl", "-s", "-L", "-b", cookie_file,
-        "-A", HEADERS["User-Agent"],
-        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "-H", "Accept-Language: en-US,en;q=0.9",
-        "-H", "Referer: https://www.nseindia.com/",
-        "--compressed",
-        url
-    ]
+    cmd = ["curl", "-s", "-L", "-b", cookie_file, "-A", HEADERS["User-Agent"], "-H", "Referer: https://www.nseindia.com/", "--compressed", url]
     try:
         res = subprocess.run(cmd, capture_output=True, timeout=25)
-        if res.returncode == 0 and len(res.stdout) > 5000:
-            return res.stdout
-    except Exception:
-        pass
+        if res.returncode == 0 and len(res.stdout) > 5000: return res.stdout
+    except: pass
     return b""
 
-def get_max_allowed_date() -> date:
-    now = datetime.now()
-    if now.hour < 16 or (now.hour == 16 and now.minute < 30):
-        return date.today() - timedelta(days=1)
-    else:
-        return date.today()
+def load_index_mappings() -> dict:
+    symbol_to_meta = {}
+    files_to_parse = [
+        (["ind_nifty50list.csv", "nifty50.csv"], "Nifty 50"),
+        (["ind_niftynext50list.csv", "niftynext50.csv"], "Nifty Next 50"),
+        (["ind_nifty500list.csv", "nifty500.csv"], "Nifty 500"),
+        (["ind_niftymidcap150list.csv", "niftymidcap150.csv"], "Nifty Midcap 150"),
+        (["ind_niftysmallcap250list.csv", "niftysmallcap250.csv"], "Nifty Smallcap 250"),
+        (["ind_niftymicrocap250_list.csv", "ind_niftymicrocap250list.csv", "niftymicrocap250.csv"], "Nifty Microcap 250"),
+        (["ind_niftyIPO_list.csv", "niftyipo.csv"], "Nifty IPO")
+    ]
+    for filename_candidates, index_name in files_to_parse:
+        valid_path = None
+        for fn in filename_candidates:
+            p = next((x for x in [os.path.join(DATA_DIR, fn), os.path.join(BASE_DIR, fn), fn] if os.path.exists(x)), None)
+            if p:
+                valid_path = p
+                break
+        if not valid_path: continue
+        try:
+            df = pd.read_csv(valid_path)
+            df.columns = [c.strip() for c in df.columns]
+            sym_col = next((c for c in df.columns if "SYMBOL" in c.upper()), df.columns[0])
+            name_col = next((c for c in df.columns if "COMPANY" in c.upper() or "NAME" in c.upper()), df.columns[0])
+            ind_col = next((c for c in df.columns if "INDUSTRY" in c.upper() or "SECTOR" in c.upper()), None)
+            for _, r in df.iterrows():
+                sym = str(r[sym_col]).strip().upper()
+                if not sym or sym == "NAN": continue
+                cname = str(r[name_col]).strip() if pd.notna(r[name_col]) else sym
+                industry = str(r[ind_col]).strip() if ind_col and pd.notna(r[ind_col]) else "General Equities"
+                if sym not in symbol_to_meta:
+                    symbol_to_meta[sym] = {"indices": [index_name], "company_name": cname, "sector": industry}
+                else:
+                    if index_name not in symbol_to_meta[sym]["indices"]:
+                        symbol_to_meta[sym]["indices"].append(index_name)
+        except Exception as e:
+            print(f"[!] Error parsing index file {valid_path}: {e}")
 
-def infer_quarter_from_date(date_str):
-    try:
-        dt = pd.to_datetime(date_str)
-        m = dt.month
-        y = dt.year % 100
-        if m in [4, 5, 6]: q = "Q1"
-        elif m in [7, 8, 9]: q = "Q2"
-        elif m in [10, 11, 12]: q = "Q3"
-        else: q = "Q4"
-        fy = y + 1 if m >= 4 else y
-        return f"({q} FY{fy:02d})"
-    except Exception:
-        return "(Q2 FY27)"
+    # Fallback verification for Nifty 50 and Next 50
+    for sym in NIFTY_50_SYMBOLS:
+        if sym in symbol_to_meta:
+            if "Nifty 50" not in symbol_to_meta[sym]["indices"]:
+                symbol_to_meta[sym]["indices"].insert(0, "Nifty 50")
+            if "Nifty 500" not in symbol_to_meta[sym]["indices"]:
+                symbol_to_meta[sym]["indices"].append("Nifty 500")
+        else:
+            symbol_to_meta[sym] = {"indices": ["Nifty 50", "Nifty 500"], "company_name": sym, "sector": "General Equities"}
 
-def resolve_sector_and_index(symbol: str, company_name: str):
-    sym_upper = symbol.upper()
-    text = f"{symbol} {company_name}".upper()
-    
-    if "ETF" in sym_upper or "BEES" in sym_upper or "ETF" in text:
-        return "Automobile and Auto Components" if "AUTO" in text else "Financial Services", "Exchange Traded Fund", "ETFs"
+    for sym in NIFTY_NEXT_50_SYMBOLS:
+        if sym in symbol_to_meta:
+            if "Nifty Next 50" not in symbol_to_meta[sym]["indices"]:
+                symbol_to_meta[sym]["indices"].insert(0, "Nifty Next 50")
+            if "Nifty 500" not in symbol_to_meta[sym]["indices"]:
+                symbol_to_meta[sym]["indices"].append("Nifty 500")
+        else:
+            symbol_to_meta[sym] = {"indices": ["Nifty Next 50", "Nifty 500"], "company_name": sym, "sector": "General Equities"}
 
-    if any(k in text for k in ["PHARMA", "DRUG", "HEALTHCARE", "LABORATORIES", "LABS", "HOSPITAL", "MEDICARE", "BIOTECH", "LIFE SCIENCES", "MEDICAL", "DIAGNOSTIC", "REMEDIES", "PARENTERAL"]):
-        return "Healthcare", "Pharmaceuticals & Healthcare", "Broad Market / Microcap"
-    if any(k in text for k in [" BANK", "FINANCE", "FINANCIAL", "HOUSING FINANCE", "CAPITAL", "INVESTMENT", "SECURITIES", "HOLDINGS", "WEALTH", "INSURANCE", "LEASING", "FINTECH", "AMC", "BROKING", "CREDIT", "MUTUAL"]):
-        return "Financial Services", "Financial Services & Banking", "Broad Market / Microcap"
-    if any(k in text for k in ["AUTO", "MOTORS", "TYRE", "TYRES", "FORGING", "FORGINGS", "BRAKE", "AXLE", "AXLES", "GEAR", "GEARS", "VEHICLE", "VEHICLES", "AUTOMOTIVE", "WHEEL", "WHEELS", "BATTERIES", "RINGS"]):
-        return "Automobile and Auto Components", "Auto Components & Equipments", "Broad Market / Microcap"
-    if any(k in text for k in ["TELECOM", "NETWORKS", "COMMUNICATION"]):
-        return "Telecommunication", "Telecom Services & Equipment", "Broad Market / Microcap"
-    if any(k in text for k in ["TECH", "SOFTWARE", "INFOTECH", "DIGITAL", "CYBER", "EGOV", "COMPUTER", "DATA", "ELECTRONIC SOLUTIONS"]):
-        return "Information Technology", "IT Services & Consulting", "Broad Market / Microcap"
-    if any(k in text for k in ["STEEL", "METALS", "MINING", "MINERALS", "ALUMINIUM", "COPPER", "ZINC", "IRON", "ALLOYS", "TUBING", "TUBES", "TUBE", "PIPES", "PIPE", "FOUNDRY", "CASTING", "CAST"]):
-        return "Metals & Mining", "Metals & Mining", "Broad Market / Microcap"
-    if any(k in text for k in ["CHEMICAL", "FERTILIZER", "ORGANICS", "PETROCHEM", "DYES", "PIGMENT", "CARBON", "PESTICIDE", "CHLORO", "FERT"]):
-        return "Chemicals", "Chemicals & Petrochemicals", "Broad Market / Microcap"
-    if any(k in text for k in ["REALTY", "PROPERTIES", "ESTATE", "DEVELOPERS", "REALTOR"]):
-        return "Realty", "Real Estate Development", "Broad Market / Microcap"
-    if any(k in text for k in ["INFRACONSTRUCTION", "CONSTRUCTION", "INFRASTRUCTURE", "PROJECTS", "HOUSING", "BUILDER", "BUILDERS", "ENGINEERS"]):
-        return "Construction", "Civil Construction & Contracting", "Broad Market / Microcap"
-    if any(k in text for k in ["POWER", "SOLAR", "RENEWABLE", "ELECTRIC", "ELECTRICAL", "GRID", "THERMAL", "HYDRO", "WIND", "ENERGY"]):
-        return "Power", "Power Generation & Distribution", "Broad Market / Microcap"
-    if any(k in text for k in ["ENGINEERING", "EQUIPMENT", "MACHINERY", "INSTRUMENTS", "SWITCHGEARS", "VALVES", "PUMPS", "TRANSFORMERS", "SWITCHGEAR", "TOOLS", "EXTRUSION"]):
-        return "Capital Goods", "Heavy Electrical & Engineering", "Broad Market / Microcap"
-    if any(k in text for k in ["TEXTILE", "TEXTILES", "SPINNING", "WEAVING", "COTTON", "SILK", "YARN", "SYNTHETICS", "GARMENT", "GARMENTS", "APPAREL", "DENIM", "FASHION"]):
-        return "Textiles", "Textiles & Garments", "Broad Market / Microcap"
-    if any(k in text for k in ["SUGAR", "FOOD", "FOODS", "BEVERAGE", "BEVERAGES", "TEA", "COFFEE", "DAIRY", "MILK", "BREWERIES", "BREWERY", "DISTILLERIES", "DISTILLERY", "AGRO", "SEED", "SEEDS", "OILS", "CONSUMER PRODUCTS", "TOBACCO"]):
-        return "Fast Moving Consumer Goods", "Packaged Foods & Beverages", "Broad Market / Microcap"
-    if any(k in text for k in ["HOTEL", "HOTELS", "RESORTS", "TRAVEL", "RESTAURANT", "RESTAURANTS", "RETAIL", "SHOPS", "STOP"]):
-        return "Consumer Services", "Hospitality & Retail", "Broad Market / Microcap"
-    if any(k in text for k in ["LOGISTICS", "TRANSPORT", "SHIPPING", "CARRIERS", "AVIATION", "AIRWAYS", "DELIVERY", "SUPPLY CHAIN", "CARGO"]):
-        return "Services", "Logistics & Transport", "Broad Market / Microcap"
-    if any(k in text for k in ["CEMENT", "CEMENTS", "CERAMICS", "TILES", "GLASS", "REFRACTORIES", "PAINTS", "PLYWOOD", "LAMINATES"]):
-        return "Construction Materials", "Building Materials", "Broad Market / Microcap"
-    if any(k in text for k in ["MEDIA", "FILMS", "ENTERTAINMENT", "TELEVISION", "BROADCASTING", "PUBLICATIONS", "NEWS", "CINEMA", "STUDIOS"]):
-        return "Media Entertainment & Publication", "Media & Entertainment", "Broad Market / Microcap"
-    if any(k in text for k in ["ELECTRONICS", "APPLIANCES", "DURABLES", "FOOTWEAR", "JEWELLERY", "JEWEL", "JEWELS", "GOLD", "DIAMOND", "WATCH"]):
-        return "Consumer Durables", "Consumer Durables & Jewellery", "Broad Market / Microcap"
-    if any(k in text for k in ["OIL", "GAS", "PETROLEUM", "FUELS", "REFINERIES", "LUBRICANTS", "DRILLING"]):
-        return "Oil Gas & Consumable Fuels", "Oil & Gas", "Broad Market / Microcap"
-    return "Capital Goods", "Heavy Electrical & Engineering", "Broad Market / Microcap"
-
-def get_empty_metrics(symbol: str) -> dict:
-    is_etf = "ETF" in symbol.upper() or "BEES" in symbol.upper()
     return {
-        "roe": 0.0 if is_etf else 15.0, 
-        "profit_growth_yoy": 0.0 if is_etf else 15.0, 
-        "trailing_pe": 0.0 if is_etf else 22.0, 
-        "forward_pe": 0.0 if is_etf else 19.0,
-        "promoter_pledging": 0.0, 
-        "debt_to_equity": 0.0,
-        "promoter_pct": "NA", 
-        "fii_pct": "NA", 
-        "dii_pct": "NA",
-        "fii_change_qoq": "NA", 
-        "dii_change_qoq": "NA",
-        "fii_dii_trend": "Promoters: NA, FII: NA, DII: NA",
-        "fcf_yield": 0.0, 
-        "earnings_revision": "Not Applicable (ETF)" if is_etf else "NA", 
-        "next_earnings_date": "N/A",
-        "fundamental_score": 50.0 if is_etf else 70.0, 
-        "fundamental_grade": "ETF Instrument" if is_etf else "C Watch",
-        "fundamental_rationale": "Exchange Traded Fund (Basket Instrument)." if is_etf else "Institutional holding filings unavailable (NA)."
+        sym: {
+            "index": ", ".join(meta["indices"]),
+            "company_name": meta["company_name"],
+            "sector": meta["sector"]
+        } for sym, meta in symbol_to_meta.items()
     }
 
-def fetch_live_fundamental_metrics(symbol: str) -> dict:
-    if "ETF" in symbol.upper() or "BEES" in symbol.upper():
-        return get_empty_metrics(symbol)
-
-    if not YFINANCE_AVAILABLE:
-        return get_empty_metrics(symbol)
-    
-    for attempt in range(2):
-        try:
-            t = yf.Ticker(f"{symbol}.NS")
-            info = t.info
-            if not info or ("trailingPE" not in info and "returnOnEquity" not in info):
-                raise ValueError("Rate-limited or empty info")
-
-            roe = float(info.get("returnOnEquity", 0.16) * 100.0)
-            rev_growth = float(info.get("revenueGrowth", 0.15) * 100.0)
-            trailing_pe = float(info.get("trailingPE", 22.0))
-            forward_pe = float(info.get("forwardPE", 18.5))
-            debt_to_eq = float(info.get("debtToEquity", 35.0) / 100.0)
-            
-            insider_pct = info.get("heldPercentInsiders")
-            inst_pct = info.get("heldPercentInstitutions")
-            
-            prom_val = round(float(insider_pct * 100.0), 1) if insider_pct is not None and not pd.isna(insider_pct) else "NA"
-            fii_val = round(float(inst_pct * 100.0), 1) if inst_pct is not None and not pd.isna(inst_pct) else "NA"
-            dii_val = round(max(0.0, 100.0 - prom_val - fii_val), 1) if prom_val != "NA" and fii_val != "NA" else "NA"
-
-            fii_dii_str = f"Promoters: {prom_val}%, FII: {fii_val}%, DII: {dii_val}%" if prom_val != "NA" else "Promoters: NA, FII: NA, DII: NA"
-            
-            free_cashflow = float(info.get("freeCashflow", 0.0))
-            market_cap = float(info.get("marketCap", 10000000000.0) + 1e-5)
-            fcf_yield_val = round((free_cashflow / market_cap) * 100.0, 2) if free_cashflow != 0.0 else 0.0
-            
-            eps_trend = info.get("earningsQuarterlyGrowth", 0.0)
-            next_earn = "N/A"
-            try:
-                cal = t.calendar
-                if cal is not None and "Earnings Date" in cal:
-                    ed_list = cal["Earnings Date"]
-                    if len(ed_list) > 0:
-                        next_earn = pd.to_datetime(ed_list[0]).strftime("%Y-%m-%d")
-            except Exception:
-                pass
-
-            q_str = infer_quarter_from_date(next_earn) if next_earn != "N/A" else "(Q2 FY27)"
-            rev_trend_str = f"Positive Revision (+{eps_trend*100:.1f}% YoY) {q_str}" if eps_trend and eps_trend > 0 else f"Neutral / Stable Revision {q_str}"
-
-            roe_score = min(100.0, max(0.0, (roe / 25.0) * 100.0))
-            growth_score = min(100.0, max(0.0, ((rev_growth + 5.0) / 35.0) * 100.0))
-            fcf_score = min(100.0, max(0.0, (fcf_yield_val / 8.0) * 100.0))
-            pe_bonus = 10.0 if forward_pe < trailing_pe else 0.0
-
-            composite_score = round(min(100.0, max(0.0, (roe_score * 0.35) + (growth_score * 0.35) + (fcf_score * 0.20) + pe_bonus)), 1)
-            grade = "A+ Elite" if composite_score >= 80 else ("B+ Strong" if composite_score >= 65 else "C Watch")
-            rationale = f"ROE: {roe:.1f}%, YoY Growth: {rev_growth:.1f}%, FCF Yield: {fcf_yield_val}%, Trailing/Forward P/E: {trailing_pe:.1f}/{forward_pe:.1f}."
-
-            return {
-                "roe": round(roe, 1),
-                "profit_growth_yoy": round(rev_growth, 1),
-                "trailing_pe": round(trailing_pe, 1),
-                "forward_pe": round(forward_pe, 1),
-                "promoter_pledging": 0.0,
-                "debt_to_equity": round(debt_to_eq, 2),
-                "promoter_pct": prom_val,
-                "fii_pct": fii_val,
-                "dii_pct": dii_val,
-                "fii_change_qoq": "NA",
-                "dii_change_qoq": "NA",
-                "fii_dii_trend": fii_dii_str,
-                "fcf_yield": fcf_yield_val,
-                "earnings_revision": rev_trend_str,
-                "next_earnings_date": next_earn,
-                "fundamental_score": composite_score,
-                "fundamental_grade": grade,
-                "fundamental_rationale": rationale
-            }
-        except Exception:
-            if attempt < 1:
-                time.sleep(1.0)
-                continue
-            else:
-                return get_empty_metrics(symbol)
-
-def ensure_metadata_and_fundamentals():
-    eq_rows = []
-    existing_meta = set()
-    if os.path.exists(METADATA_FILE):
-        try:
-            m_df = pd.read_csv(METADATA_FILE).drop_duplicates(subset=["symbol"])
-            for _, r in m_df.iterrows():
-                sym = str(r["symbol"]).strip().upper()
-                existing_meta.add(sym)
-                sec, ind, idx_tag = resolve_sector_and_index(sym, str(r.get("company_name", sym)))
-                eq_rows.append({
-                    "symbol": sym,
-                    "company_name": str(r.get("company_name", sym)),
-                    "sector": str(r.get("sector", sec)),
-                    "industry": str(r.get("industry", ind)),
-                    "index_name": str(r.get("index_name", idx_tag))
-                })
-        except Exception:
-            pass
-
-    if len(eq_rows) < 3000:
-        target_total = 3200
-        core_bluechips = [
-            ("RELIANCE", "Reliance Industries Limited", "Oil Gas & Consumable Fuels", "Oil & Gas", "Nifty 50"),
-            ("TCS", "Tata Consultancy Services Limited", "Information Technology", "IT Services", "Nifty 50"),
-            ("HDFCBANK", "HDFC Bank Limited", "Financial Services", "Banking", "Nifty 50"),
-            ("ICICIBANK", "ICICI Bank Limited", "Financial Services", "Banking", "Nifty 50"),
-            ("INFY", "Infosys Limited", "Information Technology", "IT Services", "Nifty 50"),
-            ("ITC", "ITC Limited", "Fast Moving Consumer Goods", "Packaged Foods", "Nifty 50"),
-            ("SBIN", "State Bank of India", "Financial Services", "Banking", "Nifty 50"),
-            ("BHARTIARTL", "Bharti Airtel Limited", "Telecommunication", "Telecom Services", "Nifty 50"),
-            ("LICI", "Life Insurance Corporation of India", "Financial Services", "Insurance", "Nifty 50"),
-            ("HINDUNILVR", "Hindustan Unilever Limited", "Fast Moving Consumer Goods", "Personal Care", "Nifty 50"),
-            ("LT", "Larsen & Toubro Limited", "Construction", "Engineering", "Nifty 50"),
-            ("BAJFINANCE", "Bajaj Finance Limited", "Financial Services", "NBFC", "Nifty 50"),
-            ("SUNPHARMA", "Sun Pharmaceutical Industries Limited", "Healthcare", "Pharmaceuticals", "Nifty 50"),
-            ("TATAMOTORS", "Tata Motors Limited", "Automobile and Auto Components", "Automobiles", "Nifty 50"),
-            ("MARUTI", "Maruti Suzuki India Limited", "Automobile and Auto Components", "Automobiles", "Nifty 50"),
-            ("AXISBANK", "Axis Bank Limited", "Financial Services", "Banking", "Nifty 50"),
-            ("KOTAKBANK", "Kotak Mahindra Bank Limited", "Financial Services", "Banking", "Nifty 50"),
-            ("ASIANPAINT", "Asian Paints Limited", "Consumer Durables", "Paints", "Nifty 50"),
-            ("TITAN", "Titan Company Limited", "Consumer Durables", "Jewellery", "Nifty 50"),
-            ("NTPC", "NTPC Limited", "Power", "Power Generation", "Nifty 50"),
-            ("AUTOIETF", "AUTOIETF Limited", "Automobile and Auto Components", "Exchange Traded Fund", "ETFs"),
-            ("AUTOBEES", "AUTOBEES Limited", "Automobile and Auto Components", "Exchange Traded Fund", "ETFs")
-        ]
-        
-        for sym, cname, sec, ind, idx in core_bluechips:
-            if sym not in existing_meta:
-                eq_rows.append({"symbol": sym, "company_name": cname, "sector": sec, "industry": ind, "index_name": idx})
-                existing_meta.add(sym)
-
-        import random
-        random.seed(42)
-        prefixes = ["GLOBE", "ZENITH", "APEX", "VANGUARD", "PRIME", "STAR", "SUN", "MOON", "TECH", "ECO", "MEGA", "ULTRA", "SHREE", "TATA", "KIRAN", "VERTEX", "AURA", "NOVA", "ORION", "TITAN", "PIONEER", "NEXUS", "DYNAMIC", "FLEXI", "FUTURE", "SHIVALIK", "VINDHYA", "HIMACHAL", "KAVERI", "GANGA", "KRISHNA", "NARMADA", "GODAVARI", "MAHANADI", "BROAD", "OMNI", "UNIVERSAL", "UNITED", "ALLIED", "GENERAL", "NATIONAL", "FEDERAL", "IMPERIAL", "ROYAL", "PARAMOUNT", "SUMMIT", "PINNACLE", "APOLLO", "HERCULES"]
-        suffixes = ["IND", "TECH", "CORP", "LTD", "FIN", "AUTO", "PHARMA", "STEEL", "CHEM", "INFRA", "POWER", "AGRO", "MEDIA", "LOGIS", "REALT", "TEXT", "COMM", "CAP", "VENT", "SOLAR"]
-
-        while len(eq_rows) < target_total:
-            p = random.choice(prefixes)
-            s = random.choice(suffixes)
-            num = random.randint(10, 999)
-            sym = f"{p}{s}{num}".upper()
-            if sym not in existing_meta:
-                existing_meta.add(sym)
-                sec, ind, idx_tag = resolve_sector_and_index(sym, f"{p} {s} Industries Limited")
-                eq_rows.append({
-                    "symbol": sym,
-                    "company_name": f"{p} {s} Industries Limited",
-                    "sector": sec,
-                    "industry": ind,
-                    "index_name": idx_tag
-                })
-
+def ensure_metadata(active_symbols: list):
+    symbol_meta = load_index_mappings()
+    eq_rows = [{
+        "symbol": sym, "company_name": meta["company_name"],
+        "sector": meta["sector"], "industry": meta["sector"], "index_name": meta["index"]
+    } for sym, meta in symbol_meta.items() if sym in active_symbols]
     pd.DataFrame(eq_rows).drop_duplicates(subset=["symbol"]).to_csv(METADATA_FILE, index=False)
-    print(f"[✓] Metadata master synchronized dynamically. Total NSE universe evaluated: {len(eq_rows)} stocks.")
-
-    existing_fund_df = pd.DataFrame()
-    existing_symbols = set()
-    if os.path.exists(FUNDAMENTALS_FILE):
-        try:
-            existing_fund_df = pd.read_csv(FUNDAMENTALS_FILE).drop_duplicates(subset=["symbol"])
-            if "symbol" in existing_fund_df.columns:
-                existing_symbols = set(existing_fund_df["symbol"].astype(str))
-        except Exception:
-            pass
-
-    new_rows = []
-    missing_eqs = [r for r in eq_rows if r["symbol"] not in existing_symbols]
-    if missing_eqs:
-        for r in missing_eqs[:50]:
-            sym = r["symbol"]
-            metrics = fetch_live_fundamental_metrics(sym)
-            metrics["symbol"] = sym
-            new_rows.append(metrics)
-            time.sleep(0.01)
-        
-        for r in missing_eqs[50:]:
-            sym = r["symbol"]
-            is_etf = "ETF" in sym or "BEES" in sym
-            new_rows.append({
-                "symbol": sym, 
-                "roe": 0.0 if is_etf else 15.0,
-                "profit_growth_yoy": 0.0 if is_etf else 15.0,
-                "trailing_pe": 0.0 if is_etf else 20.0,
-                "forward_pe": 0.0 if is_etf else 18.0,
-                "promoter_pledging": 0.0, "debt_to_equity": 0.0,
-                "promoter_pct": "NA", "fii_pct": "NA", "dii_pct": "NA",
-                "fii_change_qoq": "NA", "dii_change_qoq": "NA",
-                "fii_dii_trend": "Promoters: NA, FII: NA, DII: NA",
-                "fcf_yield": 0.0,
-                "earnings_revision": "Not Applicable (ETF)" if is_etf else "Neutral / Stable Revision", 
-                "next_earnings_date": "N/A",
-                "fundamental_score": 50.0 if is_etf else 70.0,
-                "fundamental_grade": "ETF Instrument" if is_etf else "B+ Strong",
-                "fundamental_rationale": "Exchange Traded Fund." if is_etf else "Standard verified metrics."
-            })
-
-        new_df = pd.DataFrame(new_rows)
-        combined_df = pd.concat([existing_fund_df, new_df], ignore_index=True).drop_duplicates(subset=["symbol"]) if not existing_fund_df.empty else new_df.drop_duplicates(subset=["symbol"])
-        combined_df.to_csv(FUNDAMENTALS_FILE, index=False)
-    
-    full_fund_df = pd.read_csv(FUNDAMENTALS_FILE).drop_duplicates(subset=["symbol"])
-    
-    for col, default_val in [("promoter_pct", "NA"), ("fii_pct", "NA"), ("dii_pct", "NA"), ("fii_change_qoq", "NA"), ("dii_change_qoq", "NA")]:
-        if col not in full_fund_df.columns:
-            full_fund_df[col] = default_val
-    full_fund_df.to_csv(FUNDAMENTALS_FILE, index=False)
 
 def fetch_udiff_bhavcopy(target_date: date) -> pd.DataFrame:
     d_udiff = target_date.strftime("%Y%m%d")
     url = f"https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d_udiff}_F_0000.csv.zip"
     content = download_with_curl(url)
-    if not content or len(content) < 5000:
-        return pd.DataFrame()
-
+    if not content or len(content) < 5000: return pd.DataFrame()
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as zf:
             csv_candidates = [n for n in zf.namelist() if n.endswith(".csv")]
-            if not csv_candidates:
-                return pd.DataFrame()
-
+            if not csv_candidates: return pd.DataFrame()
             with zf.open(csv_candidates[0]) as csv_file:
                 df = pd.read_csv(csv_file)
                 df.columns = [c.strip() for c in df.columns]
-
                 series_col = "SctySrs" if "SctySrs" in df.columns else "SERIES"
                 symbol_col = "TckrSymb" if "TckrSymb" in df.columns else "SYMBOL"
-
                 df = df[df[series_col].isin(["EQ", "BE", "SM"])]
-
-                opn_col = "OpnPric" if "OpnPric" in df.columns else "OPEN_PRICE"
-                hgh_col = "HghPric" if "HghPric" in df.columns else "HIGH_PRICE"
-                lw_col = "LwPric" if "LwPric" in df.columns else "LOW_PRICE"
-                cls_col = "ClsPric" if "ClsPric" in df.columns else "CLOSE_PRICE"
-                vol_col = "TtlTradgVol" if "TtlTradgVol" in df.columns else "TTL_TRD_QNTY"
-                val_col = "TtlTrfVal" if "TtlTrfVal" in df.columns else "TURNOVER_LACS"
-
-                res_df = pd.DataFrame({
+                return pd.DataFrame({
                     "symbol": df[symbol_col].astype(str).str.strip(),
-                    "open": pd.to_numeric(df[opn_col], errors="coerce"),
-                    "high": pd.to_numeric(df[hgh_col], errors="coerce"),
-                    "low": pd.to_numeric(df[lw_col], errors="coerce"),
-                    "close": pd.to_numeric(df[cls_col], errors="coerce"),
-                    "volume": pd.to_numeric(df[vol_col], errors="coerce"),
-                    "turnover_cr": pd.to_numeric(df[val_col], errors="coerce") / 10000000.0
-                })
-                return res_df.drop_duplicates(subset=["symbol"]).dropna(subset=["symbol", "close"])
-    except Exception:
-        return pd.DataFrame()
+                    "open": pd.to_numeric(df["OpnPric" if "OpnPric" in df.columns else "OPEN_PRICE"], errors="coerce"),
+                    "high": pd.to_numeric(df["HghPric" if "HghPric" in df.columns else "HIGH_PRICE"], errors="coerce"),
+                    "low": pd.to_numeric(df["LwPric" if "LwPric" in df.columns else "LOW_PRICE"], errors="coerce"),
+                    "close": pd.to_numeric(df["ClsPric" if "ClsPric" in df.columns else "CLOSE_PRICE"], errors="coerce"),
+                    "volume": pd.to_numeric(df["TtlTradgVol" if "TtlTradgVol" in df.columns else "TTL_TRD_QNTY"], errors="coerce")
+                }).drop_duplicates(subset=["symbol"]).dropna(subset=["symbol", "close"])
+    except: return pd.DataFrame()
 
 def fetch_mto_delivery(target_date: date) -> pd.DataFrame:
     d_mto = target_date.strftime("%d%m%Y")
     url = f"https://nsearchives.nseindia.com/archives/equities/mto/MTO_{d_mto}.DAT"
     content = download_with_curl(url)
-    if not content or len(content) < 1000:
-        return pd.DataFrame(columns=["symbol", "deliv_qty", "deliv_pct"])
-
+    if not content or len(content) < 1000: return pd.DataFrame(columns=["symbol", "deliv_qty", "deliv_pct"])
     rows = []
     for line in content.decode("utf-8", errors="ignore").splitlines():
         parts = [p.strip() for p in line.split(",")]
         if len(parts) >= 7 and parts[0] == "20" and parts[3] in ["EQ", "BE", "SM"]:
-            try:
-                rows.append({
-                    "symbol": parts[2],
-                    "deliv_qty": int(parts[5]),
-                    "deliv_pct": float(parts[6]),
-                })
-            except (ValueError, IndexError):
-                continue
+            try: rows.append({"symbol": parts[2], "deliv_qty": int(parts[5]), "deliv_pct": float(parts[6])})
+            except: continue
     return pd.DataFrame(rows).drop_duplicates(subset=["symbol"]) if rows else pd.DataFrame(columns=["symbol", "deliv_qty", "deliv_pct"])
 
-def download_session_data(target_date: date) -> pd.DataFrame:
-    df = fetch_udiff_bhavcopy(target_date)
-    if df.empty:
-        return pd.DataFrame()
-
-    delivery_df = fetch_mto_delivery(target_date)
-    if delivery_df.empty or "deliv_qty" not in delivery_df.columns:
-        delivery_df = pd.DataFrame(columns=["symbol", "deliv_qty", "deliv_pct"])
-        delivery_df["symbol"] = df["symbol"]
-        delivery_df["deliv_qty"] = (df["volume"] * 0.6).astype(int)
-        delivery_df["deliv_pct"] = 60.0
-
-    merged = pd.merge(df, delivery_df, on="symbol", how="left").drop_duplicates(subset=["symbol"])
-    if "deliv_qty" not in merged.columns:
-        merged["deliv_qty"] = (merged["volume"] * 0.6).astype(int)
-    if "deliv_pct" not in merged.columns:
-        merged["deliv_pct"] = 60.0
-
-    merged["deliv_qty"] = merged["deliv_qty"].fillna(0)
-    merged["deliv_pct"] = merged["deliv_pct"].fillna(50.0)
-    merged["date"] = target_date.strftime("%Y-%m-%d")
-    return merged
-
 def update_incremental_store(lookback_days: int = 720):
-    ensure_metadata_and_fundamentals()
-    
     now = datetime.now()
     max_allowed = date.today() if now.hour >= 16 and now.minute >= 30 else (date.today() - timedelta(days=1))
     target_check = max_allowed
-
     latest_session = None
     for _ in range(5):
-        d_udiff = target_check.strftime("%Y%m%d")
-        test_url = f"https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d_udiff}_F_0000.csv.zip"
-        test_content = download_with_curl(test_url)
-        if len(test_content) > 5000:
+        if len(download_with_curl(f"https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{target_check.strftime('%Y%m%d')}_F_0000.csv.zip")) > 5000:
             latest_session = target_check
             break
         target_check -= timedelta(days=1)
-
-    if not latest_session:
-        print("[!] Could not resolve latest trading session archive.")
-        return
-
-    print(f"[*] Forcing synchronization of latest active session: {latest_session}")
-    collected = 0
-
+    if not latest_session: return
+    
     for i in range(min(lookback_days, 720), -1, -1):
         target = latest_session - timedelta(days=i)
-        if target.weekday() >= 5:
-            continue
-
+        if target.weekday() >= 5: continue
         date_iso = target.strftime("%Y-%m-%d")
-        partition_dir = os.path.join(CSV_STORE, f"date={date_iso}")
-        target_file = os.path.join(partition_dir, "part.csv")
-
-        if os.path.exists(target_file) and target != latest_session:
-            collected += 1
-            continue
-
-        df = download_session_data(target)
+        target_file = os.path.join(CSV_STORE, f"date={date_iso}", "part.csv")
+        if os.path.exists(target_file) and target != latest_session: continue
+        df = fetch_udiff_bhavcopy(target)
         if not df.empty:
-            os.makedirs(partition_dir, exist_ok=True)
-            df.drop_duplicates(subset=["symbol"]).to_csv(target_file, index=False)
-            collected += 1
+            delivery_df = fetch_mto_delivery(target)
+            merged = pd.merge(df, delivery_df, on="symbol", how="left").fillna({"deliv_qty": 0, "deliv_pct": 50.0})
+            merged["date"] = date_iso
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            merged.drop_duplicates(subset=["symbol"]).to_csv(target_file, index=False)
 
-    print(f"[✓] Data store ready. Verified active trading session synchronized to: {latest_session}")
+def detect_genuine_chart_patterns(prices, volumes, highs, lows):
+    n = len(prices)
+    if n < 25:
+        return 0.90, "", 21
 
-def compute_advanced_vcp(prices, volumes, highs, lows):
-    if len(prices) < 30:
-        return 0.9, "Standard Base"
-    
-    chunk_size = max(15, len(prices) // 4)
-    contractions = []
-    for i in range(0, len(prices) - chunk_size, chunk_size):
-        seg_high = np.max(highs[i:i+chunk_size])
-        seg_low = np.min(lows[i:i+chunk_size])
-        depth = (seg_high - seg_low) / (seg_high + 1e-5) * 100.0
-        contractions.append(depth)
-    
-    if len(contractions) >= 3:
-        is_tightening = contractions[-1] <= contractions[0] * 0.8
-        final_depth = contractions[-1]
-        
-        if is_tightening or final_depth <= 12.0:
-            return 0.55, "🎯 VCP Coiled Spring"
-            
-    if len(prices) >= 120 and prices[-1] >= np.max(prices[-250:]) * 0.95:
-        return 0.55, "🎯 VCP Coiled Spring"
-    elif len(prices) >= 120 and prices[-1] > prices[0] * 1.05:
-        return 0.85, "🟢 2-Year Multi-Month Base / W-Bottom"
-    elif len(prices) >= 10 and prices[-1] > prices[0] * 1.02:
-        return 0.9, "🟢 Double Bottom + RSI Bullish Divergence"
-        
-    return 0.9, "Standard Base"
+    # 1. High-Tight Bull Flag & Pole (21 Sessions)
+    if n >= 25:
+        pole_start = prices[-25]
+        pole_peak = np.max(highs[-25:-7])
+        flag_low = np.min(lows[-7:])
+        pole_gain = (pole_peak - pole_start) / (pole_start + 1e-5)
+        flag_pullback = (pole_peak - flag_low) / (pole_peak + 1e-5)
+        vol_pole = np.mean(volumes[-25:-7])
+        vol_flag = np.mean(volumes[-7:])
+        if pole_gain >= 0.15 and flag_pullback <= 0.12 and vol_flag < vol_pole:
+            return 0.55, "🚩 High-Tight Flag & Pole", 21
+
+    # 2. VCP Coiled Spring (50 Sessions)
+    if n >= 50:
+        c1 = (np.max(highs[-48:-36]) - np.min(lows[-48:-36])) / (np.max(highs[-48:-36]) + 1e-5)
+        c2 = (np.max(highs[-36:-24]) - np.min(lows[-36:-24])) / (np.max(highs[-36:-24]) + 1e-5)
+        c3 = (np.max(highs[-24:-12]) - np.min(lows[-24:-12])) / (np.max(highs[-24:-12]) + 1e-5)
+        c4 = (np.max(highs[-12:]) - np.min(lows[-12:])) / (np.max(highs[-12:]) + 1e-5)
+        if (c4 < c3 and c3 < c2) or (c4 <= 0.08 and c1 >= 0.14):
+            return 0.55, "🎯 VCP Coiled Spring", 50
+
+    # 3. Multi-Month Accumulation Base / Cup (100 Sessions)
+    if n >= 100:
+        base_high = np.max(highs[-100:])
+        base_low = np.min(lows[-100:])
+        spread_100 = (base_high - base_low) / (base_low + 1e-5)
+        sma_50 = np.mean(prices[-50:])
+        if spread_100 <= 0.22 and prices[-1] >= sma_50:
+            return 0.70, "🟢 Multi-Month Base / Cup", 100
+
+    # 4. Stage 2 Macro Base (200 Sessions)
+    if n >= 200:
+        sma_200 = np.mean(prices[-200:])
+        h_52 = np.max(highs[-200:])
+        if prices[-1] >= sma_200 and (prices[-1] / (h_52 + 1e-5)) >= 0.88:
+            return 0.75, "⚡ Stage 2 Macro Base", 200
+
+    return 0.90, "", 21
 
 def run_screener_engine():
-    ensure_metadata_and_fundamentals()
-    csv_pattern = os.path.join(CSV_STORE, "**/*.csv")
-    found_files = glob.glob(csv_pattern, recursive=True)
+    update_incremental_store(lookback_days=720)
+    symbol_meta = load_index_mappings()
+    target_symbols = list(symbol_meta.keys())
+    if not target_symbols: return
 
-    if not found_files:
-        print("[!] No CSV files found.")
-        return
+    ensure_metadata(target_symbols)
+    found_files = glob.glob(os.path.join(CSV_STORE, "**/*.csv"), recursive=True)
+    if not found_files: return
 
-    dfs = [pd.read_csv(f).drop_duplicates(subset=["symbol", "date"]) for f in found_files]
-    df_all = pd.concat(dfs, ignore_index=True).drop_duplicates(subset=["symbol", "date"])
-
+    df_all = pd.concat([pd.read_csv(f) for f in found_files], ignore_index=True).drop_duplicates(subset=["symbol", "date"])
+    df_all = df_all[df_all["symbol"].isin(target_symbols)]
     master_df = pd.read_csv(METADATA_FILE).drop_duplicates(subset=["symbol"])
-    fund_df = pd.read_csv(FUNDAMENTALS_FILE).drop_duplicates(subset=["symbol"])
+    df_all = pd.merge(df_all, master_df, on="symbol", how="left").fillna({"sector": "Capital Goods", "company_name": df_all["symbol"]})
 
-    df_all = pd.merge(df_all, master_df, on="symbol", how="left", suffixes=('', '_m'))
-    df_all = pd.merge(df_all, fund_df, on="symbol", how="left", suffixes=('', '_f'))
-    if "next_earnings_date" not in df_all.columns:
-        df_all["next_earnings_date"] = "N/A"
-
-    df_all["sector"] = df_all["sector"].fillna("Capital Goods")
-    df_all["industry"] = df_all["industry"].fillna("General")
-    df_all["company_name"] = df_all["company_name"].fillna(df_all["symbol"])
-    
-    df_all["roe"] = df_all["roe"].fillna(12.0) if "roe" in df_all.columns else 12.0
-    df_all["profit_growth_yoy"] = df_all["profit_growth_yoy"].fillna(10.0) if "profit_growth_yoy" in df_all.columns else 10.0
-    df_all["trailing_pe"] = df_all["trailing_pe"].fillna(22.0) if "trailing_pe" in df_all.columns else 22.0
-    df_all["forward_pe"] = df_all["forward_pe"].fillna(19.0) if "forward_pe" in df_all.columns else 19.0
-    df_all["promoter_pledging"] = df_all["promoter_pledging"].fillna(0.0) if "promoter_pledging" in df_all.columns else 0.0
-    df_all["debt_to_equity"] = df_all["debt_to_equity"].fillna(0.3) if "debt_to_equity" in df_all.columns else 0.3
-    df_all["promoter_pct"] = df_all["promoter_pct"].fillna("NA") if "promoter_pct" in df_all.columns else "NA"
-    df_all["fii_pct"] = df_all["fii_pct"].fillna("NA") if "fii_pct" in df_all.columns else "NA"
-    df_all["dii_pct"] = df_all["dii_pct"].fillna("NA") if "dii_pct" in df_all.columns else "NA"
-    df_all["fii_change_qoq"] = df_all["fii_change_qoq"].fillna("NA") if "fii_change_qoq" in df_all.columns else "NA"
-    df_all["dii_change_qoq"] = df_all["dii_change_qoq"].fillna("NA") if "dii_change_qoq" in df_all.columns else "NA"
-    df_all["fii_dii_trend"] = df_all["fii_dii_trend"].fillna("Promoters: NA, FII: NA, DII: NA")
-    df_all["fcf_yield"] = df_all["fcf_yield"].fillna(4.0) if "fcf_yield" in df_all.columns else 4.0
-    df_all["earnings_revision"] = df_all["earnings_revision"].fillna("Neutral (Q2 FY27)") if "earnings_revision" in df_all.columns else "Neutral (Q2 FY27)"
-    df_all["next_earnings_date"] = df_all["next_earnings_date"].fillna("N/A") if "next_earnings_date" in df_all.columns else "N/A"
-    df_all["fundamental_score"] = df_all["fundamental_score"].fillna(70.0) if "fundamental_score" in df_all.columns else 70.0
-    df_all["fundamental_grade"] = df_all["fundamental_grade"].fillna("B+ Strong") if "fundamental_grade" in df_all.columns else "B+ Strong"
-    df_all["fundamental_rationale"] = df_all["fundamental_rationale"].fillna("Standard metrics.") if "fundamental_rationale" in df_all.columns else "Standard metrics."
-
-    dates = sorted(df_all["date"].unique(), reverse=True)
-    latest_date = dates[0]
+    dates = sorted(df_all["date"].unique())
+    latest_date = dates[-1]
     latest_df = df_all[df_all["date"] == latest_date].copy().drop_duplicates(subset=["symbol"])
 
-    lookback_date_20 = dates[min(len(dates)-1, 20)]
+    lookback_idx = max(0, len(dates) - 20)
+    lookback_date_20 = dates[lookback_idx]
     df_20_ago = df_all[df_all["date"] == lookback_date_20][["symbol", "close"]].rename(columns={"close": "close_20d_ago"}).drop_duplicates(subset=["symbol"])
     sec_base = pd.merge(latest_df, df_20_ago, on="symbol", how="left")
+    sec_base["close_20d_ago"] = sec_base["close_20d_ago"].fillna(sec_base["close"])
 
-    recent_dates_720 = dates[:min(len(dates), 720)]
-    df_720d_all = df_all[df_all["date"].isin(recent_dates_720)].sort_values(by=["symbol", "date"])
+    df_250d_all = df_all[df_all["date"].isin(dates[-250:])].sort_values(by=["symbol", "date"])
+    market_pivot = df_250d_all.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
+    market_benchmark = market_pivot.mean(axis=1)
 
-    def compute_rsi(prices):
-        if len(prices) < 2: return 50.0
-        diffs = np.diff(prices)
-        gains = np.where(diffs > 0, diffs, 0)
-        losses = np.where(diffs < 0, -diffs, 0)
-        avg_g = np.mean(gains[-14:]) if len(gains) >= 14 else np.mean(gains)
-        avg_l = np.mean(losses[-14:]) if len(losses) >= 14 else np.mean(losses)
-        if avg_l == 0: return 100.0
-        rs = avg_g / avg_l
-        return round(100.0 - (100.0 / (1.0 + rs)), 1)
+    mkt_len = len(market_benchmark)
+    bm_ret_21 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(21, mkt_len)] + 1e-5)) - 1.0
+    bm_ret_63 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(63, mkt_len)] + 1e-5)) - 1.0
+    bm_ret_126 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(126, mkt_len)] + 1e-5)) - 1.0
+    bm_ret_250 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[0] + 1e-5)) - 1.0
 
     stock_tech_rows = []
     price_history_map = {}
-
-    for sym, grp in df_720d_all.groupby("symbol"):
+    
+    for sym, grp in df_250d_all.groupby("symbol"):
         prices = grp["close"].values
         volumes = grp["volume"].values
         highs = grp["high"].values
         lows = grp["low"].values
+        deliv_pcts = grp["deliv_pct"].values
+        deliv_qtys = grp["deliv_qty"].values
+        s_dates = grp["date"].values
         
-        sma_20 = round(float(np.mean(prices[-20:])), 2)
-        rsi_14 = compute_rsi(prices)
+        n_bars = len(prices)
+        if n_bars < 15: continue
+
+        p_series = pd.Series(prices)
+        close = prices[-1]
+        sma_20 = round(float(np.mean(prices[-min(20, n_bars):])), 2)
+        ema_10 = float(p_series.ewm(span=10, adjust=False).mean().iloc[-1])
+        ema_21 = float(p_series.ewm(span=21, adjust=False).mean().iloc[-1])
+        sma_50 = round(float(p_series.rolling(min(50, n_bars)).mean().iloc[-1]), 2)
+        sma_200 = round(float(p_series.rolling(min(200, n_bars)).mean().iloc[-1]), 2)
+
+        tr_arr = np.maximum(highs[-20:] - lows[-20:], 
+                            np.maximum(np.abs(highs[-20:] - np.roll(prices, 1)[-20:]), 
+                                       np.abs(lows[-20:] - np.roll(prices, 1)[-20:])))
+        atr_20 = float(np.mean(tr_arr))
+
+        diffs = np.diff(prices)
+        avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
+        avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
+        rsi_14 = round(100.0 - (100.0 / (1.0 + (avg_g / (avg_l + 1e-5)))), 1)
+
         min_l, max_h = np.min(lows[-20:]), np.max(highs[-20:])
         stoch_k = round(float(np.clip((prices[-1] - min_l) / (max_h - min_l + 1e-5) * 100.0, 0, 100)), 1)
         
         hist, bins = np.histogram(prices[-50:], bins=10, weights=volumes[-50:])
         poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist)+1]) / 2.0), 2)
+
+        # Weekly Anchor Trend
+        grp_copy = grp.copy()
+        grp_copy["date_dt"] = pd.to_datetime(grp_copy["date"])
+        w_df = grp_copy.set_index("date_dt").resample("W-FRI").agg({
+            "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"
+        }).dropna()
+        w_closes = w_df["close"].values
+        w_n = len(w_closes)
         
-        d_trend = prices[-1] > np.mean(prices[-20:])
-        mtf = "Daily Bullish ⚡" if d_trend else "Mixed / Neutral ⚠️"
+        if w_n >= 15:
+            w_series = pd.Series(w_closes)
+            w_ema10 = w_series.ewm(span=10, adjust=False).mean().iloc[-1]
+            w_sma30 = w_series.rolling(min(30, w_n)).mean().iloc[-1]
+            weekly_trend_bull = (w_closes[-1] >= w_ema10) and (w_ema10 >= w_sma30)
+            weekly_trend_bear = (w_closes[-1] < w_sma30)
+        else:
+            weekly_trend_bull = close >= sma_50
+            weekly_trend_bear = close < sma_50
+
+        # Moving Average Pinch & Volatility Squeeze
+        ma_spread_pct = ((max(ema_10, ema_21, sma_50) - min(ema_10, ema_21, sma_50)) / (close + 1e-5)) * 100.0
+        is_ma_pinched = ma_spread_pct <= 2.8
+
+        roll_20 = p_series.rolling(20)
+        bb_mid = roll_20.mean().iloc[-1]
+        bb_std = roll_20.std().iloc[-1]
+        upper_bb = bb_mid + (2.0 * bb_std)
+        lower_bb = bb_mid - (2.0 * bb_std)
+        upper_kc = sma_20 + (1.5 * atr_20)
+        lower_kc = sma_20 - (1.5 * atr_20)
+        is_squeezed = (upper_bb <= upper_kc) and (lower_bb >= lower_kc)
+
+        # Volume Dry-Up (VDU)
+        vol_5d = np.mean(volumes[-5:])
+        vol_50d = np.mean(volumes[-min(50, n_bars):]) + 1e-5
+        is_vdu = (vol_5d < 0.65 * vol_50d) and ((highs[-1] - lows[-1]) <= 0.85 * atr_20)
+
+        # Leading Relative Strength Line Divergence
+        stock_series = grp.set_index("date")["close"]
+        common_s_idx = stock_series.index.intersection(market_benchmark.index)
+        stk_sub = stock_series.loc[common_s_idx]
+        bm_sub = market_benchmark.loc[common_s_idx]
+        rs_series = (stk_sub / bm_sub).values
+
+        if len(rs_series) >= 63:
+            rs_63_high = np.max(rs_series[-63:-1])
+            price_63_high = np.max(highs[-63:-1])
+            is_rs_divergent = (rs_series[-1] >= rs_63_high) and (close < price_63_high * 0.99)
+            rs_is_new_high = rs_series[-1] >= np.max(rs_series[-21:])
+            rs_is_lagging = rs_series[-1] <= np.min(rs_series[-63:])
+        else:
+            is_rs_divergent = False
+            rs_is_new_high = close >= np.max(prices[-20:-1])
+            rs_is_lagging = False
+
+        # Pocket Pivot Ignition
+        if n_bars >= 11:
+            diffs_10 = np.diff(prices[-11:])
+            down_vols = volumes[-10:][diffs_10 < 0]
+            max_down_vol = np.max(down_vols) if len(down_vols) > 0 else 0
+            is_pocket_pivot = (close > prices[-2]) and (volumes[-1] > max_down_vol) and (close >= ema_10)
+        else:
+            is_pocket_pivot = False
+
+        # Order Block Retest
+        if n_bars >= 15:
+            recent_low = np.min(lows[-15:-2])
+            ob_zone_high = recent_low + (1.2 * atr_20)
+            is_ob_retest = (lows[-1] <= ob_zone_high) and (close >= recent_low) and (volumes[-1] < vol_50d)
+        else:
+            is_ob_retest = False
+
+        base_high = np.max(highs[-min(30, n_bars):])
+        base_low = np.min(lows[-min(30, n_bars):])
+        base_depth_pct = ((base_high - base_low) / (base_high + 1e-5)) * 100.0
+        is_tight_base = base_depth_pct <= 22.0
+        dist_from_20 = (close - sma_20) / (sma_20 + 1e-5)
+        dist_from_50 = (close - sma_50) / (sma_50 + 1e-5)
+        is_not_extended = dist_from_50 <= 0.08 and dist_from_20 <= 0.05
+        is_extended_danger = dist_from_20 > 0.08
+
+        stk_ret_21 = (close / (prices[-min(21, n_bars)] + 1e-5)) - 1.0
+        stk_ret_63 = (close / (prices[-min(63, n_bars)] + 1e-5)) - 1.0
+        stk_ret_126 = (close / (prices[-min(126, n_bars)] + 1e-5)) - 1.0
+        stk_ret_250 = (close / (prices[0] + 1e-5)) - 1.0
+        rs_spread_21 = (stk_ret_21 - bm_ret_21) * 100.0
+        rs_spread_63 = (stk_ret_63 - bm_ret_63) * 100.0
+        rs_spread_126 = (stk_ret_126 - bm_ret_126) * 100.0
+        rs_spread_250 = (stk_ret_250 - bm_ret_250) * 100.0
+        raw_multi_rs = (0.40 * rs_spread_63) + (0.30 * rs_spread_126) + (0.20 * rs_spread_250) + (0.10 * rs_spread_21)
+
+        vcp_rat, pattern, pattern_tf = detect_genuine_chart_patterns(prices, volumes, highs, lows)
+
+        if len(diffs) >= 1:
+            up_vol = np.sum(volumes[1:][diffs > 0][-50:]) if np.any(diffs > 0) else 1.0
+            down_vol = np.sum(volumes[1:][diffs < 0][-50:]) if np.any(diffs < 0) else 1.0
+            up_down_ratio = round(float(up_vol / (down_vol + 1e-5)), 2)
+        else:
+            up_down_ratio = 1.0
+
+        sma_200_20d_ago = np.mean(prices[-min(220, n_bars):-20]) if n_bars >= 30 else sma_200
+        sma_200_slope = (sma_200 - sma_200_20d_ago) / (sma_200_20d_ago + 1e-5)
+        h_52 = np.max(highs)
+        l_52 = np.min(lows)
+        trend_score = 0.0
+        if close > sma_200: trend_score += 25.0
+        if close > sma_50: trend_score += 25.0
+        if sma_50 > sma_200: trend_score += 20.0
+        if sma_200_slope >= 0: trend_score += 10.0
+        if (close / (h_52 + 1e-5)) >= 0.75: trend_score += 10.0
+        if (close / (l_52 + 1e-5)) >= 1.25: trend_score += 10.0
+
+        # DIRECTIONAL DELIVERY ACCUMULATION (Solved the ITC Anomaly)
+        deliv_cash_all = deliv_qtys[-min(30, n_bars):] * prices[-min(30, n_bars):]
+        diffs_deliv = diffs[-min(29, len(diffs)):]
+        deliv_up = np.sum(deliv_cash_all[1:][diffs_deliv > 0]) if np.any(diffs_deliv > 0) else 1.0
+        deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
+        deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
+
+        # IASIS Component Calculations (0 - 100)
+        # Squeeze (0-40)
+        squeeze_component = 40.0 if is_squeezed else (20.0 if is_ma_pinched else 5.0)
+        # Flow (0-35)
+        flow_component = np.clip((deliv_flow_ratio / 1.5) * 35.0, 5.0, 35.0)
+        # Base Quality (0-25)
+        base_component = 25.0 if (is_tight_base and close >= sma_50) else 5.0
         
-        vcp_rat, pattern = compute_advanced_vcp(prices, volumes, highs, lows)
-        rs_line = "🔥 RS Line New High" if len(prices) >= 15 and prices[-1] >= max(prices[-20:-1]) else "Normal RS"
-        
-        # Save history into backend-only dictionary
-        price_history_map[sym] = prices[-250:].tolist()
+        raw_iasis = squeeze_component + flow_component + base_component
+        # If in a downtrend below declining 200 SMA, cap score to prevent false positives
+        if close < sma_200 and close < sma_50:
+            iasis_score = round(float(min(32.0, raw_iasis * 0.35)), 1)
+        else:
+            iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
+
+        # STRICT NON-DEFAULT MULTI-TF CONFLUENCE
+        # Populated ONLY when rigorous multi-timeframe conditions are confirmed
+        if is_rs_divergent and (is_squeezed or is_vdu):
+            mtf_status = "🎯 RS Pre-Breakout Divergence"
+        elif is_pocket_pivot and (is_squeezed or is_ma_pinched):
+            mtf_status = "🚀 MA Pinch + Pocket Pivot"
+        elif is_squeezed and is_tight_base and weekly_trend_bull:
+            mtf_status = "⚡ Weekly+Daily Squeeze Coil"
+        elif is_ma_pinched and is_tight_base and weekly_trend_bull:
+            mtf_status = "🗜️ Tight MA Compression Base"
+        elif weekly_trend_bull and close > sma_50 and sma_50 > sma_200:
+            mtf_status = "🟢 Stage 2 Trend Template"
+        elif weekly_trend_bear:
+            mtf_status = "🔴 Macro Downtrend (Avoid)"
+        else:
+            mtf_status = "—" # No false placeholder!
+
+        risk_unit = max(1.0, 1.5 * atr_20)
+        target_dist = max(base_depth_pct / 100.0 * close, 2.5 * atr_20)
+        rrr_calc = round(min(8.0, max(1.5, target_dist / risk_unit)), 1)
+
+        # Reasons to Avoid Engine (Rule-based risk diagnostic)
+        reasons_to_avoid = []
+        if close < sma_200:
+            reasons_to_avoid.append("Price trading below 200-day SMA (heavy overhead supply)")
+        if close < sma_50:
+            reasons_to_avoid.append("Price below intermediate 50-day SMA (intermediate downtrend)")
+        if is_extended_danger:
+            reasons_to_avoid.append("Price extended >8% above 20 SMA (high risk of mean-reversion pullback)")
+        if rs_is_lagging:
+            reasons_to_avoid.append("Relative strength line making 63-day lows vs benchmark")
+        if up_down_ratio < 0.85:
+            reasons_to_avoid.append("Down-day volume exceeds up-day volume (institutional distribution)")
+        if base_depth_pct > 30.0:
+            reasons_to_avoid.append("Consolidation base too deep (>30% correction, damaged structure)")
+
+        if len(common_s_idx) > 10:
+            stk_norm = (stock_series.loc[common_s_idx] / stock_series.loc[common_s_idx[0]]) * 100.0
+            mkt_norm = (market_benchmark.loc[common_s_idx] / market_benchmark.loc[common_s_idx[0]]) * 100.0
+            stk_rel = (stk_norm - mkt_norm).round(2)
+            price_history_map[sym] = [{"date": str(d), "rs": float(v)} for d, v in zip(common_s_idx, stk_rel.iloc)]
+        else:
+            price_history_map[sym] = []
 
         stock_tech_rows.append({
-            "symbol": sym,
-            "sma_20": sma_20,
-            "rsi_14": rsi_14,
-            "stoch_k": stoch_k,
-            "volume_profile_poc": poc,
-            "multi_timeframe_confluence": mtf,
-            "chart_pattern_signal": pattern,
-            "rs_line_status": rs_line,
-            "avg_deliv_20": grp["deliv_qty"].iloc[-20:].mean(),
-            "atr_20": np.mean(highs[-20:] - lows[-20:]),
-            "vcp_ratio_calc": vcp_rat
+            "symbol": sym, "sma_20": sma_20, "sma_50": sma_50, "sma_200": sma_200,
+            "ema_10": ema_10, "ema_21": ema_21,
+            "rsi_14": rsi_14, "stoch_k": stoch_k, "volume_profile_poc": poc,
+            "multi_timeframe_confluence": mtf_status,
+            "chart_pattern_signal": pattern, "pattern_timeframe": pattern_tf,
+            "rs_line_status": "🔥 RS Line New High" if (rs_is_new_high or is_rs_divergent) else "Normal RS",
+            "order_block_status": "⚡ Demand Zone Retest (Light Vol)" if is_ob_retest else "",
+            "avg_deliv_20": np.mean(deliv_qtys[-min(20, n_bars):]),
+            "atr_20": atr_20, "vcp_ratio_calc": vcp_rat,
+            "iasis_score": iasis_score, "raw_multi_rs": raw_multi_rs, "trend_score": trend_score,
+            "up_down_vol_ratio": up_down_ratio, 
+            "smooth_deliv_expansion": round(float(deliv_flow_ratio), 2),
+            "smooth_deliv_pct": round(float(np.mean(deliv_pcts[-min(20, n_bars):])), 1),
+            "high_52w": h_52, "low_52w": l_52, "risk_reward_calc": rrr_calc,
+            "is_pocket_pivot": is_pocket_pivot, "is_squeezed": is_squeezed,
+            "is_ma_pinched": is_ma_pinched, "is_rs_divergent": is_rs_divergent,
+            "is_not_extended": is_not_extended, "flow_ratio": deliv_flow_ratio,
+            "dist_from_20": dist_from_20, "is_ob_retest": is_ob_retest,
+            "reasons_to_avoid": "; ".join(reasons_to_avoid) if reasons_to_avoid else "None. Technical structure remains constructive."
         })
 
-    # Save dedicated backend price history file
-    with open(PRICE_HISTORY_JSON, "w") as f:
-        json.dump(price_history_map, f)
-    print(f"[✓] Dedicated backend price history updated: {PRICE_HISTORY_JSON}")
+    with open(PRICE_HISTORY_JSON, "w") as f: json.dump(price_history_map, f)
 
-    tech_df = pd.DataFrame(stock_tech_rows).drop_duplicates(subset=["symbol"])
-    ranked = pd.merge(latest_df, tech_df, on="symbol", how="inner").drop_duplicates(subset=["symbol"])
-
-    df_250_all = df_720d_all.groupby("symbol").agg(
-        sma_200=("close", "mean"),
-        high_52w=("high", "max"),
-        low_52w=("low", "min")
-    ).reset_index().drop_duplicates(subset=["symbol"])
-
-    ranked = pd.merge(ranked, df_250_all, on="symbol", how="left").drop_duplicates(subset=["symbol"])
-
-    ranked["d_expansion"] = 1.1
+    ranked = pd.merge(latest_df, pd.DataFrame(stock_tech_rows), on="symbol", how="inner").drop_duplicates(subset=["symbol"])
+    ranked["d_expansion"] = ranked["smooth_deliv_expansion"]
     ranked["deliv_spike"] = (ranked["deliv_qty"] / (ranked["avg_deliv_20"] + 1)).round(2)
     ranked["vcp_ratio"] = ranked["vcp_ratio_calc"]
     ranked["mrs_score"] = (((ranked["close"] / (ranked["sma_20"] + 1e-5)) - 1.0) * 100.0).round(1)
     ranked["absorption_ratio"] = (((ranked["deliv_qty"] * ranked["close"]) / 10000000.0) / (ranked["high"] - ranked["low"] + 0.05)).round(2)
     ranked["atr_stop_loss"] = (ranked["close"] - (1.5 * ranked["atr_20"])).round(2)
     ranked["above_sma20"] = ranked["close"] >= ranked["sma_20"]
+    ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
+    ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
 
     sector_summary = sec_base.groupby("sector").agg(
-        avg_delivery=("deliv_pct", "mean"),
-        total_turnover_cr=("turnover_cr", "sum"),
-        advance_pct=("close", lambda x: (x > sec_base.loc[x.index, "open"]).mean() * 100.0),
-        perf_20d=("close", lambda x: ((x - sec_base.loc[x.index, "close_20d_ago"]) / (sec_base.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0)
+        daily_perf=("close", lambda x: round(float(((x - sec_base.loc[x.index, "open"]) / (sec_base.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
+        advance_pct=("close", lambda x: round(float((x > sec_base.loc[x.index, "open"]).mean() * 100.0), 2)),
+        perf_20d=("close", lambda x: round(float(((x - sec_base.loc[x.index, "close_20d_ago"]) / (sec_base.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2))
     ).reset_index()
 
-    above_sma_map = ranked.groupby("sector")["above_sma20"].mean().mul(100.0).round(1).to_dict()
-    sector_summary["above_sma_pct"] = sector_summary["sector"].map(lambda s: above_sma_map.get(s, 50.0))
+    sector_rs_history = {}
+    for sec_name, sec_grp in df_250d_all.groupby("sector"):
+        sec_pivot = sec_grp.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
+        if not sec_pivot.empty:
+            sec_mean = sec_pivot.mean(axis=1)
+            common_idx = sec_mean.index.intersection(market_benchmark.index)
+            if len(common_idx) > 10:
+                sec_norm = (sec_mean.loc[common_idx] / sec_mean.loc[common_idx[0]]) * 100.0
+                mkt_norm = (market_benchmark.loc[common_idx] / market_benchmark.loc[common_idx[0]]) * 100.0
+                rel_perf = (sec_norm - mkt_norm).round(2)
+                sector_rs_history[sec_name] = [{"date": str(d), "rs": float(v)} for d, v in zip(common_idx, rel_perf.iloc)]
 
-    sector_summary["avg_delivery"] = sector_summary["avg_delivery"].round(1)
-    sector_summary["total_turnover_cr"] = sector_summary["total_turnover_cr"].round(1)
-    sector_summary["advance_pct"] = sector_summary["advance_pct"].round(1)
-    sector_summary["perf_20d"] = sector_summary["perf_20d"].round(2)
+    above_sma50_map = ranked.groupby("sector")["above_sma50"].mean().mul(100.0).round(2).to_dict()
+    sector_summary["above_sma_pct"] = sector_summary["sector"].map(lambda s: above_sma50_map.get(s, 50.0))
     sector_summary["rs_ratio"] = (100.0 + sector_summary["perf_20d"] * 0.35).round(2)
     sector_summary["rs_momentum"] = (100.0 + (sector_summary["advance_pct"] - 50.0) * 0.1).round(2)
-
-    def get_quadrant(r):
-        if r["rs_ratio"] >= 100.0 and r["rs_momentum"] >= 100.0: return "Leading"
-        elif r["rs_ratio"] < 100.0 and r["rs_momentum"] >= 100.0: return "Improving"
-        elif r["rs_ratio"] >= 100.0 and r["rs_momentum"] < 100.0: return "Weakening"
-        return "Lagging"
-
-    sector_summary["quadrant"] = sector_summary.apply(get_quadrant, axis=1)
-    sector_summary = sector_summary.sort_values(by="rs_ratio", ascending=False)
+    sector_summary["quadrant"] = sector_summary.apply(lambda r: "Leading" if r["rs_ratio"] >= 100 and r["rs_momentum"] >= 100 else ("Improving" if r["rs_ratio"] < 100 and r["rs_momentum"] >= 100 else ("Weakening" if r["rs_ratio"] >= 100 else "Lagging")), axis=1)
 
     sector_perf_map = dict(zip(sector_summary["sector"], sector_summary["perf_20d"]))
     sector_quad_map = dict(zip(sector_summary["sector"], sector_summary["quadrant"]))
 
-    total_market_advances = (latest_df["close"] > latest_df["open"]).sum()
-    total_market_count = len(latest_df)
-    broad_breadth_pct = (total_market_advances / (total_market_count + 1e-5)) * 100.0
-    market_breadth_status = "🟢 Bullish Regime" if broad_breadth_pct >= 50.0 else "🔴 Bearish Regime"
+    ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"]
+    ranked["beta_neutral_mrs"] = (ranked["mrs_score"] - ranked["sector"].map(lambda s: sector_perf_map.get(s, 0.0))).round(1)
+    ranked["sector_breadth_status"] = ranked["sector"].map(lambda s: sector_quad_map.get(s, "Neutral"))
+    ranked["risk_reward_ratio"] = ranked["risk_reward_calc"]
+    ranked["market_breadth_status"] = "🟢 Bullish Regime" if ((latest_df["close"] > latest_df["open"]).mean() * 100.0) >= 50.0 else "🔴 Bearish Regime"
 
-    ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"].fillna(ranked["close"])
-    sector_perf_arr = ranked["sector"].map(lambda s: sector_perf_map.get(s, 0.0))
-    sector_quad_arr = ranked["sector"].map(lambda s: sector_quad_map.get(s, "Neutral"))
+    rs_percentile = (ranked["raw_multi_rs"].rank(pct=True) * 100.0).round(1)
+    up_down_pct = (ranked["up_down_vol_ratio"].rank(pct=True) * 100.0).round(1)
+    vcp_score = ((1.0 - ranked["vcp_ratio"]) * 200.0).clip(0, 100)
 
-    ranked["beta_neutral_mrs"] = (ranked["mrs_score"] - sector_perf_arr).round(1)
-    ranked["sector_breadth_status"] = sector_quad_arr
-    ranked["order_block_status"] = ranked.apply(lambda r: "⚡ Institutional Order Block (Demand)" if r["deliv_spike"] >= 1.3 and r["close"] > r["open"] else "Standard Zone", axis=1)
-    ranked["risk_reward_ratio"] = ranked.apply(lambda r: round(min(15.0, max(0.5, (r["high_52w"] - r["close"]) / (r["close"] - r["atr_stop_loss"] + 1e-5))), 1), axis=1)
-    ranked["market_breadth_status"] = market_breadth_status
+    # 1. Early Base Ignition Score (Theme 1)
+    ignition_raw = (
+        np.where(ranked["is_squeezed"], 30.0, 10.0) +
+        np.where(ranked["is_ma_pinched"], 25.0, 5.0) +
+        np.where(ranked["vcp_ratio"] <= 0.55, 25.0, 10.0) +
+        np.where(ranked["is_rs_divergent"], 20.0, 0.0)
+    )
+    ranked["ignition_score"] = np.where(ranked["mrs_score"] > 5.0, ignition_raw * 0.35, ignition_raw).clip(5.0, 99.0).round(1)
 
-    ranked["alpha_score"] = (
-        (ranked["fundamental_score"] * 0.35) +
-        (ranked["absorption_ratio"].rank(pct=True) * 100.0 * 0.20) +
-        (ranked["multi_timeframe_confluence"].str.contains("Bullish").astype(float) * 100.0 * 0.20) +
-        (ranked["rsi_14"].between(40, 65).astype(float) * 100.0 * 0.125) +
-        (ranked["rs_line_status"].str.contains("New High").astype(float) * 100.0 * 0.125)
-    ).round(1)
+    # 2. Frontrunner Leader Score (Theme 2)
+    leader_trend = np.where(ranked["close"] > ranked["sma_50"], 40.0, 15.0)
+    leader_rs = (rs_percentile * 0.35)
+    leader_vol = (up_down_pct * 0.25)
+    ranked["frontrunner_score"] = (leader_trend + leader_rs + leader_vol).clip(5.0, 99.0).round(1)
 
+    # Setup Assignment
     def get_signal(r):
-        if "VCP" in r["chart_pattern_signal"] and r["above_200sma"]: return "🎯 VCP Coiled Spring"
-        elif r["mrs_score"] > 8.0: return "⚠️ Extended (Wait)"
-        elif r["absorption_ratio"] >= 3.0 and r["deliv_spike"] >= 1.5 and r["above_200sma"]: return "⚡ Stealth Accumulation"
-        elif r["d_expansion"] >= 1.8 and 50 <= r["rsi_14"] <= 70 and r["above_200sma"]: return "🚀 Breakout Ready"
-        elif -3.5 <= r["mrs_score"] <= 0.0 and r["stoch_k"] < 40 and r["above_200sma"]: return "🔄 High-RS Pullback"
-        elif 0.0 <= r["mrs_score"] <= 4.0 and 45 <= r["rsi_14"] <= 65 and r["above_200sma"]: return "🟢 Low-Risk Buy Zone"
-        return "Distribution / Lagging"
+        c_pattern = r["chart_pattern_signal"]
+        if r["mrs_score"] > 8.0: 
+            return "⚠️ Extended (Wait for Dip)"
+        if r["is_pocket_pivot"] and (r["is_squeezed"] or r["is_ma_pinched"]): 
+            return "🚀 Pocket Pivot Ignition"
+        if c_pattern == "🚩 High-Tight Flag & Pole": 
+            return "🚩 Bull Flag & Pole"
+        if c_pattern == "🎯 VCP Coiled Spring": 
+            return "🎯 VCP Coiled Spring"
+        if r["is_rs_divergent"]: 
+            return "🎯 RS Pre-Breakout Coil"
+        if r["flow_ratio"] >= 1.6 and r["above_200sma"]: 
+            return "⚡ Stealth Accumulation"
+        if -3.0 <= r["mrs_score"] <= 0.5 and r["stoch_k"] < 35 and r["above_200sma"]: 
+            return "🔄 High-RS Pullback"
+        if 0.0 <= r["mrs_score"] <= 3.5 and 45 <= r["rsi_14"] <= 65 and r["above_200sma"]: 
+            return "🟢 Low-Risk Buy Zone"
+        if r["frontrunner_score"] >= 80.0:
+            return "🔥 Momentum Frontrunner"
+        return "Consolidation / Base"
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
-
-    ranked = ranked.sort_values(by="turnover_cr", ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
-    def assign_dynamic_index(r_row):
-        sym_u = str(r_row["symbol"]).upper()
-        if "ETF" in sym_u or "BEES" in sym_u:
-            return 'ETFs'
-        rank = r_row.name
-        if rank < 50: return 'Nifty 50'
-        elif rank < 100: return 'Nifty Next 50'
-        elif rank < 250: return 'Nifty Midcap 150'
-        elif rank < 500: return 'Nifty Smallcap 250'
-        else: return 'Broad Market / Microcap'
-
-    ranked["index_name"] = [assign_dynamic_index(r_row) for _, r_row in ranked.iterrows()]
-
-    X = ranked[["rsi_14", "stoch_k", "fundamental_score", "alpha_score"]].values
-    y = (ranked["alpha_score"] >= 60.0).astype(int).values
-    if len(np.unique(y)) > 1:
-        clf = RandomForestClassifier(n_estimators=30, max_depth=4, random_state=42)
-        clf.fit(X, y)
-        probs = clf.predict_proba(X)[:, 1] * 100.0
-        ranked["ml_score"] = np.round(probs, 1)
-    else:
-        ranked["ml_score"] = ranked["alpha_score"]
-
-    ranked = ranked.sort_values(by=["sector", "alpha_score"], ascending=[True, False]).drop_duplicates(subset=["symbol"])
+    ranked = ranked.sort_values(by="ignition_score", ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
 
     output_stocks = []
-    seen_symbols = set()
+    seen = set()
     for _, r in ranked.iterrows():
         sym = str(r["symbol"])
-        if sym in seen_symbols:
-            continue
-        seen_symbols.add(sym)
+        if sym in seen: continue
+        seen.add(sym)
+        
+        def clean(val, is_str=False):
+            if pd.isna(val) or val is None: return None if not is_str else "NA"
+            if is_str: return str(val)
+            try:
+                f = float(val)
+                return None if np.isnan(f) else round(f, 2)
+            except: return val
+
         output_stocks.append({
-            "symbol": sym,
-            "company_name": str(r["company_name"]),
-            "sector": str(r["sector"]),
-            "industry": str(r["industry"]),
-            "index_name": str(r["index_name"]),
-            "close": round(float(r["close"]), 2),
-            "sma_20": round(float(r["sma_20"]), 2),
-            "rsi_14": round(float(r["rsi_14"]), 1),
-            "stoch_k": round(float(r["stoch_k"]), 1),
-            "atr_stop_loss": round(float(r["atr_stop_loss"]), 2),
-            "volume_profile_poc": round(float(r["volume_profile_poc"]), 2),
-            "multi_timeframe_confluence": str(r["multi_timeframe_confluence"]),
-            "fundamental_score": round(float(r["fundamental_score"]), 1),
-            "fundamental_grade": str(r["fundamental_grade"]),
-            "fundamental_rationale": str(r["fundamental_rationale"]),
-            "roe": round(float(r["roe"]), 1),
-            "profit_growth_yoy": round(float(r["profit_growth_yoy"]), 1),
-            "trailing_pe": round(float(r["trailing_pe"]), 1),
-            "forward_pe": round(float(r["forward_pe"]), 1),
-            "promoter_pledging": round(float(r["promoter_pledging"]), 1),
-            "debt_to_equity": round(float(r["debt_to_equity"]), 2),
-            "promoter_pct": r["promoter_pct"],
-            "fii_pct": r["fii_pct"],
-            "dii_pct": r["dii_pct"],
-            "fii_change_qoq": r["fii_change_qoq"],
-            "dii_change_qoq": r["dii_change_qoq"],
-            "fii_dii_trend": str(r["fii_dii_trend"]),
-            "fcf_yield": round(float(r["fcf_yield"]), 2),
-            "earnings_revision": str(r["earnings_revision"]),
-            "chart_pattern_signal": str(r["chart_pattern_signal"]),
-            "rs_line_status": str(r["rs_line_status"]),
-            "order_block_status": str(r["order_block_status"]),
-            "risk_reward_ratio": round(float(r["risk_reward_ratio"]), 1),
-            "market_breadth_status": str(r["market_breadth_status"]),
-            "sector_breadth_status": str(r["sector_breadth_status"]),
-            "next_earnings_date": str(r.get("next_earnings_date", "N/A")),
-            "deliv_pct": round(float(r["deliv_pct"]), 1),
-            "deliv_spike": round(float(r["deliv_spike"]), 2),
-            "d_expansion": round(float(r["d_expansion"]), 2),
-            "vcp_ratio": round(float(r["vcp_ratio"]), 2),
-            "absorption_ratio": round(float(r["absorption_ratio"]), 2),
-            "turnover_cr": round(float(r["turnover_cr"]), 2),
-            "mrs_score": round(float(r["mrs_score"]), 1),
-            "beta_neutral_mrs": round(float(r["beta_neutral_mrs"]), 1),
-            "inst_signal": str(r["inst_signal"]),
-            "alpha_score": round(float(r["alpha_score"]), 1),
-            "ml_score": round(float(r["ml_score"]), 1)
+            "symbol": sym, 
+            "company_name": clean(r.get("company_name", sym), True),
+            "sector": clean(r.get("sector", "Capital Goods"), True), 
+            "industry": clean(r.get("industry", r.get("sector", "General Equities")), True),
+            "index_name": clean(r.get("index_name", "Nifty 500"), True), 
+            "close": clean(r.get("close")),
+            "sma_20": clean(r.get("sma_20")), 
+            "sma_50": clean(r.get("sma_50")), 
+            "sma_200": clean(r.get("sma_200")),
+            "rsi_14": clean(r.get("rsi_14")), 
+            "stoch_k": clean(r.get("stoch_k")),
+            "atr_stop_loss": clean(r.get("atr_stop_loss")), 
+            "volume_profile_poc": clean(r.get("volume_profile_poc")),
+            "multi_timeframe_confluence": clean(r.get("multi_timeframe_confluence", "—"), True),
+            "fundamental_score": None, "fundamental_grade": "Unrated",
+            "fundamental_rationale": "Pending fundamental sync.", 
+            "roe": None, "profit_growth_yoy": None, "trailing_pe": None, "forward_pe": None, 
+            "promoter_pledging": None, "debt_to_equity": None, 
+            "promoter_pct": "NA", "fii_pct": "NA", "dii_pct": "NA", 
+            "fii_change_qoq": "NA", "dii_change_qoq": "NA", 
+            "fii_dii_trend": "Promoters: NA, FII: NA, DII: NA", 
+            "fcf_yield": None, "earnings_revision": "NA",
+            "chart_pattern_signal": clean(r.get("chart_pattern_signal", ""), True) if pd.notna(r.get("chart_pattern_signal")) else "",
+            "pattern_timeframe": int(r.get("pattern_timeframe", 21)),
+            "rs_line_status": clean(r.get("rs_line_status", "Normal RS"), True), 
+            "order_block_status": clean(r.get("order_block_status", ""), True),
+            "risk_reward_ratio": clean(r.get("risk_reward_ratio")), 
+            "market_breadth_status": clean(r.get("market_breadth_status", "🟢 Bullish Regime"), True),
+            "sector_breadth_status": clean(r.get("sector_breadth_status", "Improving"), True), 
+            "next_earnings_date": "N/A",
+            "deliv_pct": clean(r.get("deliv_pct")), 
+            "deliv_spike": clean(r.get("deliv_spike")), 
+            "d_expansion": clean(r.get("d_expansion")),
+            "vcp_ratio": clean(r.get("vcp_ratio")), 
+            "absorption_ratio": clean(r.get("absorption_ratio")), 
+            "turnover_cr": clean(r.get("turnover_cr")),
+            "mrs_score": clean(r.get("mrs_score")), 
+            "beta_neutral_mrs": clean(r.get("beta_neutral_mrs")), 
+            "inst_signal": clean(r.get("inst_signal", "Consolidation"), True),
+            "ignition_score": clean(r.get("ignition_score")),
+            "frontrunner_score": clean(r.get("frontrunner_score")),
+            "iasis_score": clean(r.get("iasis_score")),
+            "up_down_vol_ratio": clean(r.get("up_down_vol_ratio")),
+            "trend_score": clean(r.get("trend_score")),
+            "reasons_to_avoid": clean(r.get("reasons_to_avoid", ""), True)
         })
 
     payload = {
-        "as_of_date": str(latest_date),
+        "as_of_date": str(latest_date), 
         "page_size": 50,
-        "total_stocks": len(output_stocks),
+        "total_stocks": len(output_stocks), 
         "total_pages": (len(output_stocks) + 49) // 50,
-        "sectors": sector_summary.to_dict(orient="records"),
+        "sectors": sector_summary.to_dict(orient="records"), 
+        "sector_rs_history": sector_rs_history, 
         "stocks": output_stocks
     }
 
-    with open(OUTPUT_JSON, "w") as f:
-        json.dump(payload, f, indent=2)
-
-    print(f"[✓] Successfully generated lightweight portal JSON (~150KB). Total unique stocks: {len(output_stocks)}")
+    with open(OUTPUT_JSON, "w") as f: json.dump(payload, f, indent=2)
+    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} official stocks with verified multi-index mappings and directional IASIS.")
 
 if __name__ == "__main__":
-    update_incremental_store(lookback_days=720)
     run_screener_engine()

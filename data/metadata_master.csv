@@ -1,0 +1,843 @@
+symbol,company_name,sector,industry,index_name
+360ONE,360 ONE WAM Ltd.,Financial Services,Financial Services,Nifty 500
+ABB,ABB India Ltd.,Capital Goods,Capital Goods,"Nifty Next 50, Nifty 500"
+ACC,ACC Ltd.,Construction Materials,Construction Materials,Nifty 500
+ACMESOLAR,ACME Solar Holdings Ltd.,Power,Power,Nifty 500
+AIAENG,AIA Engineering Ltd.,Capital Goods,Capital Goods,Nifty 500
+APLAPOLLO,APL Apollo Tubes Ltd.,Capital Goods,Capital Goods,Nifty 500
+AUBANK,AU Small Finance Bank Ltd.,Financial Services,Financial Services,Nifty 500
+AWL,AWL Agri Business Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+AADHARHFC,Aadhar Housing Finance Ltd.,Financial Services,Financial Services,Nifty 500
+AARTIIND,Aarti Industries Ltd.,Chemicals,Chemicals,Nifty 500
+AAVAS,Aavas Financiers Ltd.,Financial Services,Financial Services,Nifty 500
+ABBOTINDIA,Abbott India Ltd.,Healthcare,Healthcare,Nifty 500
+ACE,Action Construction Equipment Ltd.,Capital Goods,Capital Goods,Nifty 500
+ACUTAAS,Acutaas Chemicals Ltd.,Healthcare,Healthcare,Nifty 500
+ADANIENSOL,Adani Energy Solutions Ltd.,Power,Power,Nifty 500
+ADANIENT,Adani Enterprises Ltd.,Metals & Mining,Metals & Mining,"Nifty 50, Nifty 500"
+ADANIGREEN,Adani Green Energy Ltd.,Power,Power,Nifty 500
+ADANIPORTS,Adani Ports and Special Economic Zone Ltd.,Services,Services,"Nifty 50, Nifty 500"
+ADANIPOWER,Adani Power Ltd.,Power,Power,Nifty 500
+ATGL,Adani Total Gas Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+ABCAPITAL,Aditya Birla Capital Ltd.,Financial Services,Financial Services,Nifty 500
+ABREL,Aditya Birla Real Estate Ltd.,Realty,Realty,Nifty 500
+ABSLAMC,Aditya Birla Sun Life AMC Ltd.,Financial Services,Financial Services,Nifty 500
+CPPLUS,Aditya Infotech Ltd.,Capital Goods,Capital Goods,Nifty 500
+AEGISLOG,Aegis Logistics Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+AEGISVOPAK,Aegis Vopak Terminals Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+AETHER,Aether Industries Ltd.,Chemicals,Chemicals,Nifty 500
+AFCONS,Afcons Infrastructure Ltd.,Construction,Construction,Nifty 500
+AFFLE,Affle 3i Ltd.,Information Technology,Information Technology,Nifty 500
+AJANTPHARM,Ajanta Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty 500
+ALKEM,Alkem Laboratories Ltd.,Healthcare,Healthcare,Nifty 500
+ABDL,Allied Blenders and Distillers Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+ARE&M,Amara Raja Energy & Mobility Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+AMBER,Amber Enterprises India Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+AMBUJACEM,Ambuja Cements Ltd.,Construction Materials,Construction Materials,"Nifty Next 50, Nifty 500"
+ANANDRATHI,Anand Rathi Wealth Ltd.,Financial Services,Financial Services,Nifty 500
+ANANTRAJ,Anant Raj Ltd.,Realty,Realty,Nifty 500
+ANGELONE,Angel One Ltd.,Financial Services,Financial Services,Nifty 500
+ANTHEM,Anthem Biosciences Ltd.,Healthcare,Healthcare,Nifty 500
+ANURAS,Anupam Rasayan India Ltd.,Chemicals,Chemicals,Nifty 500
+APARINDS,Apar Industries Ltd.,Capital Goods,Capital Goods,Nifty 500
+APOLLOHOSP,Apollo Hospitals Enterprise Ltd.,Healthcare,Healthcare,"Nifty 50, Nifty 500"
+APOLLOTYRE,Apollo Tyres Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+APTUS,Aptus Value Housing Finance India Ltd.,Financial Services,Financial Services,Nifty 500
+ASAHIINDIA,Asahi India Glass Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+ASHOKLEY,Ashok Leyland Ltd.,Capital Goods,Capital Goods,Nifty 500
+ASIANPAINT,Asian Paints Ltd.,Consumer Durables,Consumer Durables,"Nifty 50, Nifty 500"
+ASTERDM,Aster DM Quality Care Ltd.,Healthcare,Healthcare,Nifty 500
+ASTRAL,Astral Ltd.,Capital Goods,Capital Goods,Nifty 500
+ATHERENERG,Ather Energy Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+ATUL,Atul Ltd.,Chemicals,Chemicals,Nifty 500
+AUROPHARMA,Aurobindo Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+AIIL,Authum Investment & Infrastructure Ltd.,Financial Services,Financial Services,Nifty 500
+AVANTIFEED,Avanti Feeds Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+DMART,Avenue Supermarts Ltd.,Consumer Services,Consumer Services,Nifty 500
+AXISBANK,Axis Bank Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+AZAD,Azad Engineering Ltd.,Capital Goods,Capital Goods,Nifty 500
+BEML,BEML Ltd.,Capital Goods,Capital Goods,Nifty 500
+BLS,BLS International Services Ltd.,Consumer Services,Consumer Services,Nifty 500
+BSE,BSE Ltd.,Financial Services,Financial Services,Nifty 500
+BAGMANE,Bagmane Prime Office REIT,Realty,Realty,Nifty 500
+BAJAJ-AUTO,Bajaj Auto Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 50, Nifty 500"
+BAJFINANCE,Bajaj Finance Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+BAJAJFINSV,Bajaj Finserv Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+BAJAJHLDNG,Bajaj Holdings & Investment Ltd.,Financial Services,Financial Services,Nifty 500
+BAJAJHFL,Bajaj Housing Finance Ltd.,Financial Services,Financial Services,Nifty 500
+BALKRISIND,Balkrishna Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+BALRAMCHIN,Balrampur Chini Mills Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+BANDHANBNK,Bandhan Bank Ltd.,Financial Services,Financial Services,Nifty 500
+BANKBARODA,Bank of Baroda,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+BANKINDIA,Bank of India,Financial Services,Financial Services,Nifty 500
+MAHABANK,Bank of Maharashtra,Financial Services,Financial Services,Nifty 500
+BATAINDIA,Bata India Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+BELRISE,Belrise Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+BERGEPAINT,Berger Paints India Ltd.,Consumer Durables,Consumer Durables,"Nifty Next 50, Nifty 500"
+BHARATCOAL,Bharat Coking Coal Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty 500, Nifty IPO"
+BDL,Bharat Dynamics Ltd.,Capital Goods,Capital Goods,Nifty 500
+BEL,Bharat Electronics Ltd.,Capital Goods,Capital Goods,"Nifty 50, Nifty 500"
+BHARATFORG,Bharat Forge Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+BHEL,Bharat Heavy Electricals Ltd.,Capital Goods,Capital Goods,"Nifty Next 50, Nifty 500"
+BPCL,Bharat Petroleum Corporation Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty 50, Nifty 500"
+BHARTIARTL,Bharti Airtel Ltd.,Telecommunication,Telecommunication,"Nifty 50, Nifty 500"
+BHARTIHEXA,Bharti Hexacom Ltd.,Telecommunication,Telecommunication,Nifty 500
+GROWW,Billionbrains Garage Ventures Ltd.,Financial Services,Financial Services,"Nifty 500, Nifty IPO"
+BIOCON,Biocon Ltd.,Healthcare,Healthcare,Nifty 500
+BSOFT,Birlasoft Ltd.,Information Technology,Information Technology,Nifty 500
+BBOX,Black Box Ltd.,Information Technology,Information Technology,Nifty 500
+BLUESTARCO,Blue Star Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+BOSCHLTD,Bosch Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty Next 50, Nifty 500"
+FIRSTCRY,Brainbees Solutions Ltd.,Consumer Services,Consumer Services,Nifty 500
+BRIGADE,Brigade Enterprises Ltd.,Realty,Realty,Nifty 500
+BRITANNIA,Britannia Industries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty 50, Nifty 500"
+BIRET,Brookfield India Real Estate Trust,Realty,Realty,Nifty 500
+CCL,CCL Products (I) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+CESC,CESC Ltd.,Power,Power,Nifty 500
+CGPOWER,CG Power and Industrial Solutions Ltd.,Capital Goods,Capital Goods,Nifty 500
+CIEINDIA,CIE Automotive India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+CRISIL,CRISIL Ltd.,Financial Services,Financial Services,Nifty 500
+CANFINHOME,Can Fin Homes Ltd.,Financial Services,Financial Services,Nifty 500
+CANBK,Canara Bank,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+CANHLIFE,Canara HSBC Life Insurance Company Ltd.,Financial Services,Financial Services,"Nifty 500, Nifty IPO"
+CAPLIPOINT,Caplin Point Laboratories Ltd.,Healthcare,Healthcare,Nifty 500
+CGCL,Capri Global Capital Ltd.,Financial Services,Financial Services,Nifty 500
+CARBORUNIV,Carborundum Universal Ltd.,Capital Goods,Capital Goods,Nifty 500
+CARTRADE,Cartrade Tech Ltd.,Consumer Services,Consumer Services,Nifty 500
+CASTROLIND,Castrol India Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+CEATLTD,Ceat Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+CEMPRO,Cemindia Projects Ltd.,Construction,Construction,Nifty 500
+CENTRALBK,Central Bank of India,Financial Services,Financial Services,Nifty 500
+CDSL,Central Depository Services (India) Ltd.,Financial Services,Financial Services,Nifty 500
+CMPDI,Central Mine Planning & Design Institute Ltd.,Services,Services,"Nifty 500, Nifty IPO"
+CHAMBLFERT,Chambal Fertilizers & Chemicals Ltd.,Chemicals,Chemicals,Nifty 500
+CHENNPETRO,Chennai Petroleum Corporation Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+CHOICEIN,Choice International Ltd.,Financial Services,Financial Services,Nifty 500
+CHOLAHLDNG,Cholamandalam Financial Holdings Ltd.,Financial Services,Financial Services,Nifty 500
+CHOLAFIN,Cholamandalam Investment and Finance Company Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+CIPLA,Cipla Ltd.,Healthcare,Healthcare,"Nifty 50, Nifty 500"
+CUB,City Union Bank Ltd.,Financial Services,Financial Services,Nifty 500
+CLEANMAX,Clean Max Enviro Energy Solutions Ltd.,Power,Power,"Nifty 500, Nifty IPO"
+CLEAN,Clean Science and Technology Ltd.,Chemicals,Chemicals,Nifty 500
+COALINDIA,Coal India Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty 50, Nifty 500"
+COCHINSHIP,Cochin Shipyard Ltd.,Capital Goods,Capital Goods,Nifty 500
+COFORGE,Coforge Ltd.,Information Technology,Information Technology,Nifty 500
+COHANCE,Cohance Lifesciences Ltd.,Healthcare,Healthcare,Nifty 500
+COLPAL,Colgate Palmolive (India) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty Next 50, Nifty 500"
+CAMS,Computer Age Management Services Ltd.,Financial Services,Financial Services,Nifty 500
+CONCORDBIO,Concord Biotech Ltd.,Healthcare,Healthcare,Nifty 500
+CONCOR,Container Corporation of India Ltd.,Services,Services,Nifty 500
+COROMANDEL,Coromandel International Ltd.,Chemicals,Chemicals,Nifty 500
+CRAFTSMAN,Craftsman Automation Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+CREDITACC,CreditAccess Grameen Ltd.,Financial Services,Financial Services,Nifty 500
+CROMPTON,Crompton Greaves Consumer Electricals Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+CUMMINSIND,Cummins India Ltd.,Capital Goods,Capital Goods,Nifty 500
+CUPID,Cupid Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+CYIENT,Cyient Ltd.,Information Technology,Information Technology,Nifty 500
+DLF,DLF Ltd.,Realty,Realty,"Nifty Next 50, Nifty 500"
+DOMS,DOMS Industries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+DABUR,Dabur India Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+DALBHARAT,Dalmia Bharat Ltd.,Construction Materials,Construction Materials,Nifty 500
+DATAPATTNS,Data Patterns (India) Ltd.,Capital Goods,Capital Goods,Nifty 500
+DEEPAKFERT,Deepak Fertilisers & Petrochemicals Corp. Ltd.,Chemicals,Chemicals,Nifty 500
+DEEPAKNTR,Deepak Nitrite Ltd.,Chemicals,Chemicals,Nifty 500
+DELHIVERY,Delhivery Ltd.,Services,Services,Nifty 500
+DEVYANI,Devyani International Ltd.,Consumer Services,Consumer Services,Nifty 500
+DIVISLAB,Divi's Laboratories Ltd.,Healthcare,Healthcare,Nifty 500
+DIXON,Dixon Technologies (India) Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+LALPATHLAB,Dr. Lal Path Labs Ltd.,Healthcare,Healthcare,Nifty 500
+DRREDDY,Dr. Reddy's Laboratories Ltd.,Healthcare,Healthcare,"Nifty 50, Nifty 500"
+DUMMYHEG,Dummy HEG Ltd.,Capital Goods,Capital Goods,Nifty 500
+EIDPARRY,E.I.D. Parry (India) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+EIHOTEL,EIH Ltd.,Consumer Services,Consumer Services,Nifty 500
+EMBASSY,EMBASSY OFFICE PARKS REIT,Realty,Realty,Nifty 500
+EICHERMOT,Eicher Motors Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 50, Nifty 500"
+ELECON,Elecon Engineering Co. Ltd.,Capital Goods,Capital Goods,Nifty 500
+ELGIEQUIP,Elgi Equipments Ltd.,Capital Goods,Capital Goods,Nifty 500
+EMAMILTD,Emami Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+EMCURE,Emcure Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty 500
+EMMVEE,Emmvee Photovoltaic Power Ltd.,Capital Goods,Capital Goods,"Nifty 500, Nifty IPO"
+ENDURANCE,Endurance Technologies Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+ENGINERSIN,Engineers India Ltd.,Construction,Construction,Nifty 500
+ESCORTS,Escorts Kubota Ltd.,Capital Goods,Capital Goods,Nifty 500
+ETERNAL,Eternal Ltd.,Consumer Services,Consumer Services,Nifty 500
+EXIDEIND,Exide Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+NYKAA,FSN E-Commerce Ventures Ltd.,Consumer Services,Consumer Services,Nifty 500
+FEDERALBNK,Federal Bank Ltd.,Financial Services,Financial Services,Nifty 500
+FACT,Fertilisers and Chemicals Travancore Ltd.,Chemicals,Chemicals,Nifty 500
+FINCABLES,Finolex Cables Ltd.,Capital Goods,Capital Goods,Nifty 500
+FSL,Firstsource Solutions Ltd.,Services,Services,Nifty 500
+FIVESTAR,Five-Star Business Finance Ltd.,Financial Services,Financial Services,Nifty 500
+FORCEMOT,Force Motors Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+FORTIS,Fortis Healthcare Ltd.,Healthcare,Healthcare,Nifty 500
+FRACTAL,Fractal Analytics Ltd.,Information Technology,Information Technology,"Nifty 500, Nifty IPO"
+GAIL,GAIL (India) Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty Next 50, Nifty 500"
+GVT&D,GE Vernova T&D India Ltd.,Capital Goods,Capital Goods,Nifty 500
+GMRAIRPORT,GMR Airports Ltd.,Services,Services,Nifty 500
+GABRIEL,Gabriel India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+GALLANTT,Gallantt Ispat Ltd.,Capital Goods,Capital Goods,Nifty 500
+GRSE,Garden Reach Shipbuilders & Engineers Ltd.,Capital Goods,Capital Goods,Nifty 500
+GICRE,General Insurance Corporation of India,Financial Services,Financial Services,Nifty 500
+GILLETTE,Gillette India Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+GLAND,Gland Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+GLAXO,Glaxosmithkline Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty 500
+GLENMARK,Glenmark Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty 500
+MEDANTA,Global Health Ltd.,Healthcare,Healthcare,Nifty 500
+GPIL,Godawari Power & Ispat Ltd.,Capital Goods,Capital Goods,Nifty 500
+GODFRYPHLP,Godfrey Phillips India Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+GODREJCP,Godrej Consumer Products Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty Next 50, Nifty 500"
+GODREJIND,Godrej Industries Ltd.,Diversified,Diversified,Nifty 500
+GODREJPROP,Godrej Properties Ltd.,Realty,Realty,Nifty 500
+GRANULES,Granules India Ltd.,Healthcare,Healthcare,Nifty 500
+GRAPHITE,Graphite India Ltd.,Capital Goods,Capital Goods,Nifty 500
+GRASIM,Grasim Industries Ltd.,Construction Materials,Construction Materials,"Nifty 50, Nifty 500"
+GRAVITA,Gravita India Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+GESHIP,Great Eastern Shipping Co. Ltd.,Services,Services,Nifty 500
+FLUOROCHEM,Gujarat Fluorochemicals Ltd.,Chemicals,Chemicals,Nifty 500
+GMDCLTD,Gujarat Mineral Development Corporation Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+HBLENGINE,HBL Engineering Ltd.,Capital Goods,Capital Goods,Nifty 500
+HCLTECH,HCL Technologies Ltd.,Information Technology,Information Technology,"Nifty 50, Nifty 500"
+HDBFS,HDB Financial Services Ltd.,Financial Services,Financial Services,Nifty 500
+HDFCAMC,HDFC Asset Management Company Ltd.,Financial Services,Financial Services,Nifty 500
+HDFCBANK,HDFC Bank Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+HDFCLIFE,HDFC Life Insurance Company Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+HEGAM,HEG Advanced Materials Ltd.,Capital Goods,Capital Goods,Nifty 500
+HFCL,HFCL Ltd.,Telecommunication,Telecommunication,Nifty 500
+HAVELLS,Havells India Ltd.,Consumer Durables,Consumer Durables,"Nifty Next 50, Nifty 500"
+HEROMOTOCO,Hero MotoCorp Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 50, Nifty 500"
+HEXT,Hexaware Technologies Ltd.,Information Technology,Information Technology,Nifty 500
+HSCL,Himadri Speciality Chemical Ltd.,Chemicals,Chemicals,Nifty 500
+HINDALCO,Hindalco Industries Ltd.,Metals & Mining,Metals & Mining,"Nifty 50, Nifty 500"
+HAL,Hindustan Aeronautics Ltd.,Capital Goods,Capital Goods,"Nifty Next 50, Nifty 500"
+HINDCOPPER,Hindustan Copper Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+HINDPETRO,Hindustan Petroleum Corporation Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+HINDUNILVR,Hindustan Unilever Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty 50, Nifty 500"
+HINDZINC,Hindustan Zinc Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+POWERINDIA,Hitachi Energy India Ltd.,Capital Goods,Capital Goods,Nifty 500
+HOMEFIRST,Home First Finance Company India Ltd.,Financial Services,Financial Services,Nifty 500
+HONASA,Honasa Consumer Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+HONAUT,Honeywell Automation India Ltd.,Capital Goods,Capital Goods,Nifty 500
+HUDCO,Housing & Urban Development Corporation Ltd.,Financial Services,Financial Services,Nifty 500
+HYUNDAI,Hyundai Motor India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+ICICIBANK,ICICI Bank Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+ICICIGI,ICICI Lombard General Insurance Company Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+ICICIAMC,ICICI Prudential Asset Management Company Ltd.,Financial Services,Financial Services,"Nifty 500, Nifty IPO"
+ICICIPRULI,ICICI Prudential Life Insurance Company Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+IDBI,IDBI Bank Ltd.,Financial Services,Financial Services,Nifty 500
+IDFCFIRSTB,IDFC First Bank Ltd.,Financial Services,Financial Services,Nifty 500
+IFCI,IFCI Ltd.,Financial Services,Financial Services,Nifty 500
+IIFL,IIFL Finance Ltd.,Financial Services,Financial Services,Nifty 500
+INOXINDIA,INOX India Ltd.,Capital Goods,Capital Goods,Nifty 500
+IRB,IRB Infrastructure Developers Ltd.,Construction,Construction,Nifty 500
+IRCON,IRCON International Ltd.,Construction,Construction,Nifty 500
+ITCHOTELS,ITC Hotels Ltd.,Consumer Services,Consumer Services,Nifty 500
+ITC,ITC Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty 50, Nifty 500"
+ITI,ITI Ltd.,Telecommunication,Telecommunication,Nifty 500
+INDIACEM,India Cements Ltd.,Construction Materials,Construction Materials,Nifty 500
+INDIAMART,Indiamart Intermesh Ltd.,Consumer Services,Consumer Services,Nifty 500
+INDIANB,Indian Bank,Financial Services,Financial Services,Nifty 500
+IEX,Indian Energy Exchange Ltd.,Financial Services,Financial Services,Nifty 500
+INDHOTEL,Indian Hotels Co. Ltd.,Consumer Services,Consumer Services,Nifty 500
+IOC,Indian Oil Corporation Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty Next 50, Nifty 500"
+IOB,Indian Overseas Bank,Financial Services,Financial Services,Nifty 500
+IRCTC,Indian Railway Catering And Tourism Corporation Ltd.,Consumer Services,Consumer Services,"Nifty Next 50, Nifty 500"
+IRFC,Indian Railway Finance Corporation Ltd.,Financial Services,Financial Services,Nifty 500
+IREDA,Indian Renewable Energy Development Agency Ltd.,Financial Services,Financial Services,Nifty 500
+IGL,Indraprastha Gas Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+INDUSTOWER,Indus Towers Ltd.,Telecommunication,Telecommunication,Nifty 500
+INDUSINDBK,IndusInd Bank Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+NAUKRI,Info Edge (India) Ltd.,Consumer Services,Consumer Services,"Nifty Next 50, Nifty 500"
+INFY,Infosys Ltd.,Information Technology,Information Technology,"Nifty 50, Nifty 500"
+INOXWIND,Inox Wind Ltd.,Capital Goods,Capital Goods,Nifty 500
+INTELLECT,Intellect Design Arena Ltd.,Information Technology,Information Technology,Nifty 500
+INDIGO,InterGlobe Aviation Ltd.,Services,Services,"Nifty Next 50, Nifty 500"
+IGIL,International Gemological Institute Ltd.,Services,Services,Nifty 500
+IKS,Inventurus Knowledge Solutions Ltd.,Information Technology,Information Technology,Nifty 500
+IPCALAB,Ipca Laboratories Ltd.,Healthcare,Healthcare,Nifty 500
+JKCEMENT,J.K. Cement Ltd.,Construction Materials,Construction Materials,Nifty 500
+JBMA,JBM Auto Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+JKTYRE,JK Tyre & Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+JMFINANCIL,JM Financial Ltd.,Financial Services,Financial Services,Nifty 500
+JSWCEMENT,JSW Cement Ltd.,Construction Materials,Construction Materials,Nifty 500
+JSWENERGY,JSW Energy Ltd.,Power,Power,Nifty 500
+JSWINFRA,JSW Infrastructure Ltd.,Services,Services,Nifty 500
+JSWSTEEL,JSW Steel Ltd.,Metals & Mining,Metals & Mining,"Nifty 50, Nifty 500"
+JAINREC,Jain Resource Recycling Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+JPPOWER,Jaiprakash Power Ventures Ltd.,Power,Power,Nifty 500
+J&KBANK,Jammu & Kashmir Bank Ltd.,Financial Services,Financial Services,Nifty 500
+JINDALSAW,Jindal Saw Ltd.,Capital Goods,Capital Goods,Nifty 500
+JSL,Jindal Stainless Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+JINDALSTEL,Jindal Steel Ltd.,Metals & Mining,Metals & Mining,"Nifty Next 50, Nifty 500"
+JIOFIN,Jio Financial Services Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+JUBLFOOD,Jubilant Foodworks Ltd.,Consumer Services,Consumer Services,Nifty 500
+JUBLINGREA,Jubilant Ingrevia Ltd.,Chemicals,Chemicals,Nifty 500
+JWL,Jupiter Wagons Ltd.,Capital Goods,Capital Goods,Nifty 500
+JYOTICNC,Jyoti CNC Automation Ltd.,Capital Goods,Capital Goods,Nifty 500
+KPRMILL,K.P.R. Mill Ltd.,Textiles,Textiles,Nifty 500
+KEI,KEI Industries Ltd.,Capital Goods,Capital Goods,Nifty 500
+KPITTECH,KPIT Technologies Ltd.,Information Technology,Information Technology,Nifty 500
+KSB,KSB Ltd.,Capital Goods,Capital Goods,Nifty 500
+KAJARIACER,Kajaria Ceramics Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+KPIL,Kalpataru Projects International Ltd.,Construction,Construction,Nifty 500
+KALYANKJIL,Kalyan Jewellers India Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+KARURVYSYA,Karur Vysya Bank Ltd.,Financial Services,Financial Services,Nifty 500
+KAYNES,Kaynes Technology India Ltd.,Capital Goods,Capital Goods,Nifty 500
+KEC,Kec International Ltd.,Construction,Construction,Nifty 500
+KFINTECH,Kfin Technologies Ltd.,Financial Services,Financial Services,Nifty 500
+KIRLOSBROS,Kirloskar Brothers Ltd.,Capital Goods,Capital Goods,Nifty 500
+KIRLOSENG,Kirloskar Oil Eng Ltd.,Capital Goods,Capital Goods,Nifty 500
+KOTAKBANK,Kotak Mahindra Bank Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+KIMS,Krishna Institute of Medical Sciences Ltd.,Healthcare,Healthcare,Nifty 500
+LTF,L&T Finance Ltd.,Financial Services,Financial Services,Nifty 500
+LTTS,L&T Technology Services Ltd.,Information Technology,Information Technology,Nifty 500
+LGEINDIA,LG Electronics India Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+LICHSGFIN,LIC Housing Finance Ltd.,Financial Services,Financial Services,Nifty 500
+LTFOODS,LT Foods Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+LTM,LTM Ltd.,Information Technology,Information Technology,Nifty 500
+LT,Larsen & Toubro Ltd.,Construction,Construction,"Nifty 50, Nifty 500"
+LAURUSLABS,Laurus Labs Ltd.,Healthcare,Healthcare,Nifty 500
+LEMONTREE,Lemon Tree Hotels Ltd.,Consumer Services,Consumer Services,Nifty 500
+LENSKART,Lenskart Solutions Ltd.,Consumer Services,Consumer Services,"Nifty 500, Nifty IPO"
+LICI,Life Insurance Corporation of India,Financial Services,Financial Services,Nifty 500
+LINDEINDIA,Linde India Ltd.,Chemicals,Chemicals,Nifty 500
+LLOYDSME,Lloyds Metals And Energy Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+LODHA,Lodha Developers Ltd.,Realty,Realty,Nifty 500
+LUPIN,Lupin Ltd.,Healthcare,Healthcare,Nifty 500
+MMTC,MMTC Ltd.,Services,Services,Nifty 500
+MRF,MRF Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+MTARTECH,MTAR Technologies Ltd.,Capital Goods,Capital Goods,Nifty 500
+MGL,Mahanagar Gas Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+M&MFIN,Mahindra & Mahindra Financial Services Ltd.,Financial Services,Financial Services,Nifty 500
+M&M,Mahindra & Mahindra Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 50, Nifty 500"
+MANAPPURAM,Manappuram Finance Ltd.,Financial Services,Financial Services,Nifty 500
+MRPL,Mangalore Refinery & Petrochemicals Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+MANKIND,Mankind Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+MARICO,Marico Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+MARUTI,Maruti Suzuki India Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 50, Nifty 500"
+MFSL,Max Financial Services Ltd.,Financial Services,Financial Services,Nifty 500
+MAXHEALTH,Max Healthcare Institute Ltd.,Healthcare,Healthcare,Nifty 500
+MAZDOCK,Mazagoan Dock Shipbuilders Ltd.,Capital Goods,Capital Goods,Nifty 500
+MEESHO,Meesho Ltd.,Consumer Services,Consumer Services,"Nifty 500, Nifty IPO"
+MINDACORP,Minda Corporation Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+MSUMI,Motherson Sumi Wiring India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+MOTILALOFS,Motilal Oswal Financial Services Ltd.,Financial Services,Financial Services,Nifty 500
+MPHASIS,MphasiS Ltd.,Information Technology,Information Technology,Nifty 500
+MCX,Multi Commodity Exchange of India Ltd.,Financial Services,Financial Services,Nifty 500
+MUTHOOTFIN,Muthoot Finance Ltd.,Financial Services,Financial Services,Nifty 500
+NATCOPHARM,NATCO Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+NBCC,NBCC (India) Ltd.,Construction,Construction,Nifty 500
+NCC,NCC Ltd.,Construction,Construction,Nifty 500
+NHPC,NHPC Ltd.,Power,Power,Nifty 500
+NLCINDIA,NLC India Ltd.,Power,Power,Nifty 500
+NMDC,NMDC Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+NSLNISP,NMDC Steel Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+NTPCGREEN,NTPC Green Energy Ltd.,Power,Power,Nifty 500
+NTPC,NTPC Ltd.,Power,Power,"Nifty 50, Nifty 500"
+NH,Narayana Hrudayalaya Ltd.,Healthcare,Healthcare,Nifty 500
+NATIONALUM,National Aluminium Co. Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+NAVA,Nava Ltd.,Power,Power,Nifty 500
+NAVINFLUOR,Navin Fluorine International Ltd.,Chemicals,Chemicals,Nifty 500
+NESTLEIND,Nestle India Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty 50, Nifty 500"
+NETWEB,Netweb Technologies India Ltd.,Information Technology,Information Technology,Nifty 500
+NEULANDLAB,Neuland Laboratories Ltd.,Healthcare,Healthcare,Nifty 500
+NAM-INDIA,Nippon Life India Asset Management Ltd.,Financial Services,Financial Services,Nifty 500
+NUVAMA,Nuvama Wealth Management Ltd.,Financial Services,Financial Services,Nifty 500
+NUVOCO,Nuvoco Vistas Corporation Ltd.,Construction Materials,Construction Materials,Nifty 500
+OBEROIRLTY,Oberoi Realty Ltd.,Realty,Realty,Nifty 500
+ONGC,Oil & Natural Gas Corporation Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty 50, Nifty 500"
+OIL,Oil India Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+OLAELEC,Ola Electric Mobility Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+OLECTRA,Olectra Greentech Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+PAYTM,One 97 Communications Ltd.,Financial Services,Financial Services,Nifty 500
+ONESOURCE,Onesource Specialty Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+OFSS,Oracle Financial Services Software Ltd.,Information Technology,Information Technology,Nifty 500
+POLICYBZR,PB Fintech Ltd.,Financial Services,Financial Services,Nifty 500
+PCBL,PCBL Chemical Ltd.,Chemicals,Chemicals,Nifty 500
+PGEL,PG Electroplast Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+PIIND,PI Industries Ltd.,Chemicals,Chemicals,Nifty 500
+PNBHOUSING,PNB Housing Finance Ltd.,Financial Services,Financial Services,Nifty 500
+PTCIL,PTC Industries Ltd.,Capital Goods,Capital Goods,Nifty 500
+PVRINOX,PVR INOX Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty 500
+PAGEIND,Page Industries Ltd.,Textiles,Textiles,Nifty 500
+PARADEEP,Paradeep Phosphates Ltd.,Chemicals,Chemicals,Nifty 500
+PATANJALI,Patanjali Foods Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+PERSISTENT,Persistent Systems Ltd.,Information Technology,Information Technology,Nifty 500
+PETRONET,Petronet LNG Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+PHOENIXLTD,Phoenix Mills Ltd.,Realty,Realty,Nifty 500
+PWL,Physicswallah Ltd.,Consumer Services,Consumer Services,"Nifty 500, Nifty IPO"
+PIDILITIND,Pidilite Industries Ltd.,Chemicals,Chemicals,"Nifty Next 50, Nifty 500"
+PINELABS,Pine Labs Ltd.,Financial Services,Financial Services,"Nifty 500, Nifty IPO"
+PIRAMALFIN,Piramal Finance Ltd.,Financial Services,Financial Services,Nifty 500
+PPLPHARMA,Piramal Pharma Ltd.,Healthcare,Healthcare,Nifty 500
+POLYMED,Poly Medicure Ltd.,Healthcare,Healthcare,Nifty 500
+POLYCAB,Polycab India Ltd.,Capital Goods,Capital Goods,Nifty 500
+POONAWALLA,Poonawalla Fincorp Ltd.,Financial Services,Financial Services,Nifty 500
+PFC,Power Finance Corporation Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+POWERGRID,Power Grid Corporation of India Ltd.,Power,Power,"Nifty 50, Nifty 500"
+PREMIERENE,Premier Energies Ltd.,Capital Goods,Capital Goods,Nifty 500
+PRESTIGE,Prestige Estates Projects Ltd.,Realty,Realty,Nifty 500
+PFOCUS,Prime Focus Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty 500
+PRIVISCL,Privi Speciality Chemicals Ltd.,Chemicals,Chemicals,Nifty 500
+PNB,Punjab National Bank,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+RRKABEL,R R Kabel Ltd.,Capital Goods,Capital Goods,Nifty 500
+RBLBANK,RBL Bank Ltd.,Financial Services,Financial Services,Nifty 500
+RECLTD,REC Ltd.,Financial Services,Financial Services,"Nifty Next 50, Nifty 500"
+RHIM,RHI MAGNESITA INDIA LTD.,Capital Goods,Capital Goods,Nifty 500
+RITES,RITES Ltd.,Construction,Construction,Nifty 500
+RADICO,Radico Khaitan Ltd,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+RVNL,Rail Vikas Nigam Ltd.,Construction,Construction,Nifty 500
+RAILTEL,Railtel Corporation Of India Ltd.,Telecommunication,Telecommunication,Nifty 500
+RAINBOW,Rainbow Childrens Medicare Ltd.,Healthcare,Healthcare,Nifty 500
+RKFORGE,Ramkrishna Forgings Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+REDINGTON,Redington Ltd.,Services,Services,Nifty 500
+RELIANCE,Reliance Industries Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,"Nifty 50, Nifty 500"
+RPOWER,Reliance Power Ltd.,Power,Power,Nifty 500
+RUBICON,Rubicon Research Ltd.,Healthcare,Healthcare,Nifty 500
+SBICARD,SBI Cards and Payment Services Ltd.,Financial Services,Financial Services,Nifty 500
+SBILIFE,SBI Life Insurance Company Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+SJVN,SJVN Ltd.,Power,Power,Nifty 500
+SHRIPISTON,SPR Auto Technologies Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+SRF,SRF Ltd.,Chemicals,Chemicals,"Nifty Next 50, Nifty 500"
+SAGILITY,Sagility Ltd.,Information Technology,Information Technology,Nifty 500
+SAILIFE,Sai Life Sciences Ltd.,Healthcare,Healthcare,Nifty 500
+SAMMAANCAP,Sammaan Capital Ltd.,Financial Services,Financial Services,Nifty 500
+MOTHERSON,Samvardhana Motherson International Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty Next 50, Nifty 500"
+SANSERA,Sansera Engineering Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+SARDAEN,Sarda Energy and Minerals Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+SCHAEFFLER,Schaeffler India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+SCHNEIDER,Schneider Electric Infrastructure Ltd.,Capital Goods,Capital Goods,Nifty 500
+SCI,Shipping Corporation of India Ltd.,Services,Services,Nifty 500
+SHREECEM,Shree Cement Ltd.,Construction Materials,Construction Materials,Nifty 500
+SHRIRAMFIN,Shriram Finance Ltd.,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+SHYAMMETL,Shyam Metalics and Energy Ltd.,Capital Goods,Capital Goods,Nifty 500
+ENRIN,Siemens Energy India Ltd.,Capital Goods,Capital Goods,Nifty 500
+SIEMENS,Siemens Ltd.,Capital Goods,Capital Goods,"Nifty Next 50, Nifty 500"
+SIGNATURE,Signatureglobal (India) Ltd.,Realty,Realty,Nifty 500
+SOBHA,Sobha Ltd.,Realty,Realty,Nifty 500
+SOLARINDS,Solar Industries India Ltd.,Chemicals,Chemicals,Nifty 500
+SONACOMS,Sona BLW Precision Forgings Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+STARHEALTH,Star Health and Allied Insurance Company Ltd.,Financial Services,Financial Services,Nifty 500
+SBIN,State Bank of India,Financial Services,Financial Services,"Nifty 50, Nifty 500"
+SAIL,Steel Authority of India Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+STLTECH,Sterlite Technologies Ltd.,Telecommunication,Telecommunication,Nifty 500
+SUMICHEM,Sumitomo Chemical India Ltd.,Chemicals,Chemicals,Nifty 500
+SUNPHARMA,Sun Pharmaceutical Industries Ltd.,Healthcare,Healthcare,"Nifty 50, Nifty 500"
+SUNTV,Sun TV Network Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty 500
+SUNDARMFIN,Sundaram Finance Ltd.,Financial Services,Financial Services,Nifty 500
+SUPREMEIND,Supreme Industries Ltd.,Capital Goods,Capital Goods,Nifty 500
+SUZLON,Suzlon Energy Ltd.,Capital Goods,Capital Goods,Nifty 500
+SWANCORP,Swan Corp Ltd.,Chemicals,Chemicals,Nifty 500
+SWIGGY,Swiggy Ltd.,Consumer Services,Consumer Services,Nifty 500
+SYNGENE,Syngene International Ltd.,Healthcare,Healthcare,Nifty 500
+SYRMA,Syrma SGS Technology Ltd.,Capital Goods,Capital Goods,Nifty 500
+TBOTEK,TBO Tek Ltd.,Consumer Services,Consumer Services,Nifty 500
+TDPOWERSYS,TD Power Systems Ltd.,Capital Goods,Capital Goods,Nifty 500
+TVSMOTOR,TVS Motor Company Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty Next 50, Nifty 500"
+TATACAP,Tata Capital Ltd.,Financial Services,Financial Services,Nifty 500
+TATACHEM,Tata Chemicals Ltd.,Chemicals,Chemicals,Nifty 500
+TATACOMM,Tata Communications Ltd.,Telecommunication,Telecommunication,Nifty 500
+TCS,Tata Consultancy Services Ltd.,Information Technology,Information Technology,"Nifty 50, Nifty 500"
+TATACONSUM,Tata Consumer Products Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty 50, Nifty 500"
+TATAELXSI,Tata Elxsi Ltd.,Information Technology,Information Technology,Nifty 500
+TATAINVEST,Tata Investment Corporation Ltd.,Financial Services,Financial Services,Nifty 500
+TMCV,Tata Motors Ltd.,Capital Goods,Capital Goods,Nifty 500
+TMPV,Tata Motors Passenger Vehicles Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+TATAPOWER,Tata Power Co. Ltd.,Power,Power,Nifty 500
+TATASTEEL,Tata Steel Ltd.,Metals & Mining,Metals & Mining,"Nifty 50, Nifty 500"
+TATATECH,Tata Technologies Ltd.,Information Technology,Information Technology,Nifty 500
+TTML,Tata Teleservices (Maharashtra) Ltd.,Telecommunication,Telecommunication,Nifty 500
+TECHM,Tech Mahindra Ltd.,Information Technology,Information Technology,"Nifty 50, Nifty 500"
+TECHNOE,Techno Electric & Engineering Company Ltd.,Construction,Construction,Nifty 500
+TEGA,Tega Industries Ltd.,Capital Goods,Capital Goods,Nifty 500
+TEJASNET,Tejas Networks Ltd.,Telecommunication,Telecommunication,Nifty 500
+TENNIND,Tenneco Clean Air India Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty 500, Nifty IPO"
+THANGAMAYL,Thangamayil Jewellery Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+NIACL,The New India Assurance Company Ltd.,Financial Services,Financial Services,Nifty 500
+RAMCOCEM,The Ramco Cements Ltd.,Construction Materials,Construction Materials,Nifty 500
+THERMAX,Thermax Ltd.,Capital Goods,Capital Goods,Nifty 500
+TIMKEN,Timken India Ltd.,Capital Goods,Capital Goods,Nifty 500
+TITAGARH,Titagarh Rail Systems Ltd.,Capital Goods,Capital Goods,Nifty 500
+TITAN,Titan Company Ltd.,Consumer Durables,Consumer Durables,"Nifty 50, Nifty 500"
+TORNTPHARM,Torrent Pharmaceuticals Ltd.,Healthcare,Healthcare,"Nifty Next 50, Nifty 500"
+TORNTPOWER,Torrent Power Ltd.,Power,Power,Nifty 500
+TARIL,Transformers And Rectifiers (India) Ltd.,Capital Goods,Capital Goods,Nifty 500
+TRENT,Trent Ltd.,Consumer Services,Consumer Services,"Nifty 50, Nifty 500"
+TRIDENT,Trident Ltd.,Textiles,Textiles,Nifty 500
+TRITURBINE,Triveni Turbine Ltd.,Capital Goods,Capital Goods,Nifty 500
+TIINDIA,Tube Investments of India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+UCOBANK,UCO Bank,Financial Services,Financial Services,Nifty 500
+UNOMINDA,UNO Minda Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+UPL,UPL Ltd.,Chemicals,Chemicals,Nifty 500
+UTIAMC,UTI Asset Management Company Ltd.,Financial Services,Financial Services,Nifty 500
+ULTRACEMCO,UltraTech Cement Ltd.,Construction Materials,Construction Materials,"Nifty 50, Nifty 500"
+UNIONBANK,Union Bank of India,Financial Services,Financial Services,Nifty 500
+UBL,United Breweries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+UNITDSPR,United Spirits Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty Next 50, Nifty 500"
+URBANCO,Urban Company Ltd.,Consumer Services,Consumer Services,Nifty 500
+USHAMART,Usha Martin Ltd.,Capital Goods,Capital Goods,Nifty 500
+VTL,Vardhman Textiles Ltd.,Textiles,Textiles,Nifty 500
+VBL,Varun Beverages Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,"Nifty Next 50, Nifty 500"
+VAML,Vedanta Aluminium Metal Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+VISL,Vedanta Iron and Steel Ltd.,Metals & Mining,Metals & Mining,Nifty 500
+VEDL,Vedanta Ltd.,Metals & Mining,Metals & Mining,"Nifty Next 50, Nifty 500"
+VOGL,Vedanta Oil and Gas Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty 500
+VEDPOWER,Vedanta Power Ltd.,Power,Power,Nifty 500
+VIJAYA,Vijaya Diagnostic Centre Ltd.,Healthcare,Healthcare,Nifty 500
+VMM,Vishal Mega Mart Ltd.,Consumer Services,Consumer Services,Nifty 500
+IDEA,Vodafone Idea Ltd.,Telecommunication,Telecommunication,Nifty 500
+VOLTAS,Voltas Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+WAAREEENER,Waaree Energies Ltd.,Capital Goods,Capital Goods,Nifty 500
+WELCORP,Welspun Corp Ltd.,Capital Goods,Capital Goods,Nifty 500
+WELSPUNLIV,Welspun Living Ltd.,Textiles,Textiles,Nifty 500
+WHIRLPOOL,Whirlpool of India Ltd.,Consumer Durables,Consumer Durables,Nifty 500
+WIPRO,Wipro Ltd.,Information Technology,Information Technology,"Nifty 50, Nifty 500"
+WOCKPHARMA,Wockhardt Ltd.,Healthcare,Healthcare,Nifty 500
+YESBANK,Yes Bank Ltd.,Financial Services,Financial Services,Nifty 500
+ZFCVINDIA,ZF Commercial Vehicle Control Systems India Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty 500
+ZEEL,Zee Entertainment Enterprises Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty 500
+ZENTEC,Zen Technologies Ltd.,Capital Goods,Capital Goods,Nifty 500
+ZENSARTECH,Zensar Technolgies Ltd.,Information Technology,Information Technology,Nifty 500
+ZYDUSLIFE,Zydus Lifesciences Ltd.,Healthcare,Healthcare,"Nifty Next 50, Nifty 500"
+ZYDUSWELL,Zydus Wellness Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty 500
+ECLERX,eClerx Services Ltd.,Services,Services,Nifty 500
+AXISCADES,AXISCADES Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+AARTIPHARM,Aarti Pharmalabs Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+ABFRL,Aditya Birla Fashion and Retail Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+ABLBL,Aditya Birla Lifestyle Brands Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+AVL,Aditya Vision Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+ADVENZYMES,Advanced Enzyme Tech Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+AEQUS,Aequs Ltd.,Capital Goods,Capital Goods,"Nifty Microcap 250, Nifty IPO"
+AEROFLEX,Aeroflex Industries Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+AKUMS,Akums Drugs and Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+ALKYLAMINE,Alkyl Amines Chemicals Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+AMAGI,Amagi Media Labs Ltd.,Information Technology,Information Technology,"Nifty Microcap 250, Nifty IPO"
+APOLLO,Apollo Micro Systems Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+ACI,Archean Chemical Industries Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+ARVINDFASN,Arvind Fashions Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+ARVIND,Arvind Ltd.,Textiles,Textiles,Nifty Microcap 250
+ASHAPURMIN,Ashapura Minechem Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+ASHOKA,Ashoka Buildcon Ltd.,Construction,Construction,Nifty Microcap 250
+ASTRAMICRO,Astra Microwave Products Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+ATLANTAELE,Atlanta Electricals Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+AURIONPRO,Aurionpro Solution Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+AVALON,Avalon Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+CCAVENUE,AvenuesAI Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+BAJAJCON,Bajaj Consumer Care Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+BALAMINES,Balaji Amines Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+BALUFORGE,Balu Forge Industries Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+BANCOINDIA,Banco Products (India) Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+BIRLACORPN,Birla Corporation Ltd.,Construction Materials,Construction Materials,Nifty Microcap 250
+BLACKBUCK,Blackbuck Ltd.,Services,Services,Nifty Microcap 250
+BLUEJET,Blue Jet Healthcare Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+BLUESTONE,BlueStone Jewellery and Lifestyle Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+BORORENEW,Borosil Renewables Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+MAPMYINDIA,C.E. Info Systems Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+CMRGREEN,CMR Green Technologies Ltd.,Capital Goods,Capital Goods,"Nifty Microcap 250, Nifty IPO"
+CMSINFO,CMS Info Systems Ltd.,Services,Services,Nifty Microcap 250
+CSBBANK,CSB Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+CAMPUS,Campus Activewear Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+CRAMC,Canara Robeco Asset Management Company Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+CAPILLARY,Capillary Technologies India Ltd.,Information Technology,Information Technology,"Nifty Microcap 250, Nifty IPO"
+CEIGALL,Ceigall India Ltd.,Construction,Construction,Nifty Microcap 250
+CELLO,Cello World Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+CENTUM,Centum Electronics Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+CERA,Cera Sanitaryware Ltd,Consumer Durables,Consumer Durables,Nifty Microcap 250
+CHALET,Chalet Hotels Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+DCBBANK,DCB Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+DATAMATICS,Datamatics Global Services Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+DIACABS,Diamond Power Infrastructure Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+DBL,Dilip Buildcon Ltd.,Construction,Construction,Nifty Microcap 250
+DUMMYINGL1,Dummy India Glycols ltd. 1,Healthcare,Healthcare,Nifty Microcap 250
+DUMMYINGL2,Dummy India Glycols ltd. 2,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+DUMMYINXGN,Dummy Inox Green Ltd.,Construction,Construction,Nifty Microcap 250
+DUMMYTRVN,Dummy Triveni Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+DYNAMATECH,Dynamatic Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+E2E,E2E NETWORKS Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+EPL,EPL Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+EDELWEISS,Edelweiss Financial Services Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+EMIL,Electronics Mart India Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+ELECTCAST,Electrosteel Castings Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+ELLEN,Ellenbarrie Industrial Gases Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+EMBDL,Embassy Developments Ltd.,Realty,Realty,Nifty Microcap 250
+ENTERO,Entero Healthcare Solutions Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+EIEL,Enviro Infra Engineers Ltd.,Utilities,Utilities,Nifty Microcap 250
+EQUITASBNK,Equitas Small Finance Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+ERIS,Eris Lifesciences Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+FEDFINA,Fedbank Financial Services Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+FIEMIND,Fiem Industries Ltd,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+FINPIPE,Finolex Industries Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+UTLSOLAR,Fujiyama Power Systems Ltd.,Capital Goods,Capital Goods,"Nifty Microcap 250, Nifty IPO"
+GMRP&UI,GMR Power and Urban Infra Ltd.,Power,Power,Nifty Microcap 250
+EBGNG,GNG Electronics Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+GRWRHITECH,Garware Hi-Tech Films Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+GENUSPOWER,Genus Power Infrastructures Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+GODREJAGRO,Godrej Agrovet Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+GOKEX,Gokaldas Exports Ltd.,Textiles,Textiles,Nifty Microcap 250
+GOKULAGRO,Gokul Agro Resources Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+GOLDIAM,Goldiam International Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+GREAVESCOT,Greaves Cotton Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+GRINDWELL,Grindwell Norton Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+GUJALKALI,Gujarat Alkalies & Chemicals Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+GAEL,Gujarat Ambuja Exports Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+GNFC,Gujarat Narmada Valley Fertilizers and Chemicals Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+GPPL,Gujarat Pipavav Port Ltd.,Services,Services,Nifty Microcap 250
+GSFC,Gujarat State Fertilizers & Chemicals Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+HGINFRA,H.G. Infra Engineering Ltd.,Construction,Construction,Nifty Microcap 250
+HAPPSTMNDS,Happiest Minds Technologies Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+HAPPYFORGE,Happy Forgings Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+HCG,Healthcare Global Enterprises Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+HERITGFOOD,Heritage Foods Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+HCC,Hindustan Construction Co. Ltd.,Construction,Construction,Nifty Microcap 250
+IFBIND,IFB Industries Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+IIFLCAPS,IIFL Capital Services Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+INDGN,Indegene Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+INDIAGLYCO,India Glycols Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+IMFA,Indian Metals & Ferro Alloys Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+INDIGOPNTS,Indigo Paints Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+ICIL,Indo Count Industries Ltd.,Textiles,Textiles,Nifty Microcap 250
+IONEXCHANG,Ion Exchange (India) Ltd.,Utilities,Utilities,Nifty Microcap 250
+JAIBALAJI,JAI BALAJI INDUSTRIES Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+JKPAPER,JK Paper Ltd.,Forest Materials,Forest Materials,Nifty Microcap 250
+JAMNAAUTO,Jamna Auto Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+JSFB,Jana Small Finance Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+JAYNECOIND,Jayaswal Neco Industries Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+JSLL,Jeena Sikho Lifecare Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+JUBLPHARMA,Jubilant Pharmova Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+JUSTDIAL,Justdial Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+JYOTHYLAB,Jyothy Labs Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+KNRCON,KNR Constructions Ltd.,Construction,Construction,Nifty Microcap 250
+KPIGREEN,KPI Green Energy Ltd.,Power,Power,Nifty Microcap 250
+KRBL,KRBL Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+KRN,KRN HEAT EXCHANGER AND REFRIGERATION Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+KANSAINER,Kansai Nerolac Paints Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+KTKBANK,Karnataka Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+KSCL,Kaveri Seed Company Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+KIRLPNU,Kirloskar Pneumatic Company Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+KITEX,Kitex Garments Ltd.,Textiles,Textiles,Nifty Microcap 250
+KMEW,Knowledge Marine & Engineering Works Ltd.,Services,Services,Nifty Microcap 250
+KWIL,Kwality Wall's (India) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+LATENTVIEW,Latent View Analytics Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+LXCHEM,Laxmi Organic Industries Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+IXIGO,Le Travenues Technology Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+THELEELA,Leela Palaces Hotels & Resorts Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+LLOYDSENGG,Lloyds Engineering Works Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+LLOYDSENT,Lloyds Enterprises Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+LUMAXTECH,Lumax Auto Technologies Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+LUMAXIND,Lumax Industries Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+MOIL,MOIL Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+MSTCLTD,MSTC Ltd.,Services,Services,Nifty Microcap 250
+MBAPL,Madhya Bharat Agro Products Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+MANORAMA,Manorama Industries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+MARKSANS,Marksans Pharma Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+MASTEK,Mastek Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+MEDPLUS,Medplus Health Services Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+METROPOLIS,Metropolis Healthcare Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+MIDHANI,Mishra Dhatu Nigam Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+BECTORFOOD,Mrs. Bectors Food Specialities Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+NEOGEN,NEOGEN CHEMICALS LTD.,Chemicals,Chemicals,Nifty Microcap 250
+NFL,National Fertilizers Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+NAZARA,Nazara Technologies Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty Microcap 250
+NEPHROPLUS,Nephrocare Health Services Ltd.,Healthcare,Healthcare,"Nifty Microcap 250, Nifty IPO"
+NETWORK18,Network18 Media & Investments Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty Microcap 250
+NEWGEN,Newgen Software Technologies Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+NIVABUPA,Niva Bupa Health Insurance Company Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+NORTHARC,Northern Arc Capital Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+OMNI,Omnitech Engineering Ltd.,Capital Goods,Capital Goods,"Nifty Microcap 250, Nifty IPO"
+KISSHT,OnEMI Technology Solutions Ltd.,Financial Services,Financial Services,"Nifty Microcap 250, Nifty IPO"
+OSWALPUMPS,Oswal Pumps Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+PNGJL,P N Gadgil Jewellers Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+PCJEWELLER,PC Jeweller Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+PDSL,PDS Ltd.,Textiles,Textiles,Nifty Microcap 250
+PNCINFRA,PNC Infratech Ltd.,Construction,Construction,Nifty Microcap 250
+PTC,PTC India Ltd.,Power,Power,Nifty Microcap 250
+PAISALO,Paisalo Digital Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+PARAS,Paras Defence and Space Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+PARKHOSPS,Park Medi World Ltd.,Healthcare,Healthcare,"Nifty Microcap 250, Nifty IPO"
+PGIL,Pearl Global Industries Ltd.,Textiles,Textiles,Nifty Microcap 250
+PICCADIL,Piccadily Agro Industries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+POWERMECH,Power Mech Projects Ltd.,Construction,Construction,Nifty Microcap 250
+POWERICA,Powerica Ltd.,Capital Goods,Capital Goods,"Nifty Microcap 250, Nifty IPO"
+PRAJIND,Praj Industries Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+PRECWIRE,Precision Wires India Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+PRICOLLTD,Pricol Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+PGHL,Procter & Gamble Health Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+PURVA,Puravankara Ltd.,Realty,Realty,Nifty Microcap 250
+QPOWER,QUALITY POWER ELECTRICAL EQUIPMENTS Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+QUESS,Quess Corp Ltd.,Services,Services,Nifty Microcap 250
+RAIN,Rain Industries Ltd,Chemicals,Chemicals,Nifty Microcap 250
+RALLIS,Rallis India Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+RCF,Rashtriya Chemicals & Fertilizers Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+RATEGAIN,Rategain Travel Technologies Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+RATNAMANI,Ratnamani Metals & Tubes Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+RTNPOWER,RattanIndia Power Ltd.,Power,Power,Nifty Microcap 250
+RAYMONDLSL,Raymond Lifestyle Ltd.,Textiles,Textiles,Nifty Microcap 250
+REFEX,Refex Industries Ltd.,Utilities,Utilities,Nifty Microcap 250
+RELAXO,Relaxo Footwears Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+RELIGARE,Religare Enterprises Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+RESPONIND,Responsive Industries Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+RBA,Restaurant Brands Asia Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+ROUTE,Route Mobile Ltd.,Telecommunication,Telecommunication,Nifty Microcap 250
+SJS,S.J.S. Enterprises Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+SBFC,SBFC Finance Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+SEDEMAC,SEDEMAC Mechatronics Ltd.,Automobile and Auto Components,Automobile and Auto Components,"Nifty Microcap 250, Nifty IPO"
+SGMART,SG Mart Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+SIGMAADV,SIGMA ADVANCED SYSTEMS LTD.,Capital Goods,Capital Goods,Nifty Microcap 250
+SKYGOLD,SKY GOLD AND DIAMONDS Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SMLMAH,SML Mahindra Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+LOTUSDEV,SRI LOTUS DEVELOPERS AND REALTY Ltd.,Realty,Realty,Nifty Microcap 250
+SAFARI,Safari Industries (India) Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SAMHI,Samhi Hotels Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+SANDUMA,Sandur Manganese & Iron Ores Ltd.,Metals & Mining,Metals & Mining,Nifty Microcap 250
+SAPPHIRE,Sapphire Foods India Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+SAREGAMA,Saregama India Ltd,Media Entertainment & Publication,Media Entertainment & Publication,Nifty Microcap 250
+SENCO,Senco Gold Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SENORES,Senores Pharmaceuticals Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+SHADOWFAX,Shadowfax Technologies Ltd.,Services,Services,"Nifty Microcap 250, Nifty IPO"
+SHAILY,Shaily Engineering Plastics Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SHAKTIPUMP,Shakti Pumps (India) Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SHARDACROP,Sharda Cropchem Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+SHAREINDIA,Share India Securities Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+SFL,Sheela Foam Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SHILCTECH,Shilchar Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SHILPAMED,Shilpa Medicare Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+RENUKA,Shree Renuka Sugars Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+SHREEJISPG,Shreeji Shipping Global Ltd.,Services,Services,Nifty Microcap 250
+SKIPPER,Skipper Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SONATSOFTW,Sonata Software Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+SOUTHBANK,South Indian Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+SWSOLAR,Sterling and Wilson Renewable Energy Ltd.,Construction,Construction,Nifty Microcap 250
+STAR,Strides Pharma Science Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+STYLAMIND,Stylam Industries Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+SUBROS,Subros Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SUDARSCHEM,Sudarshan Chemical Industries Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+SUDEEPPHRM,Sudeep Pharma Ltd.,Chemicals,Chemicals,"Nifty Microcap 250, Nifty IPO"
+SPARC,Sun Pharma Advanced Research Company Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+SUNDRMFAST,Sundram Fasteners Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty Microcap 250
+SUNFLAG,Sunflag Iron & Steel Company Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SUNTECK,Sunteck Realty Ltd.,Realty,Realty,Nifty Microcap 250
+SPLPETRO,Supreme Petrochem Ltd.,Chemicals,Chemicals,Nifty Microcap 250
+SUPRIYA,Supriya Lifescience Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+SURYAROSNI,Surya Roshni Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+SUVEN,Suven Life Sciences Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+TARC,TARC Ltd.,Realty,Realty,Nifty Microcap 250
+TTKPRESTIG,TTK Prestige Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+TVSSCS,TVS Supply Chain Solutions Ltd.,Services,Services,Nifty Microcap 250
+TMB,Tamilnad Mercantile Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+TANLA,Tanla Platforms Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+TEXRAIL,Texmaco Rail & Eng. Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+THOMASCOOK,Thomas Cook (India) Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+THYROCARE,Thyrocare Technologies Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+TI,Tilaknagar Industries Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty Microcap 250
+TIMETECHNO,Time Technoplast Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+TIMEX,Timex Group India Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+TIPSMUSIC,Tips Music Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty Microcap 250
+TRANSRAILL,Transrail Lighting Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+UJJIVANSFB,Ujjivan Small Finance Bank Ltd.,Financial Services,Financial Services,Nifty Microcap 250
+UNIMECH,Unimech Aerospace and Manufacturing Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+VGUARD,V-Guard Industries Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+VMART,V-Mart Retail Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+VIPIND,V.I.P. Industries Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+V2RETAIL,V2 Retail Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+DBREALTY,VALOR ESTATE Ltd.,Realty,Realty,Nifty Microcap 250
+WABAG,Va Tech Wabag Ltd.,Utilities,Utilities,Nifty Microcap 250
+VAIBHAVGBL,Vaibhav Global Ltd.,Consumer Durables,Consumer Durables,Nifty Microcap 250
+MANYAVAR,Vedant Fashions Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+VESUVIUS,Vesuvius India Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+VIKRAMSOLR,Vikram Solar Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+VIYASH,Viyash Scientific Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+VOLTAMP,Voltamp Transformers Ltd,Capital Goods,Capital Goods,Nifty Microcap 250
+WAAREERTL,Waaree Renewable Technologies Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+WAKEFIT,Wakefit Innovations Ltd.,Consumer Durables,Consumer Durables,"Nifty Microcap 250, Nifty IPO"
+WEWORK,WeWork India Management Ltd.,Services,Services,Nifty Microcap 250
+WEBELSOLAR,Websol Energy System Ltd.,Capital Goods,Capital Goods,Nifty Microcap 250
+WELENT,Welspun Enterprises Ltd.,Construction,Construction,Nifty Microcap 250
+WESTLIFE,Westlife Foodworld Ltd.,Consumer Services,Consumer Services,Nifty Microcap 250
+YATHARTH,Yatharth Hospital & Trauma Care Services Ltd.,Healthcare,Healthcare,Nifty Microcap 250
+ZAGGLE,Zaggle Prepaid Ocean Services Ltd.,Information Technology,Information Technology,Nifty Microcap 250
+AONESTEELS,A-One Steels India Ltd.,Capital Goods,Capital Goods,Nifty IPO
+AASTHA,Aastha Spintex Ltd.,Textiles,Textiles,Nifty IPO
+ACEVECTOR,AceVector Ltd.,Consumer Services,Consumer Services,Nifty IPO
+ADROITIND,Adroit Industries (India) Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty IPO
+RAMBHAJO,Advit Jewels Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+ALPINETEX,Alpine Texworld Ltd.,Textiles,Textiles,Nifty IPO
+AEROPLANE,Amir Chand Jagdish Kumar (Exports) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty IPO
+ANNU,Annu Projects Ltd.,Construction,Construction,Nifty IPO
+ARMEE,ArMee Infotech Ltd.,Information Technology,Information Technology,Nifty IPO
+ARDEE,Ardee Industries Ltd.,Metals & Mining,Metals & Mining,Nifty IPO
+ARCIL,Asset Reconstruction Company (India) Ltd.,Financial Services,Financial Services,Nifty IPO
+AUGMONT,Augmont Enterprises Ltd.,Metals & Mining,Metals & Mining,Nifty IPO
+AYE,Aye Finance Ltd.,Financial Services,Financial Services,Nifty IPO
+BLEL,Behari Lal Engineering Ltd.,Capital Goods,Capital Goods,Nifty IPO
+CORONA,CORONA Remedies Ltd.,Healthcare,Healthcare,Nifty IPO
+CSM,CSM Technologies Ltd.,Information Technology,Information Technology,Nifty IPO
+CMLL,Caliber Mining and Logistics Ltd.,Oil Gas & Consumable Fuels,Oil Gas & Consumable Fuels,Nifty IPO
+DEEPA,Deepa Jewellers Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+DHOOTTRANS,Dhoot Transmission Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty IPO
+ESDS,ESDS Software Solution Ltd.,Information Technology,Information Technology,Nifty IPO
+ELEVATE,Elevate Campuses Ltd.,Services,Services,Nifty IPO
+EXCELSOFT,Excelsoft Technologies Ltd.,Information Technology,Information Technology,Nifty IPO
+GSPCROP,GSP Crop Science Ltd.,Chemicals,Chemicals,Nifty IPO
+GAJA,Gaja Alternative Asset Management Ltd.,Financial Services,Financial Services,Nifty IPO
+GAUDIUMIVF,Gaudium IVF and Women Health Ltd.,Healthcare,Healthcare,Nifty IPO
+GERMAN,German Green Steel and Power Ltd.,Capital Goods,Capital Goods,Nifty IPO
+GLASSWALL,Glass Wall Systems (India) Ltd.,Construction Materials,Construction Materials,Nifty IPO
+GKSL,Gujarat Kidney And Super Speciality Ltd.,Healthcare,Healthcare,Nifty IPO
+HEROMOTORS,Hero Motors Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty IPO
+HEXAGON,Hexagon Nutrition Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty IPO
+HORIZONIND,Horizon Industrial Parks Ltd.,Realty,Realty,Nifty IPO
+HTEL,Hy-Tech Engineers Ltd.,Capital Goods,Capital Goods,Nifty IPO
+INDOMIM,INDO-MIM Ltd.,Capital Goods,Capital Goods,Nifty IPO
+INNOVISION,Innovision Ltd.,Services,Services,Nifty IPO
+JSIPL,Jindal Supreme (India) Ltd.,Capital Goods,Capital Goods,Nifty IPO
+JNPR,Juniper Green Energy Ltd.,Power,Power,Nifty IPO
+KSHINTL,KSH International Ltd.,Capital Goods,Capital Goods,Nifty IPO
+KANOHAR,Kanohar Electricals Ltd.,Capital Goods,Capital Goods,Nifty IPO
+KARAMTARA,Karamtara Engineering Ltd.,Capital Goods,Capital Goods,Nifty IPO
+KNACK,Knack Packaging Ltd.,Capital Goods,Capital Goods,Nifty IPO
+KUSUMGAR,Kusumgar Ltd.,Textiles,Textiles,Nifty IPO
+LCCPROJECT,LCC Projects Ltd.,Construction,Construction,Nifty IPO
+LEAPIND,LEAP India Ltd.,Services,Services,Nifty IPO
+LALITHAA,Lalithaa Jewellery Mart Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+LASERPOWER,Laser Power & Infra Ltd.,Capital Goods,Capital Goods,Nifty IPO
+LCL,Lohia Corp Ltd.,Capital Goods,Capital Goods,Nifty IPO
+LUMINO,Lumino Industries Ltd.,Capital Goods,Capital Goods,Nifty IPO
+MVELECTRO,MV Electrosystems Ltd.,Capital Goods,Capital Goods,Nifty IPO
+MANIPALHOS,Manipal Health Enterprises Ltd.,Healthcare,Healthcare,Nifty IPO
+MPIMANIPAL,Manipal Payment and Identity Solutions Ltd.,Financial Services,Financial Services,Nifty IPO
+MIDWESTLTD,Midwest Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+MILKYMIST,Milky Mist Dairy Food Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty IPO
+MOLBIO,Molbio Diagnostics Ltd.,Healthcare,Healthcare,Nifty IPO
+MONEYVIEW,Moneyview Ltd.,Financial Services,Financial Services,Nifty IPO
+OMPOWER,Om Power Transmission Ltd.,Construction,Construction,Nifty IPO
+ORIENTCABL,Orient Cables (India) Ltd.,Telecommunication,Telecommunication,Nifty IPO
+ORKLAINDIA,Orkla India Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,Nifty IPO
+PNGSREVA,PNGS Reva Diamond Jewellery Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+PRANAV,Pranav Constructions Ltd.,Realty,Realty,Nifty IPO
+PRASOLCHEM,Prasol Chemicals Ltd.,Chemicals,Chemicals,Nifty IPO
+PERNIASPOP,Purple Style Labs Ltd.,Consumer Services,Consumer Services,Nifty IPO
+RSL,Rajputana Stainless Ltd.,Capital Goods,Capital Goods,Nifty IPO
+RENTOMOJO,Rentomojo Ltd.,Services,Services,Nifty IPO
+RUNWALENTR,Runwal Enterprises Ltd.,Realty,Realty,Nifty IPO
+SBIFUNDS,SBI Funds Management Ltd.,Financial Services,Financial Services,Nifty IPO
+SSRETAIL,SS Retail Ltd.,Consumer Services,Consumer Services,Nifty IPO
+SAIPARENT,Sai Parenterals Ltd.,Healthcare,Healthcare,Nifty IPO
+SHANKESH,Shankesh Jewellers Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+SHIPROCKET,Shiprocket Ltd.,Services,Services,Nifty IPO
+SKYWAYS,Skyways Air Services Ltd.,Services,Services,Nifty IPO
+SONA,Sonaselection India Ltd.,Textiles,Textiles,Nifty IPO
+STEAMHOUSE,Steamhouse India Ltd.,Chemicals,Chemicals,Nifty IPO
+STUDDS,Studds Accessories Ltd.,Automobile and Auto Components,Automobile and Auto Components,Nifty IPO
+SUNSHINE,Sunshine Pictures Ltd.,Media Entertainment & Publication,Media Entertainment & Publication,Nifty IPO
+SWASTIKAIN,Swastika Infra Ltd.,Construction,Construction,Nifty IPO
+SYMBIOTEC,Symbiotec Pharmalab Ltd.,Healthcare,Healthcare,Nifty IPO
+TECHNOCRAF,Technocraft Ventures Ltd.,Utilities,Utilities,Nifty IPO
+TEMPSENS,Tempsens Instruments (India) Ltd.,Capital Goods,Capital Goods,Nifty IPO
+TURTLEMINT,Turtlemint Fintech Solutions Ltd.,Financial Services,Financial Services,Nifty IPO
+VARMORA,Varmora Granito Ltd.,Consumer Durables,Consumer Durables,Nifty IPO
+VEEGALAND,Veegaland Developers Ltd.,Realty,Realty,Nifty IPO
+VIDYAWIRES,Vidya Wires Ltd.,Capital Goods,Capital Goods,Nifty IPO
+CORDELIA,Waterways Leisure Tourism Ltd.,Consumer Services,Consumer Services,Nifty IPO
+XTRANET,Xtranet Technologies Ltd.,Information Technology,Information Technology,Nifty IPO
+TATAMOTORS,TATAMOTORS,General Equities,General Equities,"Nifty 50, Nifty 500"
+ZOMATO,ZOMATO,General Equities,General Equities,"Nifty Next 50, Nifty 500"
+LTIM,LTIM,General Equities,General Equities,"Nifty Next 50, Nifty 500"
