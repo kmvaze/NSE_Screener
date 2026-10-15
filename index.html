@@ -295,7 +295,6 @@
 
   <!-- TAB 1: TECHNICAL SCREENER -->
   <div class="tab-view active" id="viewLive">
-    <!-- Default Strategy Objective: All Stocks on Left, followed by Ignition & Frontrunners -->
     <div style="display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; background: var(--card-bg); padding: 10px 16px; border-radius: 12px; border: 1px solid var(--card-border);">
       <span style="font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase;">Strategy Objective:</span>
       <button class="tactical-btn active" id="btnModeAll" onclick="setStrategyMode('all')">
@@ -354,7 +353,7 @@
             <th class="tip-trigger" onclick="sortTable('close')" data-tip="Last traded closing price in Indian Rupees (₹). [Click to sort]">Close (₹) <span id="sort_close"></span></th>
             <th class="tip-trigger" onclick="sortTable('inst_signal')" data-tip="Proprietary algorithmic setup status. [Click to sort]">Setup / Signal <span id="sort_inst_signal"></span></th>
             <th class="tip-trigger" onclick="sortTable('multi_timeframe_confluence')" data-tip="True Weekly Anchor & Daily structure alignment. [Click to sort]">Multi-TF Alignment <span id="sort_multi_timeframe_confluence"></span></th>
-            <th class="tip-trigger" onclick="sortTable(appState.activeScoreCol)" data-tip="Objective quantitative rank score."><span id="colScoreHeader">Ignition Score</span> <span id="sort_score">▼</span></th>
+            <th class="tip-trigger" onclick="sortTable(appState.activeScoreCol)" data-tip="Objective quantitative rank score."><span id="colScoreHeader">Score</span> <span id="sort_score">▼</span></th>
             <th class="tip-trigger" onclick="sortTable('iasis_score')" data-tip="Institutional Cash Flow & Directional Squeeze Score. [Click to sort]">IASIS Score <span id="sort_iasis_score"></span></th>
             <th class="tip-trigger" onclick="sortTable('chart_pattern_signal')" data-tip="Detected genuine chart pattern. [Click to sort]">Chart Pattern <span id="sort_chart_pattern_signal"></span></th>
             <th class="tip-trigger" onclick="sortTable('rs_line_status')" data-tip="Relative Strength line status versus Nifty benchmark. [Click to sort]">RS Status <span id="sort_rs_line_status"></span></th>
@@ -465,7 +464,7 @@
     </div>
   </div>
 
-  <!-- TAB 3: CHART PATTERNS SCANNER (1-CLICK TOGGLE BUTTONS) -->
+  <!-- TAB 3: CHART PATTERNS SCANNER -->
   <div class="tab-view" id="viewPatterns">
     <div class="unified-toolbar">
       <div class="toolbar-group">
@@ -478,7 +477,6 @@
         </select>
       </div>
 
-      <!-- Quick 1-Click Pattern Toggle Buttons -->
       <div class="toolbar-group">
         <span style="font-size: 0.78rem; color: var(--muted); font-weight:700;">Pattern:</span>
         <button class="tactical-btn active" id="btnPatAll" onclick="setPatternFilter('ALL')">All Patterns</button>
@@ -597,7 +595,7 @@
     </div>
   </div>
 
-  <!-- Quant Breakdown Modal (SEBI-Compliant Bidirectional Diagnostics) -->
+  <!-- Quant Breakdown Modal -->
   <div class="modal-overlay" id="quantModal" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
       <div class="modal-header">
@@ -612,13 +610,11 @@
         <button class="modal-close" onclick="closeModal()">&times;</button>
       </div>
 
-      <!-- Quantitative Strengths / Setup Conditions -->
       <div class="diagnosis-box" style="background: rgba(52, 211, 153, 0.05); border: 1px solid rgba(52, 211, 153, 0.25);">
         <div style="font-size: 0.76rem; text-transform: uppercase; color: var(--green); font-weight: 700; margin-bottom: 4px;">📊 Quantitative Strengths & Setup Conditions</div>
         <div id="modalStrengthsText" style="font-size: 0.82rem; color: var(--text); line-height: 1.4;">Evaluating structural setup factors...</div>
       </div>
 
-      <!-- Objective Vulnerabilities & Reasons to Avoid -->
       <div class="diagnosis-box" style="background: rgba(248, 113, 113, 0.06); border: 1px solid rgba(248, 113, 113, 0.25);">
         <div style="font-size: 0.76rem; text-transform: uppercase; color: var(--red); font-weight: 700; margin-bottom: 4px;">⚠️ Technical Vulnerabilities & Reasons to Avoid</div>
         <div id="modalAvoidText" style="font-size: 0.82rem; color: var(--text); line-height: 1.4;">Evaluating potential risk headwinds...</div>
@@ -696,11 +692,29 @@
 
   <script>
     const SUPABASE_URL = 'https://ydjzbwkaxwcfkqzfndum.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3TAINNTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
 
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
     let userProfile = null;
+
+    const NIFTY_50_SET = new Set([
+      "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", 
+      "BAJFINANCE", "BEL", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA", "COALINDIA", "DRREDDY", 
+      "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", 
+      "HINDUNILVR", "ICICIBANK", "INDUSINDBK", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", 
+      "M&M", "MARUTI", "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", 
+      "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", 
+      "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
+    ]);
+
+    const NIFTY_NEXT_50_SET = new Set([
+      "ABB", "AMBUJACEM", "BANKBARODA", "BERGEPAINT", "BHEL", "BOSCHLTD", "CANBK", "CHOLAFIN", 
+      "COLPAL", "DLF", "GAIL", "GODREJCP", "HAL", "HAVELLS", "ICICIGI", "ICICIPRULI", "INDIGO", 
+      "IOC", "IRCTC", "JINDALSTEL", "JIOFIN", "LTIM", "MOTHERSON", "NAUKRI", "PIDILITIND", 
+      "PFC", "PNB", "RECLTD", "SIEMENS", "SRF", "TORNTPHARM", "TVSMOTOR", "UNITDSPR", "VBL", 
+      "VEDL", "ZYDUSLIFE", "ZOMATO"
+    ]);
 
     let appState = {
       asOfDate: "",
@@ -709,8 +723,8 @@
       priceHistory: {},
       stocks: [],
       selectedSector: "ALL",
-      selectedIndex: "Nifty 500",
-      strategyMode: "all", // Default: All Stocks (Unfiltered)
+      selectedIndex: "Nifty 500",    // Default to Nifty 500
+      strategyMode: "all",           // Default: All Stocks Strategy
       selectedPatternFilter: "ALL",
       activePreset: null,
       hideExtended: false,
@@ -821,15 +835,26 @@
       }
     }
 
-    // Exact Tokenized Index Matching
-    function matchIndexToken(stIndexName, selectedIndex) {
+    function matchIndexToken(st, selectedIndex) {
       if (selectedIndex === "ALL") return true;
-      if (!stIndexName) return false;
-      const tokens = stIndexName.split(',').map(s => s.trim().toUpperCase());
-      return tokens.includes(selectedIndex.trim().toUpperCase());
+      const sym = (st.symbol || "").toUpperCase();
+      const rawIndex = (st.index_name || "").toUpperCase();
+      const target = selectedIndex.trim().toUpperCase();
+
+      if (target === "NIFTY 50") {
+        return NIFTY_50_SET.has(sym) || rawIndex.includes("NIFTY 50");
+      } else if (target === "NIFTY NEXT 50") {
+        return NIFTY_NEXT_50_SET.has(sym) || rawIndex.includes("NIFTY NEXT 50");
+      }
+
+      if (rawIndex) {
+        const tokens = rawIndex.split(',').map(s => s.trim().toUpperCase());
+        if (tokens.includes(target)) return true;
+      }
+
+      return false;
     }
 
-    // Strategy Objective Switcher: All Stocks (default left), Ignition, Frontrunners
     function setStrategyMode(mode) {
       appState.strategyMode = mode;
       document.getElementById('btnModeAll').classList.toggle('active', mode === 'all');
@@ -844,7 +869,7 @@
         appState.hideExtended = false;
         document.getElementById('presetHideExtended').classList.remove('active');
         document.getElementById('presetHideExtended').textContent = '🛡️ Hide >8%';
-        showToast('🌐 All Stocks Mode: Universe Unfiltered');
+        showToast('🌐 All Stocks Mode: Full Universe Shown');
       } else if (mode === 'ignition') {
         appState.activeScoreCol = 'ignition_score';
         appState.sortCol = 'ignition_score';
@@ -853,7 +878,7 @@
         appState.hideExtended = true;
         document.getElementById('presetHideExtended').classList.add('active');
         document.getElementById('presetHideExtended').textContent = '🛡️ Extended Hidden (<8%)';
-        showToast('🎯 Next Run-Up Mode: Coils, Pinches & RS Divergences');
+        showToast('🎯 Next Run-Up: Filtered to Coils & Pre-Breakouts');
       } else if (mode === 'frontrunners') {
         appState.activeScoreCol = 'frontrunner_score';
         appState.sortCol = 'frontrunner_score';
@@ -862,13 +887,12 @@
         appState.hideExtended = false;
         document.getElementById('presetHideExtended').classList.remove('active');
         document.getElementById('presetHideExtended').textContent = '🛡️ Hide >8%';
-        showToast('🚀 Momentum Frontrunners: Stage 2 Market Leaders');
+        showToast('🚀 Frontrunners: Filtered to Stage 2 Trend Leaders');
       }
 
       applyFilterAndSort();
     }
 
-    // Pattern Toggle Buttons
     function setPatternFilter(patternCode) {
       appState.selectedPatternFilter = patternCode;
       ['btnPatAll', 'btnPatFlag', 'btnPatVcp', 'btnPatBase', 'btnPatMacro'].forEach(id => {
@@ -1083,7 +1107,6 @@
       if (e.key === 'Escape') { closeCmdPalette(); closeModal(); closeUpiModal(); }
     });
 
-    // --- Interactive Sector Comparison Chart (Smooth Lines + Hover Highlight) ---
     function renderSectorChips() {
       const container = document.getElementById('sectorChipsContainer');
       if (!container) return;
@@ -1279,7 +1302,6 @@
       document.getElementById('sectorDrilldownContainer').style.display = 'none';
     }
 
-    // --- Interactive Sector Drilldown & Stock Comparison ---
     function renderSectorDrilldown(sectorName) {
       const container = document.getElementById('sectorDrilldownContainer');
       const tbody = document.getElementById('sectorDrilldownTableBody');
@@ -1292,7 +1314,6 @@
 
       const secStocks = appState.stocks.filter(st => st.sector === sectorName).sort((a, b) => (b[appState.activeScoreCol] ?? 0) - (a[appState.activeScoreCol] ?? 0));
       countBadge.textContent = `${secStocks.length} Stocks`;
-      document.getElementById('stockCountBadge').textContent = `${secStocks.length} Stocks`;
 
       appState.selectedDrilldownStocks = secStocks.slice(0, 4).map(s => s.symbol);
 
@@ -1476,7 +1497,6 @@
       });
     }
 
-    // --- Genuine Pattern Scanner with Toggle Buttons ---
     function renderPatternsTable() {
       const tbody = document.getElementById('patternsTableBody');
       const countBadge = document.getElementById('patternCountBadge');
@@ -1503,7 +1523,6 @@
       });
 
       countBadge.textContent = `${matched.length} Setups Found (${tf}-Session TF)`;
-      document.getElementById('stockCountBadge').textContent = `${matched.length} Stocks`;
       tbody.innerHTML = '';
 
       if (matched.length === 0) {
@@ -1568,7 +1587,7 @@
         btn.textContent = '🛡️ Extended Hidden (<8%)';
       } else {
         btn.classList.remove('active');
-        btn.textContent = '🛡️ Hide Extended (>8%)';
+        btn.textContent = '🛡️ Hide >8%';
       }
       applyFilterAndSort();
     }
@@ -1585,7 +1604,7 @@
       appState.hideExtended = false;
       document.querySelectorAll('#viewLive .tactical-btn:not(#presetHideExtended):not(#btnModeIgnition):not(#btnModeFrontrunners):not(#btnModeAll)').forEach(b => b.classList.remove('active'));
       document.getElementById('presetHideExtended').classList.remove('active');
-      document.getElementById('presetHideExtended').textContent = '🛡️ Hide Extended (>8%)';
+      document.getElementById('presetHideExtended').textContent = '🛡️ Hide >8%';
       document.getElementById('sectorSelect').value = "ALL"; 
       document.getElementById('indexSelect').value = "Nifty 500";
       document.getElementById('symbolSearch').value = "";
@@ -1595,7 +1614,7 @@
     function applyFilterAndSort() {
       appState.filteredStocks = appState.stocks.filter(st => {
         const matchSec = appState.selectedSector === "ALL" || st.sector === appState.selectedSector;
-        const matchIdx = matchIndexToken(st.index_name, appState.selectedIndex);
+        const matchIdx = matchIndexToken(st, appState.selectedIndex);
 
         let matchPreset = true;
         if (appState.activePreset === 'BuyZone') matchPreset = st.inst_signal.includes("Buy Zone");
@@ -1606,16 +1625,16 @@
         let matchStrategy = true;
         if (appState.strategyMode === 'ignition') {
           const isCoiled = (st.mrs_score <= 4.0 && st.mrs_score >= -3.0);
-          const hasIgnitionSetup = st.inst_signal.includes("Coil") || st.inst_signal.includes("Pocket") || 
+          const hasIgnitionSetup = (st.inst_signal && (st.inst_signal.includes("Coil") || st.inst_signal.includes("Pocket") || 
                                   st.inst_signal.includes("VCP") || st.inst_signal.includes("Flag") || 
-                                  st.inst_signal.includes("Buy Zone") || st.chart_pattern_signal !== "";
-          matchStrategy = (st.ignition_score >= 50.0 || hasIgnitionSetup) && isCoiled;
+                                  st.inst_signal.includes("Buy Zone"))) || (st.chart_pattern_signal && st.chart_pattern_signal !== "");
+          matchStrategy = ((st.ignition_score || 0) >= 50.0 || hasIgnitionSetup) && isCoiled;
         } else if (appState.strategyMode === 'frontrunners') {
-          const isLeaderTrend = (st.close > st.sma_50);
-          matchStrategy = (st.frontrunner_score >= 65.0) && isLeaderTrend;
+          const isLeaderTrend = (st.close > (st.sma_50 || st.sma_20));
+          matchStrategy = ((st.frontrunner_score || 0) >= 65.0) && isLeaderTrend;
         }
 
-        const matchExt = !appState.hideExtended || st.mrs_score <= 8.0;
+        const matchExt = !appState.hideExtended || (st.mrs_score != null ? st.mrs_score <= 8.0 : true);
         const query = appState.searchQuery.toUpperCase();
         const matchQuery = !query || st.symbol.toUpperCase().includes(query) ||
                            (st.company_name && st.company_name.toUpperCase().includes(query));
@@ -1628,8 +1647,8 @@
 
     function updateUIAfterFilter() {
       appState.filteredStocks.sort((a, b) => {
-        let vA = a[appState.sortCol] ?? 0;
-        let vB = b[appState.sortCol] ?? 0;
+        let vA = a[appState.sortCol] ?? a['ignition_score'] ?? a['alpha_score'] ?? 0;
+        let vB = b[appState.sortCol] ?? b['ignition_score'] ?? b['alpha_score'] ?? 0;
         if (typeof vA === 'string') {
           return appState.sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
         }
@@ -1665,7 +1684,7 @@
 
         let isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
         let displayName = st.company_name || st.symbol;
-        const displayScore = st[appState.activeScoreCol] ?? st.ignition_score;
+        const displayScore = st[appState.activeScoreCol] ?? st.ignition_score ?? st.alpha_score ?? 50.0;
 
         let regimeColor = st.sector_breadth_status === 'Leading' ? 'var(--green)' : (st.sector_breadth_status === 'Improving' ? 'var(--teal)' : (st.sector_breadth_status === 'Weakening' ? 'var(--yellow)' : 'var(--red)'));
         let orderBlockCell = st.order_block_status || '';
@@ -1702,7 +1721,7 @@
         tbody.appendChild(tr);
       });
 
-      document.getElementById('pageInfo').textContent = `Showing ${startIdx + 1} to ${endIdx} of ${total} stocks`;
+      document.getElementById('pageInfo').textContent = total === 0 ? "Showing 0 stocks" : `Showing ${startIdx + 1} to ${endIdx} of ${total} stocks`;
       document.getElementById('pageTracker').textContent = `${appState.currentPage} / ${totalPages}`;
       document.getElementById('prevBtn').disabled = appState.currentPage <= 1;
       document.getElementById('nextBtn').disabled = appState.currentPage >= totalPages;
@@ -1714,7 +1733,6 @@
       tbody.innerHTML = '';
 
       const uniqueWatch = [...new Set(appState.watchlist.map(s => String(s).trim().toUpperCase()))];
-      document.getElementById('stockCountBadge').textContent = `${uniqueWatch.length} Stocks`;
       
       if (uniqueWatch.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--muted); padding: 30px;">Your watchlist is currently empty. Star stocks from the live screener to track them here!</td></tr>';
@@ -1776,7 +1794,6 @@
       else if (st.inst_signal.includes('Pullback')) sigBadge = `<span class="pill pill-pullback">${st.inst_signal}</span>`;
       document.getElementById('modalSignalPill').innerHTML = sigBadge;
 
-      // Rule-Based Strengths Summary
       let strengths = [];
       if (st.close > st.sma_20 && st.close > st.sma_50) strengths.push(`Price is trading constructively above both the 20-day SMA (₹${st.sma_20}) and 50-day SMA (₹${st.sma_50}).`);
       if (st.chart_pattern_signal) strengths.push(`Algorithmic pattern confirmed: ${st.chart_pattern_signal}.`);
@@ -1788,7 +1805,6 @@
       if (strengths.length === 0) strengths.push("Consolidating within baseline moving averages without active breakout triggers.");
       document.getElementById('modalStrengthsText').innerHTML = strengths.join("<br>• ");
 
-      // Rule-Based Vulnerabilities & Reasons to Avoid
       document.getElementById('modalAvoidText').innerHTML = st.reasons_to_avoid ? ("• " + st.reasons_to_avoid.split("; ").join("<br>• ")) : "None. Technical structure remains constructive.";
 
       document.getElementById('modalClose').textContent = `₹${Number(st.close).toFixed(2)}`;
@@ -1815,21 +1831,6 @@
     function closeModal() { document.getElementById('quantModal').style.display = 'none'; }
     function closeModalOnOverlay(e) { if (e.target.id === 'quantModal') closeModal(); }
     function changePage(delta) { appState.currentPage += delta; renderTablePage(); }
-
-    function resetFilters() {
-      appState.selectedSector = "ALL"; 
-      appState.selectedIndex = "Nifty 500"; 
-      appState.searchQuery = ""; 
-      appState.activePreset = null; 
-      appState.hideExtended = false;
-      document.querySelectorAll('#viewLive .tactical-btn:not(#presetHideExtended):not(#btnModeIgnition):not(#btnModeFrontrunners):not(#btnModeAll)').forEach(b => b.classList.remove('active'));
-      document.getElementById('presetHideExtended').classList.remove('active');
-      document.getElementById('presetHideExtended').textContent = '🛡️ Hide >8%';
-      document.getElementById('sectorSelect').value = "ALL"; 
-      document.getElementById('indexSelect').value = "Nifty 500";
-      document.getElementById('symbolSearch').value = "";
-      setStrategyMode('all');
-    }
 
     function sortTable(col) {
       ['symbol', 'sector', 'close', 'inst_signal', 'multi_timeframe_confluence', 'score', 'iasis_score', 'chart_pattern_signal', 'rs_line_status', 'order_block_status', 'risk_reward_ratio', 'market_breadth_status', 'sector_breadth_status'].forEach(c => {

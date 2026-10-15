@@ -25,7 +25,6 @@ HEADERS = {
     "Referer": "https://www.nseindia.com/",
 }
 
-# Embedded official constituent mappings to eliminate missing-index bugs
 NIFTY_50_SYMBOLS = {
     "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", 
     "BAJFINANCE", "BEL", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA", "COALINDIA", "DRREDDY", 
@@ -95,7 +94,6 @@ def load_index_mappings() -> dict:
         except Exception as e:
             print(f"[!] Error parsing index file {valid_path}: {e}")
 
-    # Fallback verification for Nifty 50 and Next 50
     for sym in NIFTY_50_SYMBOLS:
         if sym in symbol_to_meta:
             if "Nifty 50" not in symbol_to_meta[sym]["indices"]:
@@ -199,7 +197,6 @@ def detect_genuine_chart_patterns(prices, volumes, highs, lows):
     if n < 25:
         return 0.90, "", 21
 
-    # 1. High-Tight Bull Flag & Pole (21 Sessions)
     if n >= 25:
         pole_start = prices[-25]
         pole_peak = np.max(highs[-25:-7])
@@ -211,16 +208,14 @@ def detect_genuine_chart_patterns(prices, volumes, highs, lows):
         if pole_gain >= 0.15 and flag_pullback <= 0.12 and vol_flag < vol_pole:
             return 0.55, "🚩 High-Tight Flag & Pole", 21
 
-    # 2. VCP Coiled Spring (50 Sessions)
     if n >= 50:
         c1 = (np.max(highs[-48:-36]) - np.min(lows[-48:-36])) / (np.max(highs[-48:-36]) + 1e-5)
         c2 = (np.max(highs[-36:-24]) - np.min(lows[-36:-24])) / (np.max(highs[-36:-24]) + 1e-5)
         c3 = (np.max(highs[-24:-12]) - np.min(lows[-24:-12])) / (np.max(highs[-24:-12]) + 1e-5)
         c4 = (np.max(highs[-12:]) - np.min(lows[-12:])) / (np.max(highs[-12:]) + 1e-5)
-        if (c4 < c3 and c3 < c2) or (c4 <= 0.08 and c1 >= 0.14):
+        if c4 <= 0.085 and ((c4 < c3 and c3 < c2) or (c1 >= 0.12 and c2 >= c3)):
             return 0.55, "🎯 VCP Coiled Spring", 50
 
-    # 3. Multi-Month Accumulation Base / Cup (100 Sessions)
     if n >= 100:
         base_high = np.max(highs[-100:])
         base_low = np.min(lows[-100:])
@@ -229,7 +224,6 @@ def detect_genuine_chart_patterns(prices, volumes, highs, lows):
         if spread_100 <= 0.22 and prices[-1] >= sma_50:
             return 0.70, "🟢 Multi-Month Base / Cup", 100
 
-    # 4. Stage 2 Macro Base (200 Sessions)
     if n >= 200:
         sma_200 = np.mean(prices[-200:])
         h_52 = np.max(highs[-200:])
@@ -283,7 +277,6 @@ def run_screener_engine():
         lows = grp["low"].values
         deliv_pcts = grp["deliv_pct"].values
         deliv_qtys = grp["deliv_qty"].values
-        s_dates = grp["date"].values
         
         n_bars = len(prices)
         if n_bars < 15: continue
@@ -312,7 +305,6 @@ def run_screener_engine():
         hist, bins = np.histogram(prices[-50:], bins=10, weights=volumes[-50:])
         poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist)+1]) / 2.0), 2)
 
-        # Weekly Anchor Trend
         grp_copy = grp.copy()
         grp_copy["date_dt"] = pd.to_datetime(grp_copy["date"])
         w_df = grp_copy.set_index("date_dt").resample("W-FRI").agg({
@@ -331,7 +323,6 @@ def run_screener_engine():
             weekly_trend_bull = close >= sma_50
             weekly_trend_bear = close < sma_50
 
-        # Moving Average Pinch & Volatility Squeeze
         ma_spread_pct = ((max(ema_10, ema_21, sma_50) - min(ema_10, ema_21, sma_50)) / (close + 1e-5)) * 100.0
         is_ma_pinched = ma_spread_pct <= 2.8
 
@@ -344,12 +335,10 @@ def run_screener_engine():
         lower_kc = sma_20 - (1.5 * atr_20)
         is_squeezed = (upper_bb <= upper_kc) and (lower_bb >= lower_kc)
 
-        # Volume Dry-Up (VDU)
         vol_5d = np.mean(volumes[-5:])
         vol_50d = np.mean(volumes[-min(50, n_bars):]) + 1e-5
         is_vdu = (vol_5d < 0.65 * vol_50d) and ((highs[-1] - lows[-1]) <= 0.85 * atr_20)
 
-        # Leading Relative Strength Line Divergence
         stock_series = grp.set_index("date")["close"]
         common_s_idx = stock_series.index.intersection(market_benchmark.index)
         stk_sub = stock_series.loc[common_s_idx]
@@ -367,7 +356,6 @@ def run_screener_engine():
             rs_is_new_high = close >= np.max(prices[-20:-1])
             rs_is_lagging = False
 
-        # Pocket Pivot Ignition
         if n_bars >= 11:
             diffs_10 = np.diff(prices[-11:])
             down_vols = volumes[-10:][diffs_10 < 0]
@@ -376,7 +364,6 @@ def run_screener_engine():
         else:
             is_pocket_pivot = False
 
-        # Order Block Retest
         if n_bars >= 15:
             recent_low = np.min(lows[-15:-2])
             ob_zone_high = recent_low + (1.2 * atr_20)
@@ -424,30 +411,22 @@ def run_screener_engine():
         if (close / (h_52 + 1e-5)) >= 0.75: trend_score += 10.0
         if (close / (l_52 + 1e-5)) >= 1.25: trend_score += 10.0
 
-        # DIRECTIONAL DELIVERY ACCUMULATION (Solved the ITC Anomaly)
         deliv_cash_all = deliv_qtys[-min(30, n_bars):] * prices[-min(30, n_bars):]
         diffs_deliv = diffs[-min(29, len(diffs)):]
         deliv_up = np.sum(deliv_cash_all[1:][diffs_deliv > 0]) if np.any(diffs_deliv > 0) else 1.0
         deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
         deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
 
-        # IASIS Component Calculations (0 - 100)
-        # Squeeze (0-40)
         squeeze_component = 40.0 if is_squeezed else (20.0 if is_ma_pinched else 5.0)
-        # Flow (0-35)
         flow_component = np.clip((deliv_flow_ratio / 1.5) * 35.0, 5.0, 35.0)
-        # Base Quality (0-25)
         base_component = 25.0 if (is_tight_base and close >= sma_50) else 5.0
         
         raw_iasis = squeeze_component + flow_component + base_component
-        # If in a downtrend below declining 200 SMA, cap score to prevent false positives
         if close < sma_200 and close < sma_50:
             iasis_score = round(float(min(32.0, raw_iasis * 0.35)), 1)
         else:
             iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
 
-        # STRICT NON-DEFAULT MULTI-TF CONFLUENCE
-        # Populated ONLY when rigorous multi-timeframe conditions are confirmed
         if is_rs_divergent and (is_squeezed or is_vdu):
             mtf_status = "🎯 RS Pre-Breakout Divergence"
         elif is_pocket_pivot and (is_squeezed or is_ma_pinched):
@@ -461,13 +440,12 @@ def run_screener_engine():
         elif weekly_trend_bear:
             mtf_status = "🔴 Macro Downtrend (Avoid)"
         else:
-            mtf_status = "—" # No false placeholder!
+            mtf_status = "—"
 
         risk_unit = max(1.0, 1.5 * atr_20)
         target_dist = max(base_depth_pct / 100.0 * close, 2.5 * atr_20)
         rrr_calc = round(min(8.0, max(1.5, target_dist / risk_unit)), 1)
 
-        # Reasons to Avoid Engine (Rule-based risk diagnostic)
         reasons_to_avoid = []
         if close < sma_200:
             reasons_to_avoid.append("Price trading below 200-day SMA (heavy overhead supply)")
@@ -560,9 +538,7 @@ def run_screener_engine():
 
     rs_percentile = (ranked["raw_multi_rs"].rank(pct=True) * 100.0).round(1)
     up_down_pct = (ranked["up_down_vol_ratio"].rank(pct=True) * 100.0).round(1)
-    vcp_score = ((1.0 - ranked["vcp_ratio"]) * 200.0).clip(0, 100)
 
-    # 1. Early Base Ignition Score (Theme 1)
     ignition_raw = (
         np.where(ranked["is_squeezed"], 30.0, 10.0) +
         np.where(ranked["is_ma_pinched"], 25.0, 5.0) +
@@ -571,13 +547,11 @@ def run_screener_engine():
     )
     ranked["ignition_score"] = np.where(ranked["mrs_score"] > 5.0, ignition_raw * 0.35, ignition_raw).clip(5.0, 99.0).round(1)
 
-    # 2. Frontrunner Leader Score (Theme 2)
     leader_trend = np.where(ranked["close"] > ranked["sma_50"], 40.0, 15.0)
     leader_rs = (rs_percentile * 0.35)
     leader_vol = (up_down_pct * 0.25)
     ranked["frontrunner_score"] = (leader_trend + leader_rs + leader_vol).clip(5.0, 99.0).round(1)
 
-    # Setup Assignment
     def get_signal(r):
         c_pattern = r["chart_pattern_signal"]
         if r["mrs_score"] > 8.0: 
@@ -676,8 +650,10 @@ def run_screener_engine():
         "stocks": output_stocks
     }
 
-    with open(OUTPUT_JSON, "w") as f: json.dump(payload, f, indent=2)
-    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} official stocks with verified multi-index mappings and directional IASIS.")
+    with open(OUTPUT_JSON, "w") as f: 
+        json.dump(payload, f, indent=2)
+        
+    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} official stocks.")
 
 if __name__ == "__main__":
     run_screener_engine()
