@@ -251,15 +251,37 @@ def run_screener_engine():
     latest_date = dates[-1]
     latest_df = df_all[df_all["date"] == latest_date].copy().drop_duplicates(subset=["symbol"])
 
-    lookback_idx = max(0, len(dates) - 20)
-    lookback_date_20 = dates[lookback_idx]
+    lookback_idx_20 = max(0, len(dates) - 20)
+    lookback_date_20 = dates[lookback_idx_20]
     df_20_ago = df_all[df_all["date"] == lookback_date_20][["symbol", "close"]].rename(columns={"close": "close_20d_ago"}).drop_duplicates(subset=["symbol"])
+    
+    lookback_idx_63 = max(0, len(dates) - 63)
+    lookback_date_63 = dates[lookback_idx_63]
+    df_63_ago = df_all[df_all["date"] == lookback_date_63][["symbol", "close"]].rename(columns={"close": "close_63d_ago"}).drop_duplicates(subset=["symbol"])
+
     sec_base = pd.merge(latest_df, df_20_ago, on="symbol", how="left")
+    sec_base = pd.merge(sec_base, df_63_ago, on="symbol", how="left")
     sec_base["close_20d_ago"] = sec_base["close_20d_ago"].fillna(sec_base["close"])
+    sec_base["close_63d_ago"] = sec_base["close_63d_ago"].fillna(sec_base["close"])
 
     df_250d_all = df_all[df_all["date"].isin(dates[-250:])].sort_values(by=["symbol", "date"])
     market_pivot = df_250d_all.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
     market_benchmark = market_pivot.mean(axis=1)
+
+    sector_benchmarks = {}
+    sector_rs_history = {}
+    for sec_name, sec_grp in df_250d_all.groupby("sector"):
+        if sec_name == "General Equities": continue
+        sec_pivot = sec_grp.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
+        if not sec_pivot.empty:
+            sec_mean = sec_pivot.mean(axis=1)
+            sector_benchmarks[sec_name] = sec_mean
+            common_idx = sec_mean.index.intersection(market_benchmark.index)
+            if len(common_idx) > 10:
+                sec_norm = (sec_mean.loc[common_idx] / sec_mean.loc[common_idx[0]]) * 100.0
+                mkt_norm = (market_benchmark.loc[common_idx] / market_benchmark.loc[common_idx[0]]) * 100.0
+                rel_perf = (sec_norm - mkt_norm).round(2)
+                sector_rs_history[sec_name] = [{"date": str(d), "rs": float(v)} for d, v in zip(common_idx, rel_perf.iloc)]
 
     mkt_len = len(market_benchmark)
     bm_ret_21 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(21, mkt_len)] + 1e-5)) - 1.0
@@ -345,6 +367,11 @@ def run_screener_engine():
         bm_sub = market_benchmark.loc[common_s_idx]
         rs_series = (stk_sub / bm_sub).values
 
+        sec_name = grp["sector"].iloc[-1] if "sector" in grp.columns else "Capital Goods"
+        sec_bm = sector_benchmarks.get(sec_name, market_benchmark)
+        sec_sub = sec_bm.reindex(common_s_idx).ffill().bfill()
+        sec_rs_series = (stk_sub / (sec_sub + 1e-5)).values
+
         if len(rs_series) >= 63:
             rs_63_high = np.max(rs_series[-63:-1])
             price_63_high = np.max(highs[-63:-1])
@@ -355,6 +382,30 @@ def run_screener_engine():
             is_rs_divergent = False
             rs_is_new_high = close >= np.max(prices[-20:-1])
             rs_is_lagging = False
+
+        if len(sec_rs_series) >= 63:
+            sec_rs_63_high = np.max(sec_rs_series[-63:-1])
+            price_63_high_sec = np.max(highs[-63:-1])
+            is_sec_rs_divergent = (sec_rs_series[-1] >= sec_rs_63_high) and (close < price_63_high_sec * 0.99)
+            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
+            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
+        elif len(sec_rs_series) >= 21:
+            is_sec_rs_divergent = False
+            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
+            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
+        else:
+            is_sec_rs_divergent = False
+            sec_rs_new_high = rs_is_new_high
+            sec_rs_outperforming = True
+
+        if is_sec_rs_divergent:
+            sector_rs_status = "🎯 Sector RS Pre-Breakout"
+        elif sec_rs_new_high:
+            sector_rs_status = "🔥 Sector RS New High"
+        elif sec_rs_outperforming:
+            sector_rs_status = "🟢 Outperforming Sector"
+        else:
+            sector_rs_status = "🔴 Lagging Sector"
 
         if n_bars >= 11:
             diffs_10 = np.diff(prices[-11:])
@@ -427,7 +478,7 @@ def run_screener_engine():
         else:
             iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
 
-        if is_rs_divergent and (is_squeezed or is_vdu):
+        if (is_rs_divergent or is_sec_rs_divergent) and (is_squeezed or is_vdu):
             mtf_status = "🎯 RS Pre-Breakout Divergence"
         elif is_pocket_pivot and (is_squeezed or is_ma_pinched):
             mtf_status = "🚀 MA Pinch + Pocket Pivot"
@@ -463,8 +514,15 @@ def run_screener_engine():
         if len(common_s_idx) > 10:
             stk_norm = (stock_series.loc[common_s_idx] / stock_series.loc[common_s_idx[0]]) * 100.0
             mkt_norm = (market_benchmark.loc[common_s_idx] / market_benchmark.loc[common_s_idx[0]]) * 100.0
-            stk_rel = (stk_norm - mkt_norm).round(2)
-            price_history_map[sym] = [{"date": str(d), "rs": float(v)} for d, v in zip(common_s_idx, stk_rel.iloc)]
+            stk_rel_mkt = (stk_norm - mkt_norm).round(2)
+
+            sec_norm = (sec_sub / (sec_sub.iloc[0] + 1e-5)) * 100.0
+            stk_rel_sec = (stk_norm - sec_norm).round(2)
+
+            price_history_map[sym] = [
+                {"date": str(d), "rs": float(v_mkt), "rs_vs_sector": float(v_sec)}
+                for d, v_mkt, v_sec in zip(common_s_idx, stk_rel_mkt.iloc, stk_rel_sec.iloc)
+            ]
         else:
             price_history_map[sym] = []
 
@@ -475,6 +533,7 @@ def run_screener_engine():
             "multi_timeframe_confluence": mtf_status,
             "chart_pattern_signal": pattern, "pattern_timeframe": pattern_tf,
             "rs_line_status": "🔥 RS Line New High" if (rs_is_new_high or is_rs_divergent) else "Normal RS",
+            "sector_rs_status": sector_rs_status,
             "order_block_status": "⚡ Demand Zone Retest (Light Vol)" if is_ob_retest else "",
             "avg_deliv_20": np.mean(deliv_qtys[-min(20, n_bars):]),
             "atr_20": atr_20, "vcp_ratio_calc": vcp_rat,
@@ -484,7 +543,7 @@ def run_screener_engine():
             "smooth_deliv_pct": round(float(np.mean(deliv_pcts[-min(20, n_bars):])), 1),
             "high_52w": h_52, "low_52w": l_52, "risk_reward_calc": rrr_calc,
             "is_pocket_pivot": is_pocket_pivot, "is_squeezed": is_squeezed,
-            "is_ma_pinched": is_ma_pinched, "is_rs_divergent": is_rs_divergent,
+            "is_ma_pinched": is_ma_pinched, "is_rs_divergent": (is_rs_divergent or is_sec_rs_divergent),
             "is_not_extended": is_not_extended, "flow_ratio": deliv_flow_ratio,
             "dist_from_20": dist_from_20, "is_ob_retest": is_ob_retest,
             "reasons_to_avoid": "; ".join(reasons_to_avoid) if reasons_to_avoid else "None. Technical structure remains constructive."
@@ -503,29 +562,42 @@ def run_screener_engine():
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
     ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
 
-    sector_summary = sec_base.groupby("sector").agg(
-        daily_perf=("close", lambda x: round(float(((x - sec_base.loc[x.index, "open"]) / (sec_base.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
-        advance_pct=("close", lambda x: round(float((x > sec_base.loc[x.index, "open"]).mean() * 100.0), 2)),
-        perf_20d=("close", lambda x: round(float(((x - sec_base.loc[x.index, "close_20d_ago"]) / (sec_base.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2))
-    ).reset_index()
-
-    sector_rs_history = {}
-    for sec_name, sec_grp in df_250d_all.groupby("sector"):
-        sec_pivot = sec_grp.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
-        if not sec_pivot.empty:
-            sec_mean = sec_pivot.mean(axis=1)
-            common_idx = sec_mean.index.intersection(market_benchmark.index)
-            if len(common_idx) > 10:
-                sec_norm = (sec_mean.loc[common_idx] / sec_mean.loc[common_idx[0]]) * 100.0
-                mkt_norm = (market_benchmark.loc[common_idx] / market_benchmark.loc[common_idx[0]]) * 100.0
-                rel_perf = (sec_norm - mkt_norm).round(2)
-                sector_rs_history[sec_name] = [{"date": str(d), "rs": float(v)} for d, v in zip(common_idx, rel_perf.iloc)]
+    sec_base_clean = sec_base[sec_base["sector"] != "General Equities"].copy()
+    sector_summary = (
+        sec_base_clean.groupby("sector")
+        .agg(
+            daily_perf=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "open"]) / (sec_base_clean.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
+            advance_pct=("close", lambda x: round(float((x > sec_base_clean.loc[x.index, "open"]).mean() * 100.0), 2)),
+            perf_20d=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "close_20d_ago"]) / (sec_base_clean.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2)),
+            perf_63d=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "close_63d_ago"]) / (sec_base_clean.loc[x.index, "close_63d_ago"] + 1e-5)).mean() * 100.0), 2)),
+            stock_count=("symbol", "count"),
+        )
+        .reset_index()
+    )
 
     above_sma50_map = ranked.groupby("sector")["above_sma50"].mean().mul(100.0).round(2).to_dict()
     sector_summary["above_sma_pct"] = sector_summary["sector"].map(lambda s: above_sma50_map.get(s, 50.0))
+    
+    sector_summary["rs_20d"] = sector_summary["perf_20d"]
+    sector_summary["rs_63d"] = sector_summary["perf_63d"]
+    sector_summary["breadth_pct"] = sector_summary["above_sma_pct"]
+
+    rs_63_pct = sector_summary["rs_63d"].rank(pct=True) * 100.0
+    breadth_pct = sector_summary["breadth_pct"]
+    rs_20_pct = sector_summary["rs_20d"].rank(pct=True) * 100.0
+
+    sector_summary["sector_composite_score"] = (
+        (0.40 * rs_63_pct) + (0.35 * breadth_pct) + (0.25 * rs_20_pct)
+    ).round(2)
+
     sector_summary["rs_ratio"] = (100.0 + sector_summary["perf_20d"] * 0.35).round(2)
     sector_summary["rs_momentum"] = (100.0 + (sector_summary["advance_pct"] - 50.0) * 0.1).round(2)
-    sector_summary["quadrant"] = sector_summary.apply(lambda r: "Leading" if r["rs_ratio"] >= 100 and r["rs_momentum"] >= 100 else ("Improving" if r["rs_ratio"] < 100 and r["rs_momentum"] >= 100 else ("Weakening" if r["rs_ratio"] >= 100 else "Lagging")), axis=1)
+    sector_summary["quadrant"] = sector_summary.apply(
+        lambda r: "Leading"
+        if r["rs_ratio"] >= 100 and r["rs_momentum"] >= 100
+        else ("Improving" if r["rs_ratio"] < 100 and r["rs_momentum"] >= 100 else ("Weakening" if r["rs_ratio"] >= 100 else "Lagging")),
+        axis=1,
+    )
 
     sector_perf_map = dict(zip(sector_summary["sector"], sector_summary["perf_20d"]))
     sector_quad_map = dict(zip(sector_summary["sector"], sector_summary["quadrant"]))
@@ -617,7 +689,8 @@ def run_screener_engine():
             "fcf_yield": None, "earnings_revision": "NA",
             "chart_pattern_signal": clean(r.get("chart_pattern_signal", ""), True) if pd.notna(r.get("chart_pattern_signal")) else "",
             "pattern_timeframe": int(r.get("pattern_timeframe", 21)),
-            "rs_line_status": clean(r.get("rs_line_status", "Normal RS"), True), 
+            "rs_line_status": clean(r.get("rs_line_status", "Normal RS"), True),
+            "sector_rs_status": clean(r.get("sector_rs_status", "🟢 Outperforming Sector"), True),
             "order_block_status": clean(r.get("order_block_status", ""), True),
             "risk_reward_ratio": clean(r.get("risk_reward_ratio")), 
             "market_breadth_status": clean(r.get("market_breadth_status", "🟢 Bullish Regime"), True),
