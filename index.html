@@ -7,7 +7,7 @@
   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Institutional Market Command Center | NSE Pro Quant Terminal</title>
+  <title>NSE Alpha Pro | Institutional Quant Command Center & Terminal</title>
   <style>
     :root {
       --bg: #030712;
@@ -80,7 +80,6 @@
     .cmd-trigger:hover { border-color: var(--accent); color: var(--text); box-shadow: 0 0 10px var(--accent-glow); }
     .cmd-trigger kbd { background: var(--bg); padding: 2px 5px; border-radius: 4px; font-size: 0.65rem; border: 1px solid var(--card-border); color: var(--accent); }
 
-    /* Landing Dashboard Hero Grid Styling */
     .landing-hero-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -114,7 +113,7 @@
     .sector-tile.selected { border-color: var(--accent); box-shadow: 0 0 20px rgba(56, 189, 248, 0.4); }
     .sector-tile-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
     .sector-tile-name { font-weight: 700; font-size: 0.95rem; color: var(--text); }
-    .sector-tile-metrics { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin-top: 10px; border-top: 1px solid var(--card-border); padding-top: 10px; }
+    .sector-tile-metrics { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px; }
 
     .sector-drilldown-container {
       background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px; margin-top: 18px;
@@ -298,7 +297,7 @@
 
   <header>
     <div>
-      <h1>Institutional Market Command Center | NSE Pro Quant Terminal</h1>
+      <h1>NSE Alpha Pro | Institutional Quant Command Center</h1>
       <span style="font-size: 0.76rem; color: var(--muted);">Advanced Technical & Quantitative Screening</span>
     </div>
     <div class="header-meta">
@@ -622,7 +621,7 @@
     </div>
 
     <div id="btNoticeBanner" style="display: none; background: var(--card-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 18px; margin-bottom: 16px; color: var(--text);">
-      <strong style="color: var(--yellow);">⚠️ Run `python3 backtest.py` to generate real Bhavcopy point-in-time data.</strong>
+      <strong style="color: var(--yellow);">⚠️ Run `python3 backtest.py` to generate real Bhavcopy point-in-time data[cite: 3].</strong>
     </div>
 
     <div id="btContentWrapper" style="display: none;">
@@ -638,9 +637,9 @@
           <div id="btStat30d60dMfe" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">30D &amp; 60D Velocity Horizon</div>
         </div>
         <div class="bt-stat-card" style="border-color: rgba(56, 189, 248, 0.45);">
-          <div class="bt-stat-label">🎯 Structural Confirmation</div>
-          <div class="bt-stat-value" id="btStatTargetHitRate" style="color: var(--accent);">--</div>
-          <div id="btStat20PctHitRate" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">--</div>
+          <div class="bt-stat-label" title="Portfolio excess return over Nifty universe benchmark">⚡ Alpha vs Benchmark</div>
+          <div class="bt-stat-value" id="btStatAlphaVsBm" style="color: var(--accent);">--</div>
+          <div id="btStatBmRetSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Benchmark Return: --</div>
         </div>
         <div class="bt-stat-card">
           <div class="bt-stat-label">Period Return vs 50-SMA Sim</div>
@@ -653,9 +652,9 @@
           <div id="btStatPersistenceSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Zone / Trend Hold Days</div>
         </div>
         <div class="bt-stat-card">
-          <div class="bt-stat-label">Alpha / Adverse Excursion (MAE)</div>
-          <div class="bt-stat-value" id="btStatAlphaWin">--</div>
-          <div id="btStatAvgMaeSub" style="font-size: 0.68rem; color: var(--red); margin-top: 4px;">--</div>
+          <div class="bt-stat-label">Structural Confirmation</div>
+          <div class="bt-stat-value" id="btStatTargetHitRate" style="color: var(--green);">--</div>
+          <div id="btStat20PctHitRate" style="font-size: 0.68rem; color: var(--red); margin-top: 4px;">MAE: --</div>
         </div>
       </div>
 
@@ -743,7 +742,7 @@
   <div class="tab-view" id="viewPlaybook">
     <div class="playbook-container">
       <h2>📖 Institutional Quant Playbook & Strategy Masterclass</h2>
-      <p>Official technical guidelines and dual-archetype execution rules for the NSE Pro Engine.</p>
+      <p>Official technical guidelines and dual-archetype execution rules for the NSE Alpha Pro Engine.</p>
       
       <h3>Part 1: Surety &amp; Capital Defense Archetype (High Win Rate / Low Drawdown)</h3>
       <p>Focuses on capital preservation during choppy or contracting markets (&lt;50% stocks above 50-SMA)[cite: 4]. Enters tight bases (&le;22%) near moving average equilibrium with strong institutional delivery flow (IASIS &ge; 58) and tightly clamped drawdowns (&le;6% MAE)[cite: 4].</p>
@@ -865,7 +864,7 @@
         </div>
       </div>
 
-      <div class="modal-action-bar">
+      <div class="modal-action-bar" style="justify-content: flex-end;">
         <a id="modalTvLink" class="ext-chart-btn" href="#" target="_blank" rel="noopener noreferrer">📈 Open Interactive Chart on TradingView ↗</a>
       </div>
     </div>
@@ -1000,7 +999,13 @@
         appState.asOfDate = data.as_of_date || "";
         appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
         appState.sectorRsHistory = data.sector_rs_history || {};
-        appState.stocks = data.stocks || [];
+        
+        const rawStocks = data.stocks || [];
+        appState.stocks = rawStocks.filter(st => {
+          const sym = String(st.symbol || "").trim().toUpperCase();
+          if (sym === "SUNSHINE" || sym === "SUNSHINEPIX" || !st.close || !st.sma_20 || !st.sma_50) return false;
+          return true;
+        });
 
         appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
 
@@ -1257,7 +1262,7 @@
     }
 
     // ============================================================================
-    // RENDER LANDING DASHBOARD (Visual Market Leadership Hero Tiles)
+    // RENDER LANDING DASHBOARD
     // ============================================================================
     function renderLandingDashboard() {
       const tape = document.getElementById('landingSectorTape');
@@ -1282,7 +1287,6 @@
         `;
       }).join('');
 
-      // Filter stocks based on high-conviction criteria
       const qualified = appState.stocks.filter(st => {
         const above50 = Boolean(st.close >= st.sma_50);
         const above200 = Boolean(st.close >= st.sma_200);
@@ -1295,19 +1299,15 @@
         } else if (appState.landingFilter === 'VCP') {
           return above200 && ((st.vcp_ratio && st.vcp_ratio <= 0.65) || (st.chart_pattern_signal && st.chart_pattern_signal.includes('VCP')));
         }
-
-        // Default 'ALL' Top Leadership Filter
         return above50 && above200 && mrs >= -2.5 && mrs <= 4.5 && iasis >= 58.0 && front >= 70.0 && st.sector_rs_status !== "🔴 Lagging Sector";
       });
 
-      // Sort by composite strength (Frontrunner + IASIS + Ignition)
       qualified.sort((a, b) => {
         const scoreA = (Number(a.frontrunner_score || 0) * 0.4) + (Number(a.iasis_score || 0) * 0.35) + (Number(a.ignition_score || 0) * 0.25);
         const scoreB = (Number(b.frontrunner_score || 0) * 0.4) + (Number(b.iasis_score || 0) * 0.35) + (Number(b.ignition_score || 0) * 0.25);
         return scoreB - scoreA;
       });
 
-      // Enforce max 2 per sector for diversified leadership display
       const seenSectors = {};
       const topTiles = [];
       for (const st of qualified) {
@@ -1320,7 +1320,6 @@
         if (topTiles.length >= 12) break;
       }
 
-      // Fallback if strict filter yields fewer than 12
       if (topTiles.length < 12) {
         const usedSyms = new Set(topTiles.map(s => s.symbol));
         for (const st of qualified) {
@@ -1359,7 +1358,6 @@
               <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.index_name ? st.index_name.split(',')[0] : 'Nifty 500'}</span>
             </div>
 
-            <!-- Score Gauges Row -->
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
               <div>
                 <div style="font-size: 0.62rem; color: var(--muted); text-transform: uppercase;">Leader RS</div>
@@ -1375,7 +1373,6 @@
               </div>
             </div>
 
-            <!-- Real Bhavcopy Technical Parameters Grid -->
             <div style="background: var(--bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 0.74rem;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <span style="color: var(--muted);">MA Confluence (20/50):</span>
@@ -1403,7 +1400,6 @@
               </div>
             </div>
 
-            <!-- Footer Action Bar -->
             <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 10px;">
               <span class="pill pill-buyzone">${st.inst_signal}</span>
               <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
@@ -1475,7 +1471,7 @@
     });
 
     // ============================================================================
-    // POINT-IN-TIME BACKTEST RENDERER
+    // POINT-IN-TIME BACKTEST RENDERER (FAIL-SAFE NULL-CHECKED)
     // ============================================================================
     function selectBacktestQuarter(idx) {
       appState.selectedBacktestQuarterIdx = idx;
@@ -1655,110 +1651,136 @@
       const lowMaeCount = maes.filter(v => v >= -6.0).length;
       const lowMaeRate = picks.length > 0 ? ((lowMaeCount / picks.length) * 100.0) : 0;
 
-      document.getElementById('btStatSignalDate').textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
-      document.getElementById('btSectorHeaderDate').textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
-      document.getElementById('btStatAvgPeak').textContent = `+${avgPeakMfe.toFixed(2)}% Avg Peak`;
-      document.getElementById('btStatTargetHitRate').innerHTML = `${hit15Count} / ${picks.length} (${hit15Rate.toFixed(0)}%)`;
-      document.getElementById('btStat20PctHitRate').textContent = `Low-MAE (<6%) Rate: ${lowMaeRate.toFixed(0)}%`;
+      const benchmarkRet = Number(rawEntry.universe_benchmark_ret_pct || 0);
+      const alphaVal = portRet - benchmarkRet;
+
+      const elDate = document.getElementById('btStatSignalDate');
+      if (elDate) elDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
+      const elSecDate = document.getElementById('btSectorHeaderDate');
+      if (elSecDate) elSecDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
+      const elPeak = document.getElementById('btStatAvgPeak');
+      if (elPeak) elPeak.textContent = `+${avgPeakMfe.toFixed(2)}% Avg Peak`;
+      
+      const alphaEl = document.getElementById('btStatAlphaVsBm');
+      if (alphaEl) {
+        alphaEl.textContent = `${alphaVal >= 0 ? '+' : ''}${alphaVal.toFixed(2)}%`;
+        alphaEl.style.color = alphaVal >= 0 ? 'var(--green)' : 'var(--red)';
+      }
+      const bmSub = document.getElementById('btStatBmRetSub');
+      if (bmSub) {
+        bmSub.textContent = `Nifty Benchmark: ${benchmarkRet >= 0 ? '+' : ''}${benchmarkRet.toFixed(2)}%`;
+      }
 
       const portEl = document.getElementById('btStatPortfolioRet');
-      portEl.textContent = `${portRet >= 0 ? '+' : ''}${portRet.toFixed(2)}%`;
-      portEl.style.color = portRet >= 0 ? 'var(--green)' : 'var(--red)';
+      if (portEl) {
+        portEl.textContent = `${portEl >= 0 ? '+' : ''}${portRet.toFixed(2)}%`;
+        portEl.style.color = portRet >= 0 ? 'var(--green)' : 'var(--red)';
+      }
 
-      document.getElementById('btStatExitSimSub').innerHTML = `50-SMA Sim: <b style="color:${day1TrailAvg >= 0 ? 'var(--green)' : 'var(--red)'};">${day1TrailAvg >= 0 ? '+' : ''}${day1TrailAvg.toFixed(2)}%</b>`;
-      document.getElementById('btStatPersistence').textContent = `${qData.avg_zone_persistence_days || 12.5}d / ${qData.avg_trend_persistence_days || 34.0}d`;
-      document.getElementById('btStatAlphaWin').textContent = `MAE: ${avgMae.toFixed(2)}%`;
+      const elExit = document.getElementById('btStatExitSimSub');
+      if (elExit) elExit.innerHTML = `50-SMA Sim: <b style="color:${day1TrailAvg >= 0 ? 'var(--green)' : 'var(--red)'};">${day1TrailAvg >= 0 ? '+' : ''}${day1TrailAvg.toFixed(2)}%</b>`;
+      const elPers = document.getElementById('btStatPersistence');
+      if (elPers) elPers.textContent = `${qData.avg_zone_persistence_days || 12.5}d / ${qData.avg_trend_persistence_days || 34.0}d`;
+      const elHit = document.getElementById('btStatTargetHitRate');
+      if (elHit) elHit.textContent = `${hit15Count} / ${picks.length} (${hit15Rate.toFixed(0)}%)`;
+      const elDraw = document.getElementById('btStat20PctHitRate');
+      if (elDraw) elDraw.textContent = `Max Adverse Drawdown: ${avgMae.toFixed(2)}%`;
+      const elAlphaWin = document.getElementById('btStatAlphaWin');
+      if (elAlphaWin) elAlphaWin.textContent = `Low-MAE Rate: ${lowMaeRate.toFixed(0)}%`;
 
       const secGrid = document.getElementById('btTopSectorsGrid');
-      secGrid.innerHTML = '';
-      const rawSectors = qData.top_5_sectors || qData.top_3_sectors || [];
-      rawSectors.forEach((sec, i) => {
-        const card = document.createElement('div');
-        card.className = 'sector-tile';
-        card.style.cursor = 'default';
-        card.innerHTML = `
-          <div class="sector-tile-header">
-            <div>
-              <span class="badge" style="margin-bottom:6px; display:inline-block;">Rank #${i + 1} Sector</span>
-              <div class="sector-tile-name">${sec.sector}</div>
-              <span style="font-size:0.68rem; color:var(--green); font-weight:700;">${sec.sector_lifecycle || sec.quadrant}</span>
+      if (secGrid) {
+        secGrid.innerHTML = '';
+        const rawSectors = qData.top_5_sectors || qData.top_3_sectors || [];
+        rawSectors.forEach((sec, i) => {
+          const card = document.createElement('div');
+          card.className = 'sector-tile';
+          card.style.cursor = 'default';
+          card.innerHTML = `
+            <div class="sector-tile-header">
+              <div>
+                <span class="badge" style="margin-bottom:6px; display:inline-block;">Rank #${i + 1} Sector</span>
+                <div class="sector-tile-name">${sec.sector}</div>
+                <span style="font-size:0.68rem; color:var(--green); font-weight:700;">${sec.sector_lifecycle || sec.quadrant}</span>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-weight:800; font-size:1.05rem; color:${sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)'};">${sec.perf_20d >= 0 ? '+' : ''}${Number(sec.perf_20d).toFixed(2)}%</div>
+                <div style="font-size:0.68rem; color:var(--muted);">20D Perf</div>
+              </div>
             </div>
-            <div style="text-align:right;">
-              <div style="font-weight:800; font-size:1.05rem; color:${sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)'};">${sec.perf_20d >= 0 ? '+' : ''}${Number(sec.perf_20d).toFixed(2)}%</div>
-              <div style="font-size:0.68rem; color:var(--muted);">20D Perf</div>
+            <div class="sector-tile-metrics">
+              <div>RS Ratio: <b>${Number(sec.rs_ratio || 100).toFixed(2)}</b></div>
+              <div>Above >50 SMA: <b style="color:var(--accent);">${Number(sec.above_sma_pct || 50).toFixed(1)}%</b></div>
             </div>
-          </div>
-          <div class="sector-tile-metrics">
-            <div>RS Ratio: <b>${Number(sec.rs_ratio || 100).toFixed(2)}</b></div>
-            <div>Above >50 SMA: <b style="color:var(--accent);">${Number(sec.above_sma_pct || 50).toFixed(1)}%</b></div>
-          </div>
-        `;
-        secGrid.appendChild(card);
-      });
+          `;
+          secGrid.appendChild(card);
+        });
+      }
 
       const thead = document.getElementById('btProgressionTableHead');
       const tbody = document.getElementById('btProgressionTableBody');
-
-      thead.innerHTML = `
-        <tr>
-          <th style="width:35px; text-align:center;">⭐</th>
-          <th>Rank &amp; Cap Tier</th>
-          <th>Symbol</th>
-          <th>Setup &amp; Sector Stage</th>
-          <th>Reference Entry</th>
-          <th class="peak-highlight-cell">🚀 Peak MFE</th>
-          <th>Adverse Drawdown (MAE)</th>
-          <th>Latest Price</th>
-          <th>Period Return</th>
-          <th>Chart</th>
-        </tr>
-      `;
-
-      tbody.innerHTML = '';
-      if (picks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--muted);">No matching picks for this filter.</td></tr>`;
-        return;
-      }
-
-      picks.forEach((pick, i) => {
-        const tr = document.createElement('tr');
-        tr.className = 'stock-row';
-        const isStarred = appState.watchlist.includes(pick.symbol.toUpperCase());
-        const peakPrice = Number(pick.peak_high_since_entry || pick.entry_price);
-        const peakGainPct = Number(pick.max_gain_mfe_pct || 0);
-        const maxDdPct = Number(pick.max_drawdown_mae_pct || 0);
-        const totRet = Number(pick.total_return_to_today_pct || 0);
-
-        tr.innerHTML = `
-          <td style="text-align:center;" onclick="event.stopPropagation()">
-            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${pick.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
-          </td>
-          <td>
-            <span class="pill" style="background:rgba(56,189,248,0.12); color:var(--accent);">Rank #${pick.rank || i + 1}</span>
-            <div style="font-weight:700; margin-top:3px;">${pick.sector}</div>
-          </td>
-          <td><strong>${pick.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${pick.company_name}</span></td>
-          <td>
-            <div style="font-weight:700; color:var(--purple); font-size:0.74rem;">${pick.inst_signal_at_entry}</div>
-            <div style="font-size:0.68rem; color:var(--green);">${pick.sector_rs_status_at_entry}</div>
-          </td>
-          <td>₹${Number(pick.entry_price).toFixed(2)}</td>
-          <td class="peak-highlight-cell">
-            <div style="font-weight:800; font-size:0.92rem;">₹${peakPrice.toFixed(2)} <span class="pill pill-buyzone">+${peakGainPct.toFixed(2)}%</span></div>
-          </td>
-          <td><b style="color:${maxDdPct >= -6.0 ? 'var(--teal)' : 'var(--red)'};">${maxDdPct.toFixed(2)}%</b></td>
-          <td>₹${Number(pick.today_price).toFixed(2)}</td>
-          <td><span class="pill ${totRet >= 0 ? 'pill-buyzone' : 'pill-extended'}">${totRet >= 0 ? '+' : ''}${totRet.toFixed(2)}%</span></td>
-          <td onclick="event.stopPropagation()">
-            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${pick.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
-          </td>
+      if (thead && tbody) {
+        thead.innerHTML = `
+          <tr>
+            <th style="width:35px; text-align:center;">⭐</th>
+            <th>Rank &amp; Cap Tier</th>
+            <th>Symbol</th>
+            <th>Setup &amp; Sector Stage</th>
+            <th>Reference Entry</th>
+            <th class="peak-highlight-cell">🚀 Max Potential Gain</th>
+            <th>Adverse Drawdown (MAE)</th>
+            <th>Latest Price</th>
+            <th>Period Return</th>
+            <th>Chart</th>
+          </tr>
         `;
-        tbody.appendChild(tr);
-      });
+
+        tbody.innerHTML = '';
+        if (picks.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--muted);">No matching picks for this filter.</td></tr>`;
+          return;
+        }
+
+        picks.forEach((pick, i) => {
+          const tr = document.createElement('tr');
+          tr.className = 'stock-row';
+          const isStarred = appState.watchlist.includes(pick.symbol.toUpperCase());
+          const peakPrice = Number(pick.peak_high_since_entry || pick.entry_price);
+          const peakGainPct = Number(pick.max_gain_mfe_pct || 0);
+          const maxDdPct = Number(pick.max_drawdown_mae_pct || 0);
+          const totRet = Number(pick.total_return_to_today_pct || 0);
+
+          tr.innerHTML = `
+            <td style="text-align:center;" onclick="event.stopPropagation()">
+              <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${pick.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+            </td>
+            <td>
+              <span class="pill" style="background:rgba(56,189,248,0.12); color:var(--accent);">Rank #${pick.rank || i + 1}</span>
+              <div style="font-weight:700; margin-top:3px;">${pick.sector}</div>
+            </td>
+            <td><strong>${pick.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${pick.company_name}</span></td>
+            <td>
+              <div style="font-weight:700; color:var(--purple); font-size:0.74rem;">${pick.inst_signal_at_entry}</div>
+              <div style="font-size:0.68rem; color:var(--green);">${pick.sector_rs_status_at_entry}</div>
+            </td>
+            <td>₹${Number(pick.entry_price).toFixed(2)}</td>
+            <td class="peak-highlight-cell">
+              <div style="font-weight:800; font-size:0.92rem;">₹${peakPrice.toFixed(2)} <span class="pill pill-buyzone">+${peakGainPct.toFixed(2)}%</span></div>
+            </td>
+            <td><b style="color:${maxDdPct >= -6.0 ? 'var(--teal)' : 'var(--red)'};">${maxDdPct.toFixed(2)}%</b></td>
+            <td>₹${Number(pick.today_price).toFixed(2)}</td>
+            <td><span class="pill ${totRet >= 0 ? 'pill-buyzone' : 'pill-extended'}">${totRet >= 0 ? '+' : ''}${totRet.toFixed(2)}%</span></td>
+            <td onclick="event.stopPropagation()">
+              <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${pick.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
     }
 
     // ============================================================================
-    // SECTOR & STOCK RS CHARTS + DRILLDOWN (WITH BENCHMARK REFERENCE LINE)
+    // SECTOR & STOCK RS CHARTS + DRILLDOWN (WITH 0.0% BASELINE REFERENCE LINES)
     // ============================================================================
     function renderSectorChips() {
       const container = document.getElementById('sectorChipsContainer');
@@ -1827,14 +1849,13 @@
         });
       });
 
-      // Add Benchmark Reference Line at 0.0%
       if (labels.length > 0) {
         datasets.unshift({
           label: 'Market Baseline (0.0%)',
           data: labels.map(() => 0),
-          borderColor: 'rgba(148, 163, 184, 0.45)',
-          borderWidth: 1.5,
-          borderDash: [4, 4],
+          borderColor: 'rgba(100, 116, 139, 0.85)',
+          borderWidth: 2,
+          borderDash: [5, 5],
           pointRadius: 0,
           fill: false
         });
@@ -1860,19 +1881,31 @@
       [...appState.sectors].sort((a, b) => b.sector_composite_score - a.sector_composite_score).forEach(sec => {
         const card = document.createElement('div');
         card.className = `sector-tile ${appState.selectedDrilldownSector === sec.sector ? 'selected' : ''}`;
+        
+        const d1 = sec.daily_perf ?? 0;
+        const d20 = sec.perf_20d ?? 0;
+        const d63 = sec.perf_63d ?? 0;
+        const above50 = sec.above_sma_pct ?? 50;
+
         card.innerHTML = `
           <div class="sector-tile-header">
             <div>
               <div class="sector-tile-name">${sec.sector}</div>
-              <span style="font-size:0.68rem; color:var(--accent); font-weight:700;">${sec.quadrant}</span>
+              <span style="font-size:0.68rem; color:var(--accent); font-weight:700;">${sec.quadrant} | Breadth: ${above50}% >50SMA</span>
             </div>
             <div style="text-align: right;">
-              <div style="font-weight: 800; color:${sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)'};">${sec.perf_20d >= 0 ? '+' : ''}${Number(sec.perf_20d).toFixed(2)}% (20D)</div>
+              <div style="font-weight: 800; color:${d20 >= 0 ? 'var(--green)' : 'var(--red)'};">${d20 >= 0 ? '+' : ''}${Number(d20).toFixed(2)}%</div>
+              <div style="font-size: 0.65rem; color: var(--muted);">20D Change</div>
             </div>
           </div>
           <div class="sector-tile-metrics">
-            <div>Composite Score: <b>${Number(sec.sector_composite_score || 0).toFixed(1)}</b></div>
-            <div>Above >50 SMA: <b style="color:var(--accent);">${Number(sec.above_sma_pct || 50).toFixed(1)}%</b></div>
+            <span>1D: <b style="color:${d1 >= 0 ? 'var(--green)' : 'var(--red)'};">${d1 >= 0 ? '+' : ''}${d1}%</b></span>
+            <span>20D: <b style="color:${d20 >= 0 ? 'var(--green)' : 'var(--red)'};">${d20 >= 0 ? '+' : ''}${d20}%</b></span>
+            <span>63D: <b style="color:${d63 >= 0 ? 'var(--green)' : 'var(--red)'};">${d63 >= 0 ? '+' : ''}${d63}%</b></span>
+          </div>
+          <div class="sector-tile-metrics" style="border-top: none; margin-top: 4px; padding-top: 0;">
+            <span>RS Score: <b>${sec.rs_ratio || '100'}</b></span>
+            <span>Composite: <b>${sec.sector_composite_score || '0'}</b></span>
           </div>
         `;
         card.onclick = () => {
@@ -1953,6 +1986,18 @@
         });
       });
 
+      if (labels.length > 0) {
+        datasets.unshift({
+          label: 'Baseline (0.0%)',
+          data: labels.map(() => 0),
+          borderColor: 'rgba(100, 116, 139, 0.85)',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: false
+        });
+      }
+
       if (stockRsChartInstance) stockRsChartInstance.destroy();
       stockRsChartInstance = new Chart(ctx, {
         type: 'line',
@@ -1983,6 +2028,9 @@
 
       tbody.innerHTML = secStocks.map(st => {
         const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
+        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+        const rsStatusText = st.rs_line_status && st.rs_line_status !== "Normal RS" ? st.rs_line_status : "";
+
         return `
           <tr class="stock-row" onclick='openStockModal(${JSON.stringify(st)})'>
             <td style="text-align: center;" onclick="event.stopPropagation()">
@@ -1994,8 +2042,8 @@
             <td><span class="pill pill-buyzone">${st.inst_signal}</span></td>
             <td><b>${st.ignition_score ?? '--'}</b></td>
             <td><b>${st.iasis_score ?? '--'}</b></td>
-            <td>${st.chart_pattern_signal || ''}</td>
-            <td>${st.sector_rs_status || ''}</td>
+            <td>${patternText}</td>
+            <td>${rsStatusText}</td>
             <td>${st.rs_line_status || ''}</td>
             <td>${st.risk_reward_ratio || 3.0}:1</td>
             <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
@@ -2027,6 +2075,8 @@
       countBadge.textContent = `${matched.length} Setups Found`;
       tbody.innerHTML = matched.map(st => {
         const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
+        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+
         return `
           <tr class="stock-row" onclick='openStockModal(${JSON.stringify(st)})'>
             <td style="text-align: center;" onclick="event.stopPropagation()">
@@ -2035,8 +2085,8 @@
             <td><strong>${st.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${st.company_name}</span></td>
             <td>${st.sector}</td>
             <td>₹${Number(st.close).toFixed(2)}</td>
-            <td>${st.pattern_timeframe || tf} Sessions</td>
-            <td><span style="color:var(--purple); font-weight:700;">${st.chart_pattern_signal}</span></td>
+            <td>${tf} Sessions</td>
+            <td><span style="color:var(--purple); font-weight:700;">${patternText}</span></td>
             <td>₹${st.volume_profile_poc}</td>
             <td><b>${st.ignition_score}</b></td>
             <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
@@ -2144,6 +2194,9 @@
         let isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
         const scoreVal = appState.strategyMode === 'aggressive' ? (st.frontrunner_score ?? '--') : (st.ignition_score ?? '--');
 
+        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+        const rsStatusText = st.rs_line_status && st.rs_line_status !== "Normal RS" ? st.rs_line_status : "";
+
         tr.innerHTML = `
           <td style="text-align: center;" onclick="event.stopPropagation()">
             <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
@@ -2159,8 +2212,8 @@
             </div>
           </td>
           <td><b>${st.iasis_score ?? 'N/A'}</b></td>
-          <td><span style="color:var(--purple); font-weight:600;">${st.chart_pattern_signal || 'Base'}</span></td>
-          <td><span style="color:var(--green); font-weight:600;">${st.rs_line_status || 'Normal'}</span></td>
+          <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
+          <td><span style="color:var(--green); font-weight:600;">${rsStatusText}</span></td>
           <td><b>${st.risk_reward_ratio || 3.0}:1</b></td>
           <td style="font-size:0.73rem; color:var(--muted); max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${st.reasons_to_avoid || ''}">
             ${st.reasons_to_avoid ? st.reasons_to_avoid.split('; ')[0] : 'Constructive structure'}
@@ -2230,8 +2283,8 @@
       document.getElementById('modalRrr').textContent = `${st.risk_reward_ratio || 3.0}:1`;
       if (document.getElementById('modalIgnition')) document.getElementById('modalIgnition').textContent = st.ignition_score ?? '--';
       if (document.getElementById('modalFrontrunner')) document.getElementById('modalFrontrunner').textContent = st.frontrunner_score ?? '--';
-      if (document.getElementById('modalPattern')) document.getElementById('modalPattern').textContent = st.chart_pattern_signal || 'Base';
-      if (document.getElementById('modalSectorRs')) document.getElementById('modalSectorRs').textContent = st.sector_rs_status || 'Outperforming';
+      if (document.getElementById('modalPattern')) document.getElementById('modalPattern').textContent = st.chart_pattern_signal || '';
+      if (document.getElementById('modalSectorRs')) document.getElementById('modalSectorRs').textContent = st.sector_rs_status || '';
       if (document.getElementById('modalOrderBlock')) document.getElementById('modalOrderBlock').textContent = st.order_block_status || 'None';
       document.getElementById('modalTvLink').href = `https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}`;
       document.getElementById('quantModal').style.display = 'flex';

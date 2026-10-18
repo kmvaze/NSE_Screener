@@ -1,5 +1,5 @@
 {
-  "generated_at_eod": "2026-10-14",
+  "generated_at_eod": "2026-10-16",
   "corporate_actions_normalized": [
     {
       "symbol": "AASTHA",
@@ -549,22 +549,22 @@
       "hit_15pct_rate": 50.0,
       "low_mae_surety_rate": 75.0,
       "avg_mae_pct": -8.58,
-      "avg_hold_ret_pct": 5.17,
-      "avg_trail_ret_pct": 12.31,
-      "avg_zone_days": 14.5,
-      "avg_trend_days": 30.4
+      "avg_hold_ret_pct": 3.41,
+      "avg_trail_ret_pct": 10.57,
+      "avg_zone_days": 15.0,
+      "avg_trend_days": 30.9
     },
     {
       "mcap_tier": "Tier 2/3: Mid & Small Cap (Nifty 500 Core)",
       "count": 31,
       "avg_mfe_pct": 29.06,
       "hit_15pct_rate": 48.4,
-      "low_mae_surety_rate": 22.6,
-      "avg_mae_pct": -13.03,
-      "avg_hold_ret_pct": 8.44,
-      "avg_trail_ret_pct": 11.44,
+      "low_mae_surety_rate": 19.4,
+      "avg_mae_pct": -13.43,
+      "avg_hold_ret_pct": 6.9,
+      "avg_trail_ret_pct": 10.85,
       "avg_zone_days": 13.0,
-      "avg_trend_days": 37.6
+      "avg_trend_days": 37.8
     },
     {
       "mcap_tier": "Tier 4: Microcap (Microcap 250)",
@@ -573,99 +573,99 @@
       "hit_15pct_rate": 25.0,
       "low_mae_surety_rate": 62.5,
       "avg_mae_pct": -6.77,
-      "avg_hold_ret_pct": 6.99,
-      "avg_trail_ret_pct": 5.46,
-      "avg_zone_days": 12.1,
-      "avg_trend_days": 35.9
+      "avg_hold_ret_pct": 7.53,
+      "avg_trail_ret_pct": 4.98,
+      "avg_zone_days": 12.6,
+      "avg_trend_days": 36.6
     }
   ],
   "sector_climax_audit": [
     {
       "sector_stage": "1_Prime_Leadership (35-76% >50SMA, 20D <=8.5%)",
       "sample_size": 560,
-      "avg_mfe_pct": 23.46,
-      "hit_15pct_rate": 45.9,
-      "severe_trap_rate_mae_gt_15": 33.2,
-      "avg_mae_pct": -12.3,
-      "avg_period_ret_pct": 6.18
+      "avg_mfe_pct": 23.6,
+      "hit_15pct_rate": 46.8,
+      "severe_trap_rate_mae_gt_15": 33.4,
+      "avg_mae_pct": -12.45,
+      "avg_period_ret_pct": 4.74
     },
     {
       "sector_stage": "2_Climactic_Exhaustion_Trap (>76% >50SMA or 20D >8.5%)",
       "sample_size": 597,
-      "avg_mfe_pct": 28.74,
-      "hit_15pct_rate": 60.8,
-      "severe_trap_rate_mae_gt_15": 37.5,
-      "avg_mae_pct": -13.24,
-      "avg_period_ret_pct": 7.17
+      "avg_mfe_pct": 28.86,
+      "hit_15pct_rate": 61.0,
+      "severe_trap_rate_mae_gt_15": 37.7,
+      "avg_mae_pct": -13.37,
+      "avg_period_ret_pct": 5.76
     },
     {
       "sector_stage": "3_Early_Sector_Rotation",
       "sample_size": 307,
-      "avg_mfe_pct": 44.75,
-      "hit_15pct_rate": 67.4,
-      "severe_trap_rate_mae_gt_15": 37.5,
-      "avg_mae_pct": -13.8,
-      "avg_period_ret_pct": 21.06
+      "avg_mfe_pct": 45.0,
+      "hit_15pct_rate": 68.4,
+      "severe_trap_rate_mae_gt_15": 38.1,
+      "avg_mae_pct": -13.83,
+      "avg_period_ret_pct": 19.1
     },
     {
       "sector_stage": "4_Decelerating_or_Lagging",
-      "sample_size": 915,
-      "avg_mfe_pct": 23.4,
-      "hit_15pct_rate": 44.7,
-      "severe_trap_rate_mae_gt_15": 34.3,
-      "avg_mae_pct": -12.99,
-      "avg_period_ret_pct": 6.02
+      "sample_size": 1095,
+      "avg_mfe_pct": 20.96,
+      "hit_15pct_rate": 39.5,
+      "severe_trap_rate_mae_gt_15": 30.0,
+      "avg_mae_pct": -12.03,
+      "avg_period_ret_pct": 3.91
     }
   ],
   "intramonth_timing_audit": [
     {
       "window": "Window 1: Days 01-05 (Month-Start / Post-Expiry)",
       "sample_signals": 119,
-      "avg_peak_mfe_pct": 21.42,
+      "avg_peak_mfe_pct": 21.62,
       "hit_15pct_rate": 43.7,
-      "low_mae_surety_rate": 24.4,
-      "avg_mae_pct": -13.23,
-      "avg_period_ret_pct": 4.04,
+      "low_mae_surety_rate": 23.5,
+      "avg_mae_pct": -13.34,
+      "avg_period_ret_pct": 3.44,
       "asymmetry_ratio": 1.62
     },
     {
       "window": "Window 2: Days 06-10 (Early-Month 20-SMA Pullback)",
       "sample_signals": 83,
-      "avg_peak_mfe_pct": 18.92,
+      "avg_peak_mfe_pct": 19.01,
       "hit_15pct_rate": 39.8,
-      "low_mae_surety_rate": 22.9,
-      "avg_mae_pct": -14.2,
-      "avg_period_ret_pct": -0.17,
+      "low_mae_surety_rate": 20.5,
+      "avg_mae_pct": -14.33,
+      "avg_period_ret_pct": -0.32,
       "asymmetry_ratio": 1.33
     },
     {
       "window": "Window 3: Days 11-16 (Mid-Month Equilibrium Coil)",
       "sample_signals": 89,
-      "avg_peak_mfe_pct": 19.53,
+      "avg_peak_mfe_pct": 19.64,
       "hit_15pct_rate": 46.1,
       "low_mae_surety_rate": 28.1,
-      "avg_mae_pct": -15.08,
-      "avg_period_ret_pct": 0.77,
-      "asymmetry_ratio": 1.3
+      "avg_mae_pct": -15.23,
+      "avg_period_ret_pct": 0.03,
+      "asymmetry_ratio": 1.29
     },
     {
       "window": "Window 4: Days 17-23 (Pre-Rollover Support Test)",
       "sample_signals": 84,
-      "avg_peak_mfe_pct": 21.42,
+      "avg_peak_mfe_pct": 21.51,
       "hit_15pct_rate": 45.2,
       "low_mae_surety_rate": 26.2,
-      "avg_mae_pct": -12.46,
-      "avg_period_ret_pct": 3.21,
-      "asymmetry_ratio": 1.72
+      "avg_mae_pct": -12.56,
+      "avg_period_ret_pct": 2.42,
+      "asymmetry_ratio": 1.71
     },
     {
       "window": "Window 5: Days 24-31 (F&O Expiry Rollover Base)",
       "sample_signals": 140,
-      "avg_peak_mfe_pct": 19.94,
+      "avg_peak_mfe_pct": 20.07,
       "hit_15pct_rate": 32.1,
       "low_mae_surety_rate": 16.4,
-      "avg_mae_pct": -13.59,
-      "avg_period_ret_pct": 1.49,
+      "avg_mae_pct": -13.7,
+      "avg_period_ret_pct": 0.93,
       "asymmetry_ratio": 1.47
     }
   ],
@@ -676,7 +676,7 @@
       "market_regime": "\ud83d\udfe1 Selective Rotation (42% >50SMA)",
       "univ_above_50sma_pct": 41.5,
       "univ_stage2_pct": 23.9,
-      "universe_benchmark_ret_pct": -3.95,
+      "universe_benchmark_ret_pct": -4.64,
       "qualifying_top_6_sectors": [
         "Services",
         "Construction Materials",
@@ -693,17 +693,17 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -3.99,
-        "avg_hold_ret_pct": 19.01,
+        "avg_hold_ret_pct": 18.46,
         "avg_trail_ret_pct": 25.05,
         "conf_count": 1,
         "conf_mfe_pct": 36.42,
         "conf_mae_pct": -3.99,
         "conf_trail_ret_pct": 25.05,
         "top_winners": [
-          "TORNTPHARM(+19.0%/MFE:+36%)"
+          "TORNTPHARM(+18.5%/MFE:+36%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+19.0%/Trail:+25.1%)"
+          "TORNTPHARM(+18.5%/Trail:+25.1%)"
         ],
         "tickers": [
           "TORNTPHARM"
@@ -717,20 +717,20 @@
         "hit_15pct_rate": 33.3,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -19.14,
-        "avg_hold_ret_pct": 35.12,
-        "avg_trail_ret_pct": 41.06,
+        "avg_hold_ret_pct": 34.55,
+        "avg_trail_ret_pct": 38.34,
         "conf_count": 3,
         "conf_mfe_pct": 58.03,
         "conf_mae_pct": -18.62,
-        "conf_trail_ret_pct": 41.61,
+        "conf_trail_ret_pct": 38.89,
         "top_winners": [
-          "SANSERA(+137.8%/MFE:+169%)",
-          "ASAHIINDIA(-6.7%/MFE:+3%)",
-          "M&M(-25.7%/MFE:+2%)"
+          "SANSERA(+133.4%/MFE:+169%)",
+          "ASAHIINDIA(-7.4%/MFE:+3%)",
+          "M&M(-22.3%/MFE:+2%)"
         ],
         "top_losers": [
-          "ASAHIINDIA(-6.7%/Trail:-9.2%)",
-          "M&M(-25.7%/Trail:-3.8%)"
+          "ASAHIINDIA(-7.4%/Trail:-9.2%)",
+          "M&M(-22.3%/Trail:-3.8%)"
         ],
         "tickers": [
           "ASAHIINDIA",
@@ -746,20 +746,20 @@
         "hit_15pct_rate": 75.0,
         "low_mae_rate": 50.0,
         "avg_mae_pct": -11.67,
-        "avg_hold_ret_pct": 18.85,
+        "avg_hold_ret_pct": 18.58,
         "avg_trail_ret_pct": 12.55,
         "conf_count": 4,
         "conf_mfe_pct": 36.95,
         "conf_mae_pct": -11.67,
         "conf_trail_ret_pct": 12.55,
         "top_winners": [
-          "NAVINFLUOR(+42.5%/MFE:+51%)",
-          "ANANDRATHI(+36.8%/MFE:+47%)",
-          "TORNTPHARM(+19.0%/MFE:+36%)"
+          "ANANDRATHI(+39.6%/MFE:+47%)",
+          "NAVINFLUOR(+37.7%/MFE:+51%)",
+          "TORNTPHARM(+18.5%/MFE:+36%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+19.0%/Trail:+25.1%)",
-          "IOC(-23.0%/Trail:-5.7%)"
+          "TORNTPHARM(+18.5%/Trail:+25.1%)",
+          "IOC(-21.4%/Trail:-5.7%)"
         ],
         "tickers": [
           "TORNTPHARM",
@@ -776,20 +776,20 @@
         "hit_15pct_rate": 66.7,
         "low_mae_rate": 66.7,
         "avg_mae_pct": -11.39,
-        "avg_hold_ret_pct": 12.87,
+        "avg_hold_ret_pct": 11.58,
         "avg_trail_ret_pct": 18.82,
         "conf_count": 3,
         "conf_mfe_pct": 33.73,
         "conf_mae_pct": -11.39,
         "conf_trail_ret_pct": 18.82,
         "top_winners": [
-          "NAVINFLUOR(+42.5%/MFE:+51%)",
-          "TORNTPHARM(+19.0%/MFE:+36%)",
-          "IOC(-23.0%/MFE:+14%)"
+          "NAVINFLUOR(+37.7%/MFE:+51%)",
+          "TORNTPHARM(+18.5%/MFE:+36%)",
+          "IOC(-21.4%/MFE:+14%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+19.0%/Trail:+25.1%)",
-          "IOC(-23.0%/Trail:-5.7%)"
+          "TORNTPHARM(+18.5%/Trail:+25.1%)",
+          "IOC(-21.4%/Trail:-5.7%)"
         ],
         "tickers": [
           "NAVINFLUOR",
@@ -805,20 +805,20 @@
         "hit_15pct_rate": 66.7,
         "low_mae_rate": 66.7,
         "avg_mae_pct": -11.39,
-        "avg_hold_ret_pct": 12.87,
+        "avg_hold_ret_pct": 11.58,
         "avg_trail_ret_pct": 18.82,
         "conf_count": 3,
         "conf_mfe_pct": 33.73,
         "conf_mae_pct": -11.39,
         "conf_trail_ret_pct": 18.82,
         "top_winners": [
-          "NAVINFLUOR(+42.5%/MFE:+51%)",
-          "TORNTPHARM(+19.0%/MFE:+36%)",
-          "IOC(-23.0%/MFE:+14%)"
+          "NAVINFLUOR(+37.7%/MFE:+51%)",
+          "TORNTPHARM(+18.5%/MFE:+36%)",
+          "IOC(-21.4%/MFE:+14%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+19.0%/Trail:+25.1%)",
-          "IOC(-23.0%/Trail:-5.7%)"
+          "TORNTPHARM(+18.5%/Trail:+25.1%)",
+          "IOC(-21.4%/Trail:-5.7%)"
         ],
         "tickers": [
           "NAVINFLUOR",
@@ -834,20 +834,20 @@
         "hit_15pct_rate": 66.7,
         "low_mae_rate": 66.7,
         "avg_mae_pct": -11.39,
-        "avg_hold_ret_pct": 12.87,
+        "avg_hold_ret_pct": 11.58,
         "avg_trail_ret_pct": 18.82,
         "conf_count": 3,
         "conf_mfe_pct": 33.73,
         "conf_mae_pct": -11.39,
         "conf_trail_ret_pct": 18.82,
         "top_winners": [
-          "NAVINFLUOR(+42.5%/MFE:+51%)",
-          "TORNTPHARM(+19.0%/MFE:+36%)",
-          "IOC(-23.0%/MFE:+14%)"
+          "NAVINFLUOR(+37.7%/MFE:+51%)",
+          "TORNTPHARM(+18.5%/MFE:+36%)",
+          "IOC(-21.4%/MFE:+14%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+19.0%/Trail:+25.1%)",
-          "IOC(-23.0%/Trail:-5.7%)"
+          "TORNTPHARM(+18.5%/Trail:+25.1%)",
+          "IOC(-21.4%/Trail:-5.7%)"
         ],
         "tickers": [
           "NAVINFLUOR",
@@ -863,20 +863,20 @@
         "hit_15pct_rate": 80.0,
         "low_mae_rate": 30.0,
         "avg_mae_pct": -15.31,
-        "avg_hold_ret_pct": 36.94,
-        "avg_trail_ret_pct": 15.97,
+        "avg_hold_ret_pct": 35.52,
+        "avg_trail_ret_pct": 15.15,
         "conf_count": 8,
         "conf_mfe_pct": 65.57,
         "conf_mae_pct": -13.51,
-        "conf_trail_ret_pct": 23.05,
+        "conf_trail_ret_pct": 22.02,
         "top_winners": [
-          "SANSERA(+137.8%/MFE:+169%)",
-          "PRECWIRE(+94.8%/MFE:+111%)",
-          "THANGAMAYL(+48.8%/MFE:+128%)"
+          "SANSERA(+133.4%/MFE:+169%)",
+          "PRECWIRE(+79.1%/MFE:+111%)",
+          "THANGAMAYL(+56.4%/MFE:+128%)"
         ],
         "top_losers": [
-          "GMRAIRPORT(-14.5%/Trail:-9.1%)",
-          "INDIACEM(-32.2%/Trail:-9.6%)"
+          "GMRAIRPORT(-15.2%/Trail:-9.1%)",
+          "INDIACEM(-30.7%/Trail:-9.6%)"
         ],
         "tickers": [
           "SANSERA",
@@ -899,20 +899,20 @@
         "hit_15pct_rate": 65.0,
         "low_mae_rate": 15.0,
         "avg_mae_pct": -18.2,
-        "avg_hold_ret_pct": 25.6,
-        "avg_trail_ret_pct": 4.0,
+        "avg_hold_ret_pct": 24.75,
+        "avg_trail_ret_pct": 3.59,
         "conf_count": 18,
         "conf_mfe_pct": 49.53,
         "conf_mae_pct": -17.44,
-        "conf_trail_ret_pct": 6.03,
+        "conf_trail_ret_pct": 5.58,
         "top_winners": [
-          "SANSERA(+137.8%/MFE:+169%)",
-          "PRECWIRE(+94.8%/MFE:+111%)",
-          "ACUTAAS(+80.5%/MFE:+114%)"
+          "SANSERA(+133.4%/MFE:+169%)",
+          "ACUTAAS(+83.1%/MFE:+114%)",
+          "PRECWIRE(+79.1%/MFE:+111%)"
         ],
         "top_losers": [
-          "INDIACEM(-32.2%/Trail:-9.6%)",
-          "UPL(-32.7%/Trail:-7.3%)"
+          "INDIACEM(-30.7%/Trail:-9.6%)",
+          "UPL(-33.6%/Trail:-7.3%)"
         ],
         "tickers": [
           "SANSERA",
@@ -939,26 +939,26 @@
       },
       "high_rs_pullback_top10": {
         "count": 10,
-        "hold_win_rate_pct": 80.0,
+        "hold_win_rate_pct": 70.0,
         "trail_win_rate_pct": 30.0,
         "avg_mfe_pct": 55.97,
         "hit_15pct_rate": 70.0,
         "low_mae_rate": 20.0,
         "avg_mae_pct": -19.59,
-        "avg_hold_ret_pct": 36.1,
+        "avg_hold_ret_pct": 32.38,
         "avg_trail_ret_pct": -1.45,
         "conf_count": 10,
         "conf_mfe_pct": 55.97,
         "conf_mae_pct": -19.59,
         "conf_trail_ret_pct": -1.45,
         "top_winners": [
-          "CPPLUS(+191.7%/MFE:+204%)",
-          "THANGAMAYL(+48.8%/MFE:+128%)",
-          "NAVINFLUOR(+42.5%/MFE:+51%)"
+          "CPPLUS(+167.0%/MFE:+204%)",
+          "THANGAMAYL(+56.4%/MFE:+128%)",
+          "NAVINFLUOR(+37.7%/MFE:+51%)"
         ],
         "top_losers": [
-          "PERSISTENT(-6.1%/Trail:-6.8%)",
-          "BSOFT(-30.8%/Trail:-9.6%)"
+          "PERSISTENT(-8.6%/Trail:-6.8%)",
+          "BSOFT(-26.3%/Trail:-9.6%)"
         ],
         "tickers": [
           "THANGAMAYL",
@@ -980,7 +980,7 @@
       "market_regime": "\ud83d\udd34 Defensive / Contraction (22% >50SMA)",
       "univ_above_50sma_pct": 22.1,
       "univ_stage2_pct": 10.2,
-      "universe_benchmark_ret_pct": 2.25,
+      "universe_benchmark_ret_pct": 1.51,
       "qualifying_top_6_sectors": [
         "Metals & Mining",
         "Construction Materials",
@@ -997,19 +997,19 @@
         "hit_15pct_rate": 50.0,
         "low_mae_rate": 50.0,
         "avg_mae_pct": -20.51,
-        "avg_hold_ret_pct": -4.06,
+        "avg_hold_ret_pct": -3.47,
         "avg_trail_ret_pct": 16.68,
         "conf_count": 2,
         "conf_mfe_pct": 31.29,
         "conf_mae_pct": -20.51,
         "conf_trail_ret_pct": 16.68,
         "top_winners": [
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "INDIACEM(-35.5%/MFE:+4%)"
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "INDIACEM(-34.0%/MFE:+4%)"
         ],
         "top_losers": [
-          "BHARATFORG(+27.4%/Trail:+42.1%)",
-          "INDIACEM(-35.5%/Trail:-8.7%)"
+          "BHARATFORG(+27.1%/Trail:+42.1%)",
+          "INDIACEM(-34.0%/Trail:-8.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1023,21 +1023,21 @@
         "avg_mfe_pct": 15.2,
         "hit_15pct_rate": 20.0,
         "low_mae_rate": 20.0,
-        "avg_mae_pct": -22.03,
-        "avg_hold_ret_pct": -10.66,
+        "avg_mae_pct": -22.35,
+        "avg_hold_ret_pct": -9.98,
         "avg_trail_ret_pct": 0.89,
         "conf_count": 5,
         "conf_mfe_pct": 15.2,
-        "conf_mae_pct": -22.03,
+        "conf_mae_pct": -22.35,
         "conf_trail_ret_pct": 0.89,
         "top_winners": [
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "ASAHIINDIA(-6.2%/MFE:+2%)",
-          "JSL(-11.2%/MFE:+2%)"
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "ASAHIINDIA(-6.9%/MFE:+2%)",
+          "JSL(-8.4%/MFE:+2%)"
         ],
         "top_losers": [
-          "RAMCOCEM(-27.7%/Trail:-7.8%)",
-          "INDIACEM(-35.5%/Trail:-8.7%)"
+          "RAMCOCEM(-27.6%/Trail:-7.8%)",
+          "INDIACEM(-34.0%/Trail:-8.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1055,20 +1055,20 @@
         "hit_15pct_rate": 80.0,
         "low_mae_rate": 80.0,
         "avg_mae_pct": -10.01,
-        "avg_hold_ret_pct": 35.7,
+        "avg_hold_ret_pct": 35.77,
         "avg_trail_ret_pct": 47.01,
         "conf_count": 4,
         "conf_mfe_pct": 45.48,
         "conf_mae_pct": -11.67,
         "conf_trail_ret_pct": 23.11,
         "top_winners": [
-          "RUBICON(+121.3%/MFE:+176%)",
-          "STYLAMIND(+50.5%/MFE:+88%)",
-          "BHARATFORG(+27.4%/MFE:+59%)"
+          "RUBICON(+119.0%/MFE:+176%)",
+          "STYLAMIND(+52.5%/MFE:+88%)",
+          "BHARATFORG(+27.1%/MFE:+59%)"
         ],
         "top_losers": [
-          "TORNTPHARM(+14.9%/Trail:+20.7%)",
-          "INDIACEM(-35.5%/Trail:-8.7%)"
+          "TORNTPHARM(+14.3%/Trail:+20.7%)",
+          "INDIACEM(-34.0%/Trail:-8.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1086,20 +1086,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -3.26,
-        "avg_hold_ret_pct": 30.9,
+        "avg_hold_ret_pct": 31.3,
         "avg_trail_ret_pct": 33.72,
         "conf_count": 3,
         "conf_mfe_pct": 59.44,
         "conf_mae_pct": -3.26,
         "conf_trail_ret_pct": 33.72,
         "top_winners": [
-          "STYLAMIND(+50.5%/MFE:+88%)",
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "TORNTPHARM(+14.9%/MFE:+32%)"
+          "STYLAMIND(+52.5%/MFE:+88%)",
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "TORNTPHARM(+14.3%/MFE:+32%)"
         ],
         "top_losers": [
-          "BHARATFORG(+27.4%/Trail:+42.1%)",
-          "TORNTPHARM(+14.9%/Trail:+20.7%)"
+          "BHARATFORG(+27.1%/Trail:+42.1%)",
+          "TORNTPHARM(+14.3%/Trail:+20.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1115,20 +1115,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -3.26,
-        "avg_hold_ret_pct": 30.9,
+        "avg_hold_ret_pct": 31.3,
         "avg_trail_ret_pct": 33.72,
         "conf_count": 3,
         "conf_mfe_pct": 59.44,
         "conf_mae_pct": -3.26,
         "conf_trail_ret_pct": 33.72,
         "top_winners": [
-          "STYLAMIND(+50.5%/MFE:+88%)",
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "TORNTPHARM(+14.9%/MFE:+32%)"
+          "STYLAMIND(+52.5%/MFE:+88%)",
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "TORNTPHARM(+14.3%/MFE:+32%)"
         ],
         "top_losers": [
-          "BHARATFORG(+27.4%/Trail:+42.1%)",
-          "TORNTPHARM(+14.9%/Trail:+20.7%)"
+          "BHARATFORG(+27.1%/Trail:+42.1%)",
+          "TORNTPHARM(+14.3%/Trail:+20.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1144,20 +1144,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -3.26,
-        "avg_hold_ret_pct": 30.9,
+        "avg_hold_ret_pct": 31.3,
         "avg_trail_ret_pct": 33.72,
         "conf_count": 3,
         "conf_mfe_pct": 59.44,
         "conf_mae_pct": -3.26,
         "conf_trail_ret_pct": 33.72,
         "top_winners": [
-          "STYLAMIND(+50.5%/MFE:+88%)",
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "TORNTPHARM(+14.9%/MFE:+32%)"
+          "STYLAMIND(+52.5%/MFE:+88%)",
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "TORNTPHARM(+14.3%/MFE:+32%)"
         ],
         "top_losers": [
-          "BHARATFORG(+27.4%/Trail:+42.1%)",
-          "TORNTPHARM(+14.9%/Trail:+20.7%)"
+          "BHARATFORG(+27.1%/Trail:+42.1%)",
+          "TORNTPHARM(+14.3%/Trail:+20.7%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1173,20 +1173,20 @@
         "hit_15pct_rate": 60.0,
         "low_mae_rate": 10.0,
         "avg_mae_pct": -22.79,
-        "avg_hold_ret_pct": -0.81,
+        "avg_hold_ret_pct": 0.33,
         "avg_trail_ret_pct": 0.0,
         "conf_count": 9,
         "conf_mfe_pct": 31.43,
         "conf_mae_pct": -21.17,
         "conf_trail_ret_pct": 1.42,
         "top_winners": [
-          "KMEW(+86.3%/MFE:+92%)",
-          "BHARATFORG(+27.4%/MFE:+59%)",
-          "PFOCUS(+19.8%/MFE:+56%)"
+          "KMEW(+88.6%/MFE:+92%)",
+          "BHARATFORG(+27.1%/MFE:+59%)",
+          "PFOCUS(+23.1%/MFE:+56%)"
         ],
         "top_losers": [
-          "INDIACEM(-35.5%/Trail:-8.7%)",
-          "JKTYRE(-35.9%/Trail:-8.9%)"
+          "INDIACEM(-34.0%/Trail:-8.7%)",
+          "JKTYRE(-35.5%/Trail:-8.9%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1203,26 +1203,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 50.0,
+        "hold_win_rate_pct": 55.0,
         "trail_win_rate_pct": 45.0,
-        "avg_mfe_pct": 46.76,
+        "avg_mfe_pct": 46.93,
         "hit_15pct_rate": 70.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -16.68,
-        "avg_hold_ret_pct": 18.44,
+        "avg_mae_pct": -16.75,
+        "avg_hold_ret_pct": 19.72,
         "avg_trail_ret_pct": 10.26,
         "conf_count": 18,
-        "conf_mfe_pct": 40.68,
-        "conf_mae_pct": -16.27,
+        "conf_mfe_pct": 40.87,
+        "conf_mae_pct": -16.35,
         "conf_trail_ret_pct": 4.18,
         "top_winners": [
-          "SHREEJISPG(+137.8%/MFE:+139%)",
-          "RUBICON(+121.3%/MFE:+176%)",
-          "KMEW(+86.3%/MFE:+92%)"
+          "SHREEJISPG(+141.7%/MFE:+142%)",
+          "RUBICON(+119.0%/MFE:+176%)",
+          "KMEW(+88.6%/MFE:+92%)"
         ],
         "top_losers": [
-          "INDIACEM(-35.5%/Trail:-8.7%)",
-          "JKTYRE(-35.9%/Trail:-8.9%)"
+          "INDIACEM(-34.0%/Trail:-8.7%)",
+          "JKTYRE(-35.5%/Trail:-8.9%)"
         ],
         "tickers": [
           "BHARATFORG",
@@ -1251,24 +1251,24 @@
         "count": 10,
         "hold_win_rate_pct": 60.0,
         "trail_win_rate_pct": 40.0,
-        "avg_mfe_pct": 48.03,
+        "avg_mfe_pct": 48.38,
         "hit_15pct_rate": 70.0,
         "low_mae_rate": 30.0,
         "avg_mae_pct": -13.95,
-        "avg_hold_ret_pct": 23.08,
+        "avg_hold_ret_pct": 24.72,
         "avg_trail_ret_pct": 4.49,
         "conf_count": 10,
-        "conf_mfe_pct": 48.03,
+        "conf_mfe_pct": 48.38,
         "conf_mae_pct": -13.95,
         "conf_trail_ret_pct": 4.49,
         "top_winners": [
-          "SHREEJISPG(+137.8%/MFE:+139%)",
-          "STYLAMIND(+50.5%/MFE:+88%)",
-          "CRAFTSMAN(+46.8%/MFE:+60%)"
+          "SHREEJISPG(+141.7%/MFE:+142%)",
+          "STYLAMIND(+52.5%/MFE:+88%)",
+          "CRAFTSMAN(+46.3%/MFE:+60%)"
         ],
         "top_losers": [
-          "CUB(-20.1%/Trail:-8.6%)",
-          "INDIACEM(-35.5%/Trail:-8.7%)"
+          "CUB(-20.3%/Trail:-8.6%)",
+          "INDIACEM(-34.0%/Trail:-8.7%)"
         ],
         "tickers": [
           "STYLAMIND",
@@ -1290,7 +1290,7 @@
       "market_regime": "\ud83d\udd34 Defensive / Contraction (32% >50SMA)",
       "univ_above_50sma_pct": 32.5,
       "univ_stage2_pct": 17.2,
-      "universe_benchmark_ret_pct": 0.22,
+      "universe_benchmark_ret_pct": -0.51,
       "qualifying_top_6_sectors": [
         "Capital Goods",
         "Healthcare",
@@ -1307,17 +1307,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -24.54,
-        "avg_hold_ret_pct": -19.9,
+        "avg_hold_ret_pct": -20.08,
         "avg_trail_ret_pct": -9.29,
         "conf_count": 1,
         "conf_mfe_pct": 6.43,
         "conf_mae_pct": -24.54,
         "conf_trail_ret_pct": -9.29,
         "top_winners": [
-          "SUNDARMFIN(-19.9%/MFE:+6%)"
+          "SUNDARMFIN(-20.1%/MFE:+6%)"
         ],
         "top_losers": [
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN"
@@ -1331,19 +1331,19 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -13.46,
-        "avg_hold_ret_pct": 18.65,
+        "avg_hold_ret_pct": 19.77,
         "avg_trail_ret_pct": -9.98,
         "conf_count": 2,
         "conf_mfe_pct": 40.8,
         "conf_mae_pct": -13.46,
         "conf_trail_ret_pct": -9.98,
         "top_winners": [
-          "CRAFTSMAN(+43.4%/MFE:+56%)",
-          "HINDALCO(-6.1%/MFE:+25%)"
+          "CRAFTSMAN(+42.9%/MFE:+56%)",
+          "HINDALCO(-3.4%/MFE:+25%)"
         ],
         "top_losers": [
-          "CRAFTSMAN(+43.4%/Trail:-13.0%)",
-          "HINDALCO(-6.1%/Trail:-7.0%)"
+          "CRAFTSMAN(+42.9%/Trail:-13.0%)",
+          "HINDALCO(-3.4%/Trail:-7.0%)"
         ],
         "tickers": [
           "HINDALCO",
@@ -1358,17 +1358,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -24.54,
-        "avg_hold_ret_pct": -19.9,
+        "avg_hold_ret_pct": -20.08,
         "avg_trail_ret_pct": -9.29,
         "conf_count": 1,
         "conf_mfe_pct": 6.43,
         "conf_mae_pct": -24.54,
         "conf_trail_ret_pct": -9.29,
         "top_winners": [
-          "SUNDARMFIN(-19.9%/MFE:+6%)"
+          "SUNDARMFIN(-20.1%/MFE:+6%)"
         ],
         "top_losers": [
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN"
@@ -1382,17 +1382,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -24.54,
-        "avg_hold_ret_pct": -19.9,
+        "avg_hold_ret_pct": -20.08,
         "avg_trail_ret_pct": -9.29,
         "conf_count": 1,
         "conf_mfe_pct": 6.43,
         "conf_mae_pct": -24.54,
         "conf_trail_ret_pct": -9.29,
         "top_winners": [
-          "SUNDARMFIN(-19.9%/MFE:+6%)"
+          "SUNDARMFIN(-20.1%/MFE:+6%)"
         ],
         "top_losers": [
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN"
@@ -1406,17 +1406,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -24.54,
-        "avg_hold_ret_pct": -19.9,
+        "avg_hold_ret_pct": -20.08,
         "avg_trail_ret_pct": -9.29,
         "conf_count": 1,
         "conf_mfe_pct": 6.43,
         "conf_mae_pct": -24.54,
         "conf_trail_ret_pct": -9.29,
         "top_winners": [
-          "SUNDARMFIN(-19.9%/MFE:+6%)"
+          "SUNDARMFIN(-20.1%/MFE:+6%)"
         ],
         "top_losers": [
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN"
@@ -1430,17 +1430,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -24.54,
-        "avg_hold_ret_pct": -19.9,
+        "avg_hold_ret_pct": -20.08,
         "avg_trail_ret_pct": -9.29,
         "conf_count": 1,
         "conf_mfe_pct": 6.43,
         "conf_mae_pct": -24.54,
         "conf_trail_ret_pct": -9.29,
         "top_winners": [
-          "SUNDARMFIN(-19.9%/MFE:+6%)"
+          "SUNDARMFIN(-20.1%/MFE:+6%)"
         ],
         "top_losers": [
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN"
@@ -1454,20 +1454,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 10.0,
         "avg_mae_pct": -12.34,
-        "avg_hold_ret_pct": 28.08,
+        "avg_hold_ret_pct": 26.44,
         "avg_trail_ret_pct": 3.11,
         "conf_count": 10,
         "conf_mfe_pct": 56.63,
         "conf_mae_pct": -11.31,
         "conf_trail_ret_pct": 4.2,
         "top_winners": [
-          "RRKABEL(+73.9%/MFE:+95%)",
-          "KIRLOSENG(+52.9%/MFE:+94%)",
-          "SHRIPISTON(+41.0%/MFE:+57%)"
+          "RRKABEL(+55.9%/MFE:+95%)",
+          "SHRIPISTON(+50.5%/MFE:+57%)",
+          "KIRLOSENG(+44.1%/MFE:+94%)"
         ],
         "top_losers": [
           "PIRAMALFIN(+8.3%/Trail:-7.0%)",
-          "SAIL(+2.7%/Trail:-9.7%)"
+          "SAIL(+3.2%/Trail:-9.7%)"
         ],
         "tickers": [
           "NAVINFLUOR",
@@ -1490,20 +1490,20 @@
         "hit_15pct_rate": 75.0,
         "low_mae_rate": 5.0,
         "avg_mae_pct": -14.94,
-        "avg_hold_ret_pct": 13.11,
-        "avg_trail_ret_pct": 0.15,
+        "avg_hold_ret_pct": 12.22,
+        "avg_trail_ret_pct": 0.1,
         "conf_count": 20,
         "conf_mfe_pct": 38.23,
         "conf_mae_pct": -14.19,
         "conf_trail_ret_pct": 1.43,
         "top_winners": [
-          "RRKABEL(+73.9%/MFE:+95%)",
-          "KIRLOSENG(+52.9%/MFE:+94%)",
-          "SHRIPISTON(+41.0%/MFE:+57%)"
+          "RRKABEL(+55.9%/MFE:+95%)",
+          "SHRIPISTON(+50.5%/MFE:+57%)",
+          "KIRLOSENG(+44.1%/MFE:+94%)"
         ],
         "top_losers": [
-          "ONGC(-20.1%/Trail:-10.7%)",
-          "IOC(-28.6%/Trail:-10.0%)"
+          "ONGC(-21.3%/Trail:-10.7%)",
+          "IOC(-27.2%/Trail:-10.0%)"
         ],
         "tickers": [
           "NAVINFLUOR",
@@ -1532,24 +1532,24 @@
         "count": 10,
         "hold_win_rate_pct": 60.0,
         "trail_win_rate_pct": 20.0,
-        "avg_mfe_pct": 30.74,
-        "hit_15pct_rate": 50.0,
+        "avg_mfe_pct": 30.97,
+        "hit_15pct_rate": 60.0,
         "low_mae_rate": 10.0,
         "avg_mae_pct": -15.43,
-        "avg_hold_ret_pct": 10.43,
+        "avg_hold_ret_pct": 9.49,
         "avg_trail_ret_pct": -3.71,
         "conf_count": 10,
-        "conf_mfe_pct": 30.74,
+        "conf_mfe_pct": 30.97,
         "conf_mae_pct": -15.43,
         "conf_trail_ret_pct": -3.71,
         "top_winners": [
-          "SHRIPISTON(+41.0%/MFE:+57%)",
-          "BAJAJCON(+37.2%/MFE:+83%)",
-          "NAVINFLUOR(+34.9%/MFE:+43%)"
+          "SHRIPISTON(+50.5%/MFE:+57%)",
+          "NAVINFLUOR(+30.3%/MFE:+43%)",
+          "BAJAJCON(+24.5%/MFE:+83%)"
         ],
         "top_losers": [
-          "INDUSTOWER(-16.0%/Trail:-7.8%)",
-          "SUNDARMFIN(-19.9%/Trail:-9.3%)"
+          "INDUSTOWER(-14.6%/Trail:-7.8%)",
+          "SUNDARMFIN(-20.1%/Trail:-9.3%)"
         ],
         "tickers": [
           "SUNDARMFIN",
@@ -1571,7 +1571,7 @@
       "market_regime": "\ud83d\udd34 Defensive / Contraction (22% >50SMA)",
       "univ_above_50sma_pct": 21.5,
       "univ_stage2_pct": 9.5,
-      "universe_benchmark_ret_pct": 7.97,
+      "universe_benchmark_ret_pct": 7.19,
       "qualifying_top_6_sectors": [
         "Power",
         "Capital Goods",
@@ -1587,12 +1587,12 @@
         "avg_mfe_pct": 23.63,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -12.09,
-        "avg_hold_ret_pct": -2.35,
+        "avg_mae_pct": -12.22,
+        "avg_hold_ret_pct": -2.36,
         "avg_trail_ret_pct": 3.82,
         "conf_count": 2,
         "conf_mfe_pct": 23.63,
-        "conf_mae_pct": -12.09,
+        "conf_mae_pct": -12.22,
         "conf_trail_ret_pct": 3.82,
         "top_winners": [
           "PIRAMALFIN(+8.8%/MFE:+30%)",
@@ -1614,19 +1614,19 @@
         "avg_mfe_pct": 26.05,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 50.0,
-        "avg_mae_pct": -9.04,
-        "avg_hold_ret_pct": -2.2,
+        "avg_mae_pct": -9.17,
+        "avg_hold_ret_pct": -1.88,
         "avg_trail_ret_pct": 2.78,
         "conf_count": 2,
         "conf_mfe_pct": 26.05,
-        "conf_mae_pct": -9.04,
+        "conf_mae_pct": -9.17,
         "conf_trail_ret_pct": 2.78,
         "top_winners": [
-          "SAIL(+9.1%/MFE:+35%)",
+          "SAIL(+9.7%/MFE:+35%)",
           "TIMKEN(-13.5%/MFE:+18%)"
         ],
         "top_losers": [
-          "SAIL(+9.1%/Trail:+15.2%)",
+          "SAIL(+9.7%/Trail:+15.2%)",
           "TIMKEN(-13.5%/Trail:-9.7%)"
         ],
         "tickers": [
@@ -1641,12 +1641,12 @@
         "avg_mfe_pct": 23.63,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -12.09,
-        "avg_hold_ret_pct": -2.35,
+        "avg_mae_pct": -12.22,
+        "avg_hold_ret_pct": -2.36,
         "avg_trail_ret_pct": 3.82,
         "conf_count": 2,
         "conf_mfe_pct": 23.63,
-        "conf_mae_pct": -12.09,
+        "conf_mae_pct": -12.22,
         "conf_trail_ret_pct": 3.82,
         "top_winners": [
           "PIRAMALFIN(+8.8%/MFE:+30%)",
@@ -1668,12 +1668,12 @@
         "avg_mfe_pct": 23.63,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -12.09,
-        "avg_hold_ret_pct": -2.35,
+        "avg_mae_pct": -12.22,
+        "avg_hold_ret_pct": -2.36,
         "avg_trail_ret_pct": 3.82,
         "conf_count": 2,
         "conf_mfe_pct": 23.63,
-        "conf_mae_pct": -12.09,
+        "conf_mae_pct": -12.22,
         "conf_trail_ret_pct": 3.82,
         "top_winners": [
           "PIRAMALFIN(+8.8%/MFE:+30%)",
@@ -1695,12 +1695,12 @@
         "avg_mfe_pct": 23.63,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -12.09,
-        "avg_hold_ret_pct": -2.35,
+        "avg_mae_pct": -12.22,
+        "avg_hold_ret_pct": -2.36,
         "avg_trail_ret_pct": 3.82,
         "conf_count": 2,
         "conf_mfe_pct": 23.63,
-        "conf_mae_pct": -12.09,
+        "conf_mae_pct": -12.22,
         "conf_trail_ret_pct": 3.82,
         "top_winners": [
           "PIRAMALFIN(+8.8%/MFE:+30%)",
@@ -1722,12 +1722,12 @@
         "avg_mfe_pct": 23.63,
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -12.09,
-        "avg_hold_ret_pct": -2.35,
+        "avg_mae_pct": -12.22,
+        "avg_hold_ret_pct": -2.36,
         "avg_trail_ret_pct": 3.82,
         "conf_count": 2,
         "conf_mfe_pct": 23.63,
-        "conf_mae_pct": -12.09,
+        "conf_mae_pct": -12.22,
         "conf_trail_ret_pct": 3.82,
         "top_winners": [
           "PIRAMALFIN(+8.8%/MFE:+30%)",
@@ -1744,26 +1744,26 @@
       },
       "momentum_frontrunner_top10": {
         "count": 10,
-        "hold_win_rate_pct": 80.0,
-        "trail_win_rate_pct": 70.0,
+        "hold_win_rate_pct": 70.0,
+        "trail_win_rate_pct": 60.0,
         "avg_mfe_pct": 53.0,
         "hit_15pct_rate": 70.0,
         "low_mae_rate": 40.0,
-        "avg_mae_pct": -9.29,
-        "avg_hold_ret_pct": 28.77,
-        "avg_trail_ret_pct": 18.92,
+        "avg_mae_pct": -9.39,
+        "avg_hold_ret_pct": 23.19,
+        "avg_trail_ret_pct": 17.29,
         "conf_count": 8,
         "conf_mfe_pct": 57.67,
-        "conf_mae_pct": -7.04,
-        "conf_trail_ret_pct": 19.92,
+        "conf_mae_pct": -7.16,
+        "conf_trail_ret_pct": 18.84,
         "top_winners": [
-          "SYRMA(+112.2%/MFE:+129%)",
-          "TDPOWERSYS(+81.7%/MFE:+98%)",
-          "AETHER(+50.8%/MFE:+63%)"
+          "SYRMA(+101.2%/MFE:+129%)",
+          "TDPOWERSYS(+70.5%/MFE:+98%)",
+          "AETHER(+37.9%/MFE:+63%)"
         ],
         "top_losers": [
-          "LINDEINDIA(-14.2%/Trail:-8.8%)",
-          "NATIONALUM(-19.1%/Trail:-11.0%)"
+          "LINDEINDIA(-11.7%/Trail:-8.8%)",
+          "NATIONALUM(-18.8%/Trail:-11.0%)"
         ],
         "tickers": [
           "PIRAMALFIN",
@@ -1780,26 +1780,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 85.0,
-        "trail_win_rate_pct": 75.0,
+        "hold_win_rate_pct": 75.0,
+        "trail_win_rate_pct": 70.0,
         "avg_mfe_pct": 55.05,
         "hit_15pct_rate": 75.0,
         "low_mae_rate": 45.0,
-        "avg_mae_pct": -8.76,
-        "avg_hold_ret_pct": 31.88,
-        "avg_trail_ret_pct": 24.82,
+        "avg_mae_pct": -8.8,
+        "avg_hold_ret_pct": 27.01,
+        "avg_trail_ret_pct": 23.67,
         "conf_count": 17,
         "conf_mfe_pct": 59.37,
-        "conf_mae_pct": -7.1,
-        "conf_trail_ret_pct": 27.83,
+        "conf_mae_pct": -7.16,
+        "conf_trail_ret_pct": 26.93,
         "top_winners": [
-          "SYRMA(+112.2%/MFE:+129%)",
-          "SANSERA(+96.0%/MFE:+121%)",
-          "RUBICON(+95.0%/MFE:+143%)"
+          "SYRMA(+101.2%/MFE:+129%)",
+          "RUBICON(+92.9%/MFE:+143%)",
+          "SANSERA(+92.3%/MFE:+121%)"
         ],
         "top_losers": [
-          "CIEINDIA(-16.4%/Trail:-9.1%)",
-          "NATIONALUM(-19.1%/Trail:-11.0%)"
+          "CIEINDIA(-17.1%/Trail:-9.1%)",
+          "NATIONALUM(-18.8%/Trail:-11.0%)"
         ],
         "tickers": [
           "PIRAMALFIN",
@@ -1831,21 +1831,21 @@
         "avg_mfe_pct": 98.89,
         "hit_15pct_rate": 90.0,
         "low_mae_rate": 60.0,
-        "avg_mae_pct": -10.79,
-        "avg_hold_ret_pct": 57.56,
+        "avg_mae_pct": -10.85,
+        "avg_hold_ret_pct": 52.9,
         "avg_trail_ret_pct": 33.61,
         "conf_count": 10,
         "conf_mfe_pct": 98.89,
-        "conf_mae_pct": -10.79,
+        "conf_mae_pct": -10.85,
         "conf_trail_ret_pct": 33.61,
         "top_winners": [
-          "STLTECH(+409.5%/MFE:+479%)",
-          "EBGNG(+101.2%/MFE:+104%)",
-          "BAJAJCON(+43.8%/MFE:+91%)"
+          "STLTECH(+377.1%/MFE:+479%)",
+          "EBGNG(+95.3%/MFE:+104%)",
+          "THANGAMAYL(+43.5%/MFE:+109%)"
         ],
         "top_losers": [
-          "LINDEINDIA(-14.2%/Trail:-8.8%)",
-          "AVANTIFEED(-40.7%/Trail:+2.7%)"
+          "TIMKEN(-13.5%/Trail:-9.7%)",
+          "AVANTIFEED(-40.9%/Trail:+2.7%)"
         ],
         "tickers": [
           "PIRAMALFIN",
@@ -1867,7 +1867,7 @@
       "market_regime": "\ud83d\udfe2 Bullish Expansion (81% >50SMA)",
       "univ_above_50sma_pct": 80.6,
       "univ_stage2_pct": 24.9,
-      "universe_benchmark_ret_pct": -3.25,
+      "universe_benchmark_ret_pct": -3.95,
       "qualifying_top_6_sectors": [
         "Consumer Services",
         "Power",
@@ -1992,20 +1992,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 50.0,
         "avg_mae_pct": -6.27,
-        "avg_hold_ret_pct": 19.52,
-        "avg_trail_ret_pct": 14.73,
+        "avg_hold_ret_pct": 20.52,
+        "avg_trail_ret_pct": 14.74,
         "conf_count": 8,
         "conf_mfe_pct": 45.76,
         "conf_mae_pct": -7.38,
         "conf_trail_ret_pct": 13.48,
         "top_winners": [
-          "SENORES(+43.3%/MFE:+79%)",
-          "AKUMS(+37.7%/MFE:+50%)",
-          "HONASA(+34.0%/MFE:+50%)"
+          "SENORES(+47.4%/MFE:+79%)",
+          "HONASA(+32.8%/MFE:+50%)",
+          "ARVIND(+32.0%/MFE:+52%)"
         ],
         "top_losers": [
-          "BHARATFORG(-0.4%/Trail:+11.7%)",
-          "ABSLAMC(-6.7%/Trail:-9.1%)"
+          "BHARATFORG(-0.6%/Trail:+11.7%)",
+          "ABSLAMC(-6.5%/Trail:-9.1%)"
         ],
         "tickers": [
           "SHRIPISTON",
@@ -2028,20 +2028,20 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 50.0,
         "avg_mae_pct": -6.15,
-        "avg_hold_ret_pct": 22.44,
-        "avg_trail_ret_pct": 19.45,
+        "avg_hold_ret_pct": 22.73,
+        "avg_trail_ret_pct": 18.97,
         "conf_count": 10,
         "conf_mfe_pct": 50.98,
         "conf_mae_pct": -7.02,
-        "conf_trail_ret_pct": 19.4,
+        "conf_trail_ret_pct": 18.82,
         "top_winners": [
-          "SANSERA(+68.6%/MFE:+91%)",
-          "SENORES(+43.3%/MFE:+79%)",
-          "AKUMS(+37.7%/MFE:+50%)"
+          "SANSERA(+65.5%/MFE:+91%)",
+          "SENORES(+47.4%/MFE:+79%)",
+          "HONASA(+32.8%/MFE:+50%)"
         ],
         "top_losers": [
-          "BHARATFORG(-0.4%/Trail:+11.7%)",
-          "ABSLAMC(-6.7%/Trail:-9.1%)"
+          "BHARATFORG(-0.6%/Trail:+11.7%)",
+          "ABSLAMC(-6.5%/Trail:-9.1%)"
         ],
         "tickers": [
           "SHRIPISTON",
@@ -2065,21 +2065,21 @@
         "avg_mfe_pct": 48.7,
         "hit_15pct_rate": 66.7,
         "low_mae_rate": 33.3,
-        "avg_mae_pct": -9.58,
-        "avg_hold_ret_pct": 14.85,
+        "avg_mae_pct": -10.42,
+        "avg_hold_ret_pct": 15.46,
         "avg_trail_ret_pct": 5.21,
         "conf_count": 3,
         "conf_mfe_pct": 48.7,
-        "conf_mae_pct": -9.58,
+        "conf_mae_pct": -10.42,
         "conf_trail_ret_pct": 5.21,
         "top_winners": [
-          "HONASA(+34.0%/MFE:+50%)",
-          "THANGAMAYL(+21.6%/MFE:+86%)",
-          "ICICIAMC(-11.0%/MFE:+10%)"
+          "HONASA(+32.8%/MFE:+50%)",
+          "THANGAMAYL(+27.8%/MFE:+86%)",
+          "ICICIAMC(-14.2%/MFE:+10%)"
         ],
         "top_losers": [
-          "THANGAMAYL(+21.6%/Trail:-9.3%)",
-          "ICICIAMC(-11.0%/Trail:-9.2%)"
+          "THANGAMAYL(+27.8%/Trail:-9.3%)",
+          "ICICIAMC(-14.2%/Trail:-9.2%)"
         ],
         "tickers": [
           "THANGAMAYL",
@@ -2094,7 +2094,7 @@
       "market_regime": "\ud83d\udfe2 Bullish Expansion (64% >50SMA)",
       "univ_above_50sma_pct": 63.9,
       "univ_stage2_pct": 29.5,
-      "universe_benchmark_ret_pct": -3.93,
+      "universe_benchmark_ret_pct": -4.63,
       "qualifying_top_6_sectors": [
         "Information Technology",
         "Media Entertainment & Publication",
@@ -2213,26 +2213,26 @@
       },
       "momentum_frontrunner_top10": {
         "count": 10,
-        "hold_win_rate_pct": 60.0,
-        "trail_win_rate_pct": 60.0,
-        "avg_mfe_pct": 23.61,
-        "hit_15pct_rate": 60.0,
+        "hold_win_rate_pct": 70.0,
+        "trail_win_rate_pct": 70.0,
+        "avg_mfe_pct": 23.87,
+        "hit_15pct_rate": 70.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -9.69,
-        "avg_hold_ret_pct": 6.3,
-        "avg_trail_ret_pct": 7.02,
+        "avg_mae_pct": -9.77,
+        "avg_hold_ret_pct": 6.93,
+        "avg_trail_ret_pct": 7.55,
         "conf_count": 9,
-        "conf_mfe_pct": 25.97,
-        "conf_mae_pct": -7.59,
-        "conf_trail_ret_pct": 8.79,
+        "conf_mfe_pct": 26.26,
+        "conf_mae_pct": -7.67,
+        "conf_trail_ret_pct": 9.37,
         "top_winners": [
-          "ATHERENERG(+56.5%/MFE:+86%)",
-          "JINDALSAW(+23.3%/MFE:+33%)",
-          "CEIGALL(+13.6%/MFE:+19%)"
+          "ATHERENERG(+56.8%/MFE:+86%)",
+          "JINDALSAW(+25.2%/MFE:+33%)",
+          "CEIGALL(+14.5%/MFE:+19%)"
         ],
         "top_losers": [
-          "SANDUMA(-21.4%/Trail:-8.5%)",
-          "NATIONALUM(-25.6%/Trail:-8.9%)"
+          "SANDUMA(-22.7%/Trail:-8.5%)",
+          "NATIONALUM(-25.3%/Trail:-8.9%)"
         ],
         "tickers": [
           "TIPSMUSIC",
@@ -2249,26 +2249,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 55.0,
-        "trail_win_rate_pct": 60.0,
-        "avg_mfe_pct": 27.43,
-        "hit_15pct_rate": 65.0,
+        "hold_win_rate_pct": 60.0,
+        "trail_win_rate_pct": 65.0,
+        "avg_mfe_pct": 27.56,
+        "hit_15pct_rate": 70.0,
         "low_mae_rate": 40.0,
-        "avg_mae_pct": -10.37,
-        "avg_hold_ret_pct": 7.08,
-        "avg_trail_ret_pct": 7.47,
+        "avg_mae_pct": -10.6,
+        "avg_hold_ret_pct": 5.71,
+        "avg_trail_ret_pct": 7.74,
         "conf_count": 15,
-        "conf_mfe_pct": 27.56,
-        "conf_mae_pct": -8.56,
-        "conf_trail_ret_pct": 7.79,
+        "conf_mfe_pct": 27.74,
+        "conf_mae_pct": -8.67,
+        "conf_trail_ret_pct": 8.14,
         "top_winners": [
-          "ATHERENERG(+56.5%/MFE:+86%)",
-          "CHENNPETRO(+41.0%/MFE:+53%)",
-          "APARINDS(+40.0%/MFE:+50%)"
+          "ATHERENERG(+56.8%/MFE:+86%)",
+          "SGMART(+39.3%/MFE:+50%)",
+          "ACMESOLAR(+33.5%/MFE:+55%)"
         ],
         "top_losers": [
-          "NATIONALUM(-25.6%/Trail:-8.9%)",
-          "VEDL(-25.9%/Trail:-9.8%)"
+          "NATIONALUM(-25.3%/Trail:-8.9%)",
+          "VEDL(-27.0%/Trail:-9.8%)"
         ],
         "tickers": [
           "TIPSMUSIC",
@@ -2297,24 +2297,24 @@
         "count": 10,
         "hold_win_rate_pct": 80.0,
         "trail_win_rate_pct": 80.0,
-        "avg_mfe_pct": 26.31,
-        "hit_15pct_rate": 80.0,
+        "avg_mfe_pct": 26.57,
+        "hit_15pct_rate": 90.0,
         "low_mae_rate": 60.0,
-        "avg_mae_pct": -6.38,
-        "avg_hold_ret_pct": 9.26,
-        "avg_trail_ret_pct": 8.23,
+        "avg_mae_pct": -6.46,
+        "avg_hold_ret_pct": 8.27,
+        "avg_trail_ret_pct": 8.36,
         "conf_count": 10,
-        "conf_mfe_pct": 26.31,
-        "conf_mae_pct": -6.38,
-        "conf_trail_ret_pct": 8.23,
+        "conf_mfe_pct": 26.57,
+        "conf_mae_pct": -6.46,
+        "conf_trail_ret_pct": 8.36,
         "top_winners": [
-          "ATHERENERG(+56.5%/MFE:+86%)",
-          "CARBORUNIV(+13.6%/MFE:+33%)",
-          "CEIGALL(+13.6%/MFE:+19%)"
+          "ATHERENERG(+56.8%/MFE:+86%)",
+          "CEIGALL(+14.5%/MFE:+19%)",
+          "TIPSMUSIC(+14.0%/MFE:+16%)"
         ],
         "top_losers": [
-          "ABSLAMC(-4.8%/Trail:+2.3%)",
-          "SANDUMA(-21.4%/Trail:-8.5%)"
+          "ABSLAMC(-4.7%/Trail:+2.3%)",
+          "SANDUMA(-22.7%/Trail:-8.5%)"
         ],
         "tickers": [
           "TIPSMUSIC",
@@ -2336,7 +2336,7 @@
       "market_regime": "\ud83d\udfe2 Bullish Expansion (62% >50SMA)",
       "univ_above_50sma_pct": 62.1,
       "univ_stage2_pct": 38.6,
-      "universe_benchmark_ret_pct": -7.27,
+      "universe_benchmark_ret_pct": -7.94,
       "qualifying_top_6_sectors": [
         "Financial Services",
         "Realty",
@@ -2370,20 +2370,20 @@
         "avg_mfe_pct": 6.48,
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -16.83,
-        "avg_hold_ret_pct": -13.49,
+        "avg_mae_pct": -17.41,
+        "avg_hold_ret_pct": -15.96,
         "avg_trail_ret_pct": -9.6,
         "conf_count": 2,
         "conf_mfe_pct": 5.78,
-        "conf_mae_pct": -16.12,
-        "conf_trail_ret_pct": -6.66,
+        "conf_mae_pct": -16.7,
+        "conf_trail_ret_pct": -8.04,
         "top_winners": [
-          "NORTHARC(-4.8%/MFE:+10%)",
-          "TENNIND(-22.2%/MFE:+3%)"
+          "NORTHARC(-7.5%/MFE:+10%)",
+          "TENNIND(-24.4%/MFE:+3%)"
         ],
         "top_losers": [
-          "NORTHARC(-4.8%/Trail:-3.3%)",
-          "TENNIND(-22.2%/Trail:-10.0%)"
+          "NORTHARC(-7.5%/Trail:-6.0%)",
+          "TENNIND(-24.4%/Trail:-10.0%)"
         ],
         "tickers": [
           "TENNIND",
@@ -2398,17 +2398,17 @@
         "hit_15pct_rate": 100.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -5.37,
-        "avg_hold_ret_pct": 2.1,
-        "avg_trail_ret_pct": 2.1,
+        "avg_hold_ret_pct": 2.54,
+        "avg_trail_ret_pct": 2.54,
         "conf_count": 1,
         "conf_mfe_pct": 17.67,
         "conf_mae_pct": -5.37,
-        "conf_trail_ret_pct": 2.1,
+        "conf_trail_ret_pct": 2.54,
         "top_winners": [
-          "LLOYDSME(+2.1%/MFE:+18%)"
+          "LLOYDSME(+2.5%/MFE:+18%)"
         ],
         "top_losers": [
-          "LLOYDSME(+2.1%/Trail:+2.1%)"
+          "LLOYDSME(+2.5%/Trail:+2.5%)"
         ],
         "tickers": [
           "LLOYDSME"
@@ -2475,21 +2475,21 @@
         "avg_mfe_pct": 24.2,
         "hit_15pct_rate": 40.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -14.45,
-        "avg_hold_ret_pct": 10.29,
-        "avg_trail_ret_pct": 10.6,
+        "avg_mae_pct": -14.62,
+        "avg_hold_ret_pct": 7.92,
+        "avg_trail_ret_pct": 9.59,
         "conf_count": 9,
         "conf_mfe_pct": 26.74,
-        "conf_mae_pct": -13.86,
-        "conf_trail_ret_pct": 12.32,
+        "conf_mae_pct": -14.05,
+        "conf_trail_ret_pct": 11.2,
         "top_winners": [
-          "WELCORP(+78.2%/MFE:+96%)",
-          "MBAPL(+42.3%/MFE:+47%)",
-          "NEOGEN(+33.5%/MFE:+38%)"
+          "WELCORP(+74.0%/MFE:+96%)",
+          "MBAPL(+40.8%/MFE:+47%)",
+          "SGMART(+31.2%/MFE:+41%)"
         ],
         "top_losers": [
-          "TENNIND(-22.2%/Trail:-10.0%)",
-          "JBMA(-23.2%/Trail:-9.0%)"
+          "JBMA(-23.3%/Trail:-9.0%)",
+          "TENNIND(-24.4%/Trail:-10.0%)"
         ],
         "tickers": [
           "TENNIND",
@@ -2511,21 +2511,21 @@
         "avg_mfe_pct": 25.04,
         "hit_15pct_rate": 55.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -12.83,
-        "avg_hold_ret_pct": 10.54,
-        "avg_trail_ret_pct": 6.39,
+        "avg_mae_pct": -12.91,
+        "avg_hold_ret_pct": 7.84,
+        "avg_trail_ret_pct": 5.82,
         "conf_count": 18,
         "conf_mfe_pct": 25.78,
-        "conf_mae_pct": -12.23,
-        "conf_trail_ret_pct": 7.95,
+        "conf_mae_pct": -12.32,
+        "conf_trail_ret_pct": 7.32,
         "top_winners": [
-          "E2E(+85.8%/MFE:+90%)",
-          "WELCORP(+78.2%/MFE:+96%)",
-          "MBAPL(+42.3%/MFE:+47%)"
+          "WELCORP(+74.0%/MFE:+96%)",
+          "E2E(+72.5%/MFE:+90%)",
+          "MBAPL(+40.8%/MFE:+47%)"
         ],
         "top_losers": [
-          "TENNIND(-22.2%/Trail:-10.0%)",
-          "JBMA(-23.2%/Trail:-9.0%)"
+          "JBMA(-23.3%/Trail:-9.0%)",
+          "TENNIND(-24.4%/Trail:-10.0%)"
         ],
         "tickers": [
           "TENNIND",
@@ -2552,26 +2552,26 @@
       },
       "high_rs_pullback_top10": {
         "count": 9,
-        "hold_win_rate_pct": 55.6,
+        "hold_win_rate_pct": 44.4,
         "trail_win_rate_pct": 55.6,
         "avg_mfe_pct": 27.32,
         "hit_15pct_rate": 66.7,
         "low_mae_rate": 11.1,
-        "avg_mae_pct": -11.0,
-        "avg_hold_ret_pct": 7.85,
-        "avg_trail_ret_pct": 4.17,
+        "avg_mae_pct": -11.17,
+        "avg_hold_ret_pct": 3.84,
+        "avg_trail_ret_pct": 3.87,
         "conf_count": 9,
         "conf_mfe_pct": 27.32,
-        "conf_mae_pct": -11.0,
-        "conf_trail_ret_pct": 4.17,
+        "conf_mae_pct": -11.17,
+        "conf_trail_ret_pct": 3.87,
         "top_winners": [
-          "E2E(+85.8%/MFE:+90%)",
-          "KRN(+9.9%/MFE:+37%)",
-          "GNFC(+9.1%/MFE:+20%)"
+          "E2E(+72.5%/MFE:+90%)",
+          "GNFC(+6.3%/MFE:+20%)",
+          "STYLAMIND(+5.0%/MFE:+29%)"
         ],
         "top_losers": [
-          "ADANIENSOL(-10.3%/Trail:-9.2%)",
-          "ATGL(-20.8%/Trail:-9.7%)"
+          "ADANIENSOL(-10.2%/Trail:-9.2%)",
+          "ATGL(-21.1%/Trail:-9.7%)"
         ],
         "tickers": [
           "GNFC",
@@ -2592,7 +2592,7 @@
       "market_regime": "\ud83d\udfe2 Bullish Expansion (63% >50SMA)",
       "univ_above_50sma_pct": 63.4,
       "univ_stage2_pct": 37.2,
-      "universe_benchmark_ret_pct": -8.25,
+      "universe_benchmark_ret_pct": -8.92,
       "qualifying_top_6_sectors": [
         "Consumer Durables",
         "Chemicals",
@@ -2626,21 +2626,21 @@
         "avg_mfe_pct": 5.69,
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -16.51,
-        "avg_hold_ret_pct": -10.78,
-        "avg_trail_ret_pct": -5.53,
+        "avg_mae_pct": -16.66,
+        "avg_hold_ret_pct": -12.03,
+        "avg_trail_ret_pct": -5.84,
         "conf_count": 3,
         "conf_mfe_pct": 5.6,
-        "conf_mae_pct": -16.17,
-        "conf_trail_ret_pct": -5.87,
+        "conf_mae_pct": -16.33,
+        "conf_trail_ret_pct": -6.18,
         "top_winners": [
-          "HONASA(-0.4%/MFE:+11%)",
-          "KIMS(-15.6%/MFE:+1%)",
-          "PARKHOSPS(-16.4%/MFE:+5%)"
+          "HONASA(-1.3%/MFE:+11%)",
+          "KIMS(-16.4%/MFE:+1%)",
+          "PARKHOSPS(-18.3%/MFE:+5%)"
         ],
         "top_losers": [
-          "KIMS(-15.6%/Trail:-6.6%)",
-          "PARKHOSPS(-16.4%/Trail:-10.6%)"
+          "KIMS(-16.4%/Trail:-6.6%)",
+          "PARKHOSPS(-18.3%/Trail:-10.6%)"
         ],
         "tickers": [
           "KIMS",
@@ -2674,19 +2674,19 @@
         "hit_15pct_rate": 50.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -7.5,
-        "avg_hold_ret_pct": 1.75,
-        "avg_trail_ret_pct": 1.75,
+        "avg_hold_ret_pct": -0.6,
+        "avg_trail_ret_pct": -0.86,
         "conf_count": 2,
         "conf_mfe_pct": 15.39,
         "conf_mae_pct": -8.17,
-        "conf_trail_ret_pct": -5.28,
+        "conf_trail_ret_pct": -4.85,
         "top_winners": [
-          "CARBORUNIV(+6.9%/MFE:+25%)",
-          "USHAMART(-3.4%/MFE:+8%)"
+          "CARBORUNIV(+1.3%/MFE:+25%)",
+          "USHAMART(-2.5%/MFE:+8%)"
         ],
         "top_losers": [
-          "CARBORUNIV(+6.9%/Trail:-7.2%)",
-          "USHAMART(-3.4%/Trail:-3.4%)"
+          "CARBORUNIV(+1.3%/Trail:-7.2%)",
+          "USHAMART(-2.5%/Trail:-2.5%)"
         ],
         "tickers": [
           "USHAMART",
@@ -2701,19 +2701,19 @@
         "hit_15pct_rate": 50.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -7.5,
-        "avg_hold_ret_pct": 1.75,
-        "avg_trail_ret_pct": 1.75,
+        "avg_hold_ret_pct": -0.6,
+        "avg_trail_ret_pct": -0.86,
         "conf_count": 2,
         "conf_mfe_pct": 15.39,
         "conf_mae_pct": -8.17,
-        "conf_trail_ret_pct": -5.28,
+        "conf_trail_ret_pct": -4.85,
         "top_winners": [
-          "CARBORUNIV(+6.9%/MFE:+25%)",
-          "USHAMART(-3.4%/MFE:+8%)"
+          "CARBORUNIV(+1.3%/MFE:+25%)",
+          "USHAMART(-2.5%/MFE:+8%)"
         ],
         "top_losers": [
-          "CARBORUNIV(+6.9%/Trail:-7.2%)",
-          "USHAMART(-3.4%/Trail:-3.4%)"
+          "CARBORUNIV(+1.3%/Trail:-7.2%)",
+          "USHAMART(-2.5%/Trail:-2.5%)"
         ],
         "tickers": [
           "USHAMART",
@@ -2728,19 +2728,19 @@
         "hit_15pct_rate": 50.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -7.5,
-        "avg_hold_ret_pct": 1.75,
-        "avg_trail_ret_pct": 1.75,
+        "avg_hold_ret_pct": -0.6,
+        "avg_trail_ret_pct": -0.86,
         "conf_count": 2,
         "conf_mfe_pct": 15.39,
         "conf_mae_pct": -8.17,
-        "conf_trail_ret_pct": -5.28,
+        "conf_trail_ret_pct": -4.85,
         "top_winners": [
-          "CARBORUNIV(+6.9%/MFE:+25%)",
-          "USHAMART(-3.4%/MFE:+8%)"
+          "CARBORUNIV(+1.3%/MFE:+25%)",
+          "USHAMART(-2.5%/MFE:+8%)"
         ],
         "top_losers": [
-          "CARBORUNIV(+6.9%/Trail:-7.2%)",
-          "USHAMART(-3.4%/Trail:-3.4%)"
+          "CARBORUNIV(+1.3%/Trail:-7.2%)",
+          "USHAMART(-2.5%/Trail:-2.5%)"
         ],
         "tickers": [
           "USHAMART",
@@ -2749,26 +2749,26 @@
       },
       "momentum_frontrunner_top10": {
         "count": 10,
-        "hold_win_rate_pct": 70.0,
-        "trail_win_rate_pct": 60.0,
+        "hold_win_rate_pct": 60.0,
+        "trail_win_rate_pct": 50.0,
         "avg_mfe_pct": 26.88,
         "hit_15pct_rate": 60.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -7.86,
-        "avg_hold_ret_pct": 11.35,
-        "avg_trail_ret_pct": 8.2,
+        "avg_mae_pct": -7.92,
+        "avg_hold_ret_pct": 7.71,
+        "avg_trail_ret_pct": 5.98,
         "conf_count": 10,
         "conf_mfe_pct": 26.84,
-        "conf_mae_pct": -7.88,
-        "conf_trail_ret_pct": 6.91,
+        "conf_mae_pct": -7.94,
+        "conf_trail_ret_pct": 5.29,
         "top_winners": [
-          "SHILPAMED(+54.3%/MFE:+76%)",
-          "WELENT(+24.1%/MFE:+39%)",
-          "CENTUM(+14.7%/MFE:+36%)"
+          "SHILPAMED(+50.4%/MFE:+76%)",
+          "WELENT(+19.8%/MFE:+39%)",
+          "ACMESOLAR(+10.5%/MFE:+29%)"
         ],
         "top_losers": [
-          "CLEANMAX(-3.8%/Trail:-9.6%)",
-          "AYE(-7.3%/Trail:-8.6%)"
+          "CLEANMAX(-5.5%/Trail:-9.6%)",
+          "AYE(-11.2%/Trail:-8.6%)"
         ],
         "tickers": [
           "ARVIND",
@@ -2785,26 +2785,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 65.0,
-        "trail_win_rate_pct": 60.0,
-        "avg_mfe_pct": 24.68,
+        "hold_win_rate_pct": 60.0,
+        "trail_win_rate_pct": 55.0,
+        "avg_mfe_pct": 25.03,
         "hit_15pct_rate": 65.0,
         "low_mae_rate": 45.0,
-        "avg_mae_pct": -7.52,
-        "avg_hold_ret_pct": 8.7,
-        "avg_trail_ret_pct": 6.55,
+        "avg_mae_pct": -7.55,
+        "avg_hold_ret_pct": 6.85,
+        "avg_trail_ret_pct": 5.34,
         "conf_count": 17,
-        "conf_mfe_pct": 26.43,
-        "conf_mae_pct": -7.48,
-        "conf_trail_ret_pct": 8.42,
+        "conf_mfe_pct": 26.84,
+        "conf_mae_pct": -7.51,
+        "conf_trail_ret_pct": 7.41,
         "top_winners": [
-          "SHILPAMED(+54.3%/MFE:+76%)",
-          "TIMEX(+30.3%/MFE:+38%)",
-          "WELENT(+24.1%/MFE:+39%)"
+          "SHILPAMED(+50.4%/MFE:+76%)",
+          "TIMEX(+27.6%/MFE:+38%)",
+          "THELEELA(+22.8%/MFE:+30%)"
         ],
         "top_losers": [
-          "IFCI(-10.3%/Trail:+17.0%)",
-          "HSCL(-11.6%/Trail:-12.8%)"
+          "HSCL(-12.0%/Trail:-12.8%)",
+          "IFCI(-13.3%/Trail:+17.0%)"
         ],
         "tickers": [
           "ARVIND",
@@ -2831,26 +2831,26 @@
       },
       "high_rs_pullback_top10": {
         "count": 10,
-        "hold_win_rate_pct": 60.0,
-        "trail_win_rate_pct": 60.0,
+        "hold_win_rate_pct": 50.0,
+        "trail_win_rate_pct": 50.0,
         "avg_mfe_pct": 24.65,
         "hit_15pct_rate": 50.0,
         "low_mae_rate": 40.0,
-        "avg_mae_pct": -9.17,
-        "avg_hold_ret_pct": 9.54,
-        "avg_trail_ret_pct": 10.7,
+        "avg_mae_pct": -9.2,
+        "avg_hold_ret_pct": 7.98,
+        "avg_trail_ret_pct": 9.74,
         "conf_count": 10,
         "conf_mfe_pct": 24.65,
-        "conf_mae_pct": -9.17,
-        "conf_trail_ret_pct": 10.7,
+        "conf_mae_pct": -9.2,
+        "conf_trail_ret_pct": 9.74,
         "top_winners": [
-          "SHILPAMED(+54.3%/MFE:+76%)",
-          "TIMEX(+30.3%/MFE:+38%)",
-          "WELENT(+24.1%/MFE:+39%)"
+          "SHILPAMED(+50.4%/MFE:+76%)",
+          "TIMEX(+27.6%/MFE:+38%)",
+          "WELENT(+19.8%/MFE:+39%)"
         ],
         "top_losers": [
-          "HONAUT(-14.6%/Trail:-6.3%)",
-          "ADANIENSOL(-17.2%/Trail:-13.9%)"
+          "HONAUT(-16.8%/Trail:-6.3%)",
+          "ADANIENSOL(-17.1%/Trail:-13.9%)"
         ],
         "tickers": [
           "ARVIND",
@@ -2872,7 +2872,7 @@
       "market_regime": "\ud83d\udfe1 Selective Rotation (44% >50SMA)",
       "univ_above_50sma_pct": 44.3,
       "univ_stage2_pct": 32.1,
-      "universe_benchmark_ret_pct": -7.05,
+      "universe_benchmark_ret_pct": -7.72,
       "qualifying_top_6_sectors": [
         "Oil Gas & Consumable Fuels",
         "Utilities",
@@ -2907,17 +2907,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 0.0,
         "avg_mae_pct": -11.71,
-        "avg_hold_ret_pct": -7.76,
+        "avg_hold_ret_pct": -8.78,
         "avg_trail_ret_pct": -9.06,
         "conf_count": 1,
         "conf_mfe_pct": 1.05,
         "conf_mae_pct": -11.71,
         "conf_trail_ret_pct": -9.06,
         "top_winners": [
-          "MINDACORP(-7.8%/MFE:+1%)"
+          "MINDACORP(-8.8%/MFE:+1%)"
         ],
         "top_losers": [
-          "MINDACORP(-7.8%/Trail:-9.1%)"
+          "MINDACORP(-8.8%/Trail:-9.1%)"
         ],
         "tickers": [
           "MINDACORP"
@@ -2930,21 +2930,21 @@
         "avg_mfe_pct": 10.57,
         "hit_15pct_rate": 25.0,
         "low_mae_rate": 0.0,
-        "avg_mae_pct": -14.18,
-        "avg_hold_ret_pct": -7.27,
+        "avg_mae_pct": -14.96,
+        "avg_hold_ret_pct": -8.61,
         "avg_trail_ret_pct": -6.55,
         "conf_count": 4,
         "conf_mfe_pct": 10.57,
-        "conf_mae_pct": -14.18,
+        "conf_mae_pct": -14.96,
         "conf_trail_ret_pct": -6.55,
         "top_winners": [
-          "NIACL(-0.2%/MFE:+31%)",
-          "HONASA(-3.6%/MFE:+4%)",
-          "CANHLIFE(-12.2%/MFE:+4%)"
+          "NIACL(-3.3%/MFE:+31%)",
+          "HONASA(-4.5%/MFE:+4%)",
+          "INDIGOPNTS(-11.2%/MFE:+3%)"
         ],
         "top_losers": [
-          "CANHLIFE(-12.2%/Trail:-7.7%)",
-          "INDIGOPNTS(-13.1%/Trail:-9.4%)"
+          "INDIGOPNTS(-11.2%/Trail:-9.4%)",
+          "CANHLIFE(-15.4%/Trail:-7.7%)"
         ],
         "tickers": [
           "CANHLIFE",
@@ -2961,17 +2961,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -5.04,
-        "avg_hold_ret_pct": -0.36,
-        "avg_trail_ret_pct": -0.36,
+        "avg_hold_ret_pct": -1.46,
+        "avg_trail_ret_pct": -1.46,
         "conf_count": 1,
         "conf_mfe_pct": 3.7,
         "conf_mae_pct": -5.04,
-        "conf_trail_ret_pct": -0.36,
+        "conf_trail_ret_pct": -1.46,
         "top_winners": [
-          "KAJARIACER(-0.4%/MFE:+4%)"
+          "KAJARIACER(-1.5%/MFE:+4%)"
         ],
         "top_losers": [
-          "KAJARIACER(-0.4%/Trail:-0.4%)"
+          "KAJARIACER(-1.5%/Trail:-1.5%)"
         ],
         "tickers": [
           "KAJARIACER"
@@ -2985,17 +2985,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -5.04,
-        "avg_hold_ret_pct": -0.36,
-        "avg_trail_ret_pct": -0.36,
+        "avg_hold_ret_pct": -1.46,
+        "avg_trail_ret_pct": -1.46,
         "conf_count": 1,
         "conf_mfe_pct": 3.7,
         "conf_mae_pct": -5.04,
-        "conf_trail_ret_pct": -0.36,
+        "conf_trail_ret_pct": -1.46,
         "top_winners": [
-          "KAJARIACER(-0.4%/MFE:+4%)"
+          "KAJARIACER(-1.5%/MFE:+4%)"
         ],
         "top_losers": [
-          "KAJARIACER(-0.4%/Trail:-0.4%)"
+          "KAJARIACER(-1.5%/Trail:-1.5%)"
         ],
         "tickers": [
           "KAJARIACER"
@@ -3009,17 +3009,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -5.04,
-        "avg_hold_ret_pct": -0.36,
-        "avg_trail_ret_pct": -0.36,
+        "avg_hold_ret_pct": -1.46,
+        "avg_trail_ret_pct": -1.46,
         "conf_count": 1,
         "conf_mfe_pct": 3.7,
         "conf_mae_pct": -5.04,
-        "conf_trail_ret_pct": -0.36,
+        "conf_trail_ret_pct": -1.46,
         "top_winners": [
-          "KAJARIACER(-0.4%/MFE:+4%)"
+          "KAJARIACER(-1.5%/MFE:+4%)"
         ],
         "top_losers": [
-          "KAJARIACER(-0.4%/Trail:-0.4%)"
+          "KAJARIACER(-1.5%/Trail:-1.5%)"
         ],
         "tickers": [
           "KAJARIACER"
@@ -3032,21 +3032,21 @@
         "avg_mfe_pct": 9.55,
         "hit_15pct_rate": 20.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -10.27,
-        "avg_hold_ret_pct": -2.06,
-        "avg_trail_ret_pct": -3.81,
+        "avg_mae_pct": -10.73,
+        "avg_hold_ret_pct": -6.13,
+        "avg_trail_ret_pct": -5.6,
         "conf_count": 10,
         "conf_mfe_pct": 9.95,
-        "conf_mae_pct": -9.96,
-        "conf_trail_ret_pct": -3.24,
+        "conf_mae_pct": -10.43,
+        "conf_trail_ret_pct": -6.01,
         "top_winners": [
-          "CHENNPETRO(+11.5%/MFE:+21%)",
-          "BHEL(+8.8%/MFE:+9%)",
-          "ACMESOLAR(+4.0%/MFE:+18%)"
+          "BHEL(+1.9%/MFE:+9%)",
+          "ACMESOLAR(+1.6%/MFE:+18%)",
+          "CHENNPETRO(+1.4%/MFE:+21%)"
         ],
         "top_losers": [
-          "PPLPHARMA(-9.0%/Trail:-8.6%)",
-          "CAPLIPOINT(-13.8%/Trail:-8.6%)"
+          "CAPLIPOINT(-15.1%/Trail:-8.6%)",
+          "RRKABEL(-16.8%/Trail:-8.8%)"
         ],
         "tickers": [
           "ACMESOLAR",
@@ -3063,26 +3063,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 40.0,
-        "trail_win_rate_pct": 35.0,
-        "avg_mfe_pct": 10.44,
+        "hold_win_rate_pct": 45.0,
+        "trail_win_rate_pct": 40.0,
+        "avg_mfe_pct": 10.58,
         "hit_15pct_rate": 25.0,
         "low_mae_rate": 30.0,
-        "avg_mae_pct": -10.07,
-        "avg_hold_ret_pct": -0.71,
-        "avg_trail_ret_pct": -2.09,
+        "avg_mae_pct": -10.45,
+        "avg_hold_ret_pct": -3.34,
+        "avg_trail_ret_pct": -3.35,
         "conf_count": 20,
-        "conf_mfe_pct": 10.51,
-        "conf_mae_pct": -9.95,
-        "conf_trail_ret_pct": -1.93,
+        "conf_mfe_pct": 10.64,
+        "conf_mae_pct": -10.34,
+        "conf_trail_ret_pct": -3.68,
         "top_winners": [
-          "CHENNPETRO(+11.5%/MFE:+21%)",
-          "NAZARA(+10.2%/MFE:+11%)",
-          "BHEL(+8.8%/MFE:+9%)"
+          "NAZARA(+13.7%/MFE:+14%)",
+          "HFCL(+8.2%/MFE:+17%)",
+          "MANORAMA(+4.2%/MFE:+17%)"
         ],
         "top_losers": [
-          "INDIGOPNTS(-13.1%/Trail:-9.4%)",
-          "CAPLIPOINT(-13.8%/Trail:-8.6%)"
+          "CANHLIFE(-15.4%/Trail:-7.7%)",
+          "RRKABEL(-16.8%/Trail:-8.8%)"
         ],
         "tickers": [
           "ACMESOLAR",
@@ -3109,26 +3109,26 @@
       },
       "high_rs_pullback_top10": {
         "count": 10,
-        "hold_win_rate_pct": 50.0,
-        "trail_win_rate_pct": 40.0,
+        "hold_win_rate_pct": 40.0,
+        "trail_win_rate_pct": 30.0,
         "avg_mfe_pct": 16.42,
         "hit_15pct_rate": 50.0,
-        "low_mae_rate": 50.0,
-        "avg_mae_pct": -8.18,
-        "avg_hold_ret_pct": 2.91,
-        "avg_trail_ret_pct": 0.65,
+        "low_mae_rate": 40.0,
+        "avg_mae_pct": -8.43,
+        "avg_hold_ret_pct": -0.09,
+        "avg_trail_ret_pct": -1.66,
         "conf_count": 10,
         "conf_mfe_pct": 16.42,
-        "conf_mae_pct": -8.18,
-        "conf_trail_ret_pct": 0.65,
+        "conf_mae_pct": -8.43,
+        "conf_trail_ret_pct": -1.66,
         "top_winners": [
-          "NEOGEN(+24.8%/MFE:+29%)",
-          "SYRMA(+16.9%/MFE:+26%)",
-          "AEQUS(+6.6%/MFE:+19%)"
+          "NEOGEN(+15.4%/MFE:+29%)",
+          "SYRMA(+10.8%/MFE:+26%)",
+          "AEQUS(+6.0%/MFE:+19%)"
         ],
         "top_losers": [
-          "AYE(-6.8%/Trail:-9.2%)",
-          "PPLPHARMA(-9.0%/Trail:-8.6%)"
+          "PPLPHARMA(-7.3%/Trail:-8.6%)",
+          "AYE(-10.7%/Trail:-9.2%)"
         ],
         "tickers": [
           "WABAG",
@@ -3150,7 +3150,7 @@
       "market_regime": "\ud83d\udd34 Defensive / Contraction (24% >50SMA)",
       "univ_above_50sma_pct": 24.3,
       "univ_stage2_pct": 17.9,
-      "universe_benchmark_ret_pct": 0.16,
+      "universe_benchmark_ret_pct": -0.57,
       "qualifying_top_6_sectors": [
         "Automobile and Auto Components",
         "Capital Goods",
@@ -3167,17 +3167,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -2.29,
-        "avg_hold_ret_pct": 10.21,
-        "avg_trail_ret_pct": 10.21,
+        "avg_hold_ret_pct": 3.23,
+        "avg_trail_ret_pct": 3.23,
         "conf_count": 1,
         "conf_mfe_pct": 10.21,
         "conf_mae_pct": -2.29,
-        "conf_trail_ret_pct": 10.21,
+        "conf_trail_ret_pct": 3.23,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)"
+          "BHEL(+3.2%/MFE:+10%)"
         ],
         "top_losers": [
-          "BHEL(+10.2%/Trail:+10.2%)"
+          "BHEL(+3.2%/Trail:+3.2%)"
         ],
         "tickers": [
           "BHEL"
@@ -3185,26 +3185,26 @@
       },
       "top_down_sector_top10": {
         "count": 4,
-        "hold_win_rate_pct": 75.0,
-        "trail_win_rate_pct": 75.0,
-        "avg_mfe_pct": 6.43,
+        "hold_win_rate_pct": 50.0,
+        "trail_win_rate_pct": 50.0,
+        "avg_mfe_pct": 6.79,
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 75.0,
         "avg_mae_pct": -5.39,
-        "avg_hold_ret_pct": 1.34,
-        "avg_trail_ret_pct": 1.34,
+        "avg_hold_ret_pct": -1.41,
+        "avg_trail_ret_pct": -1.41,
         "conf_count": 4,
-        "conf_mfe_pct": 6.43,
+        "conf_mfe_pct": 6.79,
         "conf_mae_pct": -5.39,
-        "conf_trail_ret_pct": 1.34,
+        "conf_trail_ret_pct": -1.41,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)",
-          "MBAPL(+1.8%/MFE:+4%)",
-          "LXCHEM(+1.2%/MFE:+7%)"
+          "BHEL(+3.2%/MFE:+10%)",
+          "MBAPL(+0.8%/MFE:+5%)",
+          "LXCHEM(-1.3%/MFE:+7%)"
         ],
         "top_losers": [
-          "LXCHEM(+1.2%/Trail:+1.2%)",
-          "SUDARSCHEM(-7.8%/Trail:-7.8%)"
+          "LXCHEM(-1.3%/Trail:-1.3%)",
+          "SUDARSCHEM(-8.3%/Trail:-8.3%)"
         ],
         "tickers": [
           "BHEL",
@@ -3219,22 +3219,22 @@
         "trail_win_rate_pct": 33.3,
         "avg_mfe_pct": 5.77,
         "hit_15pct_rate": 0.0,
-        "low_mae_rate": 66.7,
-        "avg_mae_pct": -5.53,
-        "avg_hold_ret_pct": 0.24,
-        "avg_trail_ret_pct": 0.24,
+        "low_mae_rate": 33.3,
+        "avg_mae_pct": -6.35,
+        "avg_hold_ret_pct": -3.59,
+        "avg_trail_ret_pct": -3.59,
         "conf_count": 3,
         "conf_mfe_pct": 5.77,
-        "conf_mae_pct": -5.53,
-        "conf_trail_ret_pct": 0.24,
+        "conf_mae_pct": -6.35,
+        "conf_trail_ret_pct": -3.59,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)",
-          "IPCALAB(-1.6%/MFE:+2%)",
-          "SUDARSCHEM(-7.8%/MFE:+5%)"
+          "BHEL(+3.2%/MFE:+10%)",
+          "IPCALAB(-5.7%/MFE:+2%)",
+          "SUDARSCHEM(-8.3%/MFE:+5%)"
         ],
         "top_losers": [
-          "IPCALAB(-1.6%/Trail:-1.6%)",
-          "SUDARSCHEM(-7.8%/Trail:-7.8%)"
+          "IPCALAB(-5.7%/Trail:-5.7%)",
+          "SUDARSCHEM(-8.3%/Trail:-8.3%)"
         ],
         "tickers": [
           "BHEL",
@@ -3250,17 +3250,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -2.29,
-        "avg_hold_ret_pct": 10.21,
-        "avg_trail_ret_pct": 10.21,
+        "avg_hold_ret_pct": 3.23,
+        "avg_trail_ret_pct": 3.23,
         "conf_count": 1,
         "conf_mfe_pct": 10.21,
         "conf_mae_pct": -2.29,
-        "conf_trail_ret_pct": 10.21,
+        "conf_trail_ret_pct": 3.23,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)"
+          "BHEL(+3.2%/MFE:+10%)"
         ],
         "top_losers": [
-          "BHEL(+10.2%/Trail:+10.2%)"
+          "BHEL(+3.2%/Trail:+3.2%)"
         ],
         "tickers": [
           "BHEL"
@@ -3274,17 +3274,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -2.29,
-        "avg_hold_ret_pct": 10.21,
-        "avg_trail_ret_pct": 10.21,
+        "avg_hold_ret_pct": 3.23,
+        "avg_trail_ret_pct": 3.23,
         "conf_count": 1,
         "conf_mfe_pct": 10.21,
         "conf_mae_pct": -2.29,
-        "conf_trail_ret_pct": 10.21,
+        "conf_trail_ret_pct": 3.23,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)"
+          "BHEL(+3.2%/MFE:+10%)"
         ],
         "top_losers": [
-          "BHEL(+10.2%/Trail:+10.2%)"
+          "BHEL(+3.2%/Trail:+3.2%)"
         ],
         "tickers": [
           "BHEL"
@@ -3298,17 +3298,17 @@
         "hit_15pct_rate": 0.0,
         "low_mae_rate": 100.0,
         "avg_mae_pct": -2.29,
-        "avg_hold_ret_pct": 10.21,
-        "avg_trail_ret_pct": 10.21,
+        "avg_hold_ret_pct": 3.23,
+        "avg_trail_ret_pct": 3.23,
         "conf_count": 1,
         "conf_mfe_pct": 10.21,
         "conf_mae_pct": -2.29,
-        "conf_trail_ret_pct": 10.21,
+        "conf_trail_ret_pct": 3.23,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)"
+          "BHEL(+3.2%/MFE:+10%)"
         ],
         "top_losers": [
-          "BHEL(+10.2%/Trail:+10.2%)"
+          "BHEL(+3.2%/Trail:+3.2%)"
         ],
         "tickers": [
           "BHEL"
@@ -3316,26 +3316,26 @@
       },
       "momentum_frontrunner_top10": {
         "count": 10,
-        "hold_win_rate_pct": 50.0,
-        "trail_win_rate_pct": 50.0,
-        "avg_mfe_pct": 4.17,
+        "hold_win_rate_pct": 30.0,
+        "trail_win_rate_pct": 30.0,
+        "avg_mfe_pct": 4.57,
         "hit_15pct_rate": 0.0,
-        "low_mae_rate": 70.0,
-        "avg_mae_pct": -4.66,
-        "avg_hold_ret_pct": -0.61,
-        "avg_trail_ret_pct": -0.61,
+        "low_mae_rate": 60.0,
+        "avg_mae_pct": -5.26,
+        "avg_hold_ret_pct": -2.2,
+        "avg_trail_ret_pct": -2.3,
         "conf_count": 10,
-        "conf_mfe_pct": 4.17,
-        "conf_mae_pct": -4.66,
-        "conf_trail_ret_pct": -0.61,
+        "conf_mfe_pct": 4.57,
+        "conf_mae_pct": -5.26,
+        "conf_trail_ret_pct": -2.3,
         "top_winners": [
-          "KTKBANK(+5.5%/MFE:+7%)",
-          "NAZARA(+5.3%/MFE:+7%)",
-          "MBAPL(+1.8%/MFE:+4%)"
+          "NAZARA(+8.7%/MFE:+9%)",
+          "KTKBANK(+2.6%/MFE:+7%)",
+          "MBAPL(+0.8%/MFE:+5%)"
         ],
         "top_losers": [
-          "RBLBANK(-6.2%/Trail:-6.2%)",
-          "SUDARSCHEM(-7.8%/Trail:-7.8%)"
+          "RBLBANK(-8.1%/Trail:-9.1%)",
+          "SUDARSCHEM(-8.3%/Trail:-8.3%)"
         ],
         "tickers": [
           "NAZARA",
@@ -3352,26 +3352,26 @@
       },
       "momentum_frontrunner_top20": {
         "count": 20,
-        "hold_win_rate_pct": 55.0,
-        "trail_win_rate_pct": 55.0,
-        "avg_mfe_pct": 5.56,
+        "hold_win_rate_pct": 30.0,
+        "trail_win_rate_pct": 30.0,
+        "avg_mfe_pct": 6.28,
         "hit_15pct_rate": 5.0,
-        "low_mae_rate": 65.0,
-        "avg_mae_pct": -4.95,
-        "avg_hold_ret_pct": 0.45,
-        "avg_trail_ret_pct": 0.09,
+        "low_mae_rate": 60.0,
+        "avg_mae_pct": -5.57,
+        "avg_hold_ret_pct": -0.45,
+        "avg_trail_ret_pct": -1.0,
         "conf_count": 20,
-        "conf_mfe_pct": 5.58,
-        "conf_mae_pct": -4.67,
-        "conf_trail_ret_pct": 0.35,
+        "conf_mfe_pct": 6.29,
+        "conf_mae_pct": -5.3,
+        "conf_trail_ret_pct": -0.74,
         "top_winners": [
-          "SKYGOLD(+19.4%/MFE:+23%)",
-          "COFORGE(+5.6%/MFE:+8%)",
-          "KTKBANK(+5.5%/MFE:+7%)"
+          "SKYGOLD(+30.8%/MFE:+33%)",
+          "NAZARA(+8.7%/MFE:+9%)",
+          "COFORGE(+6.9%/MFE:+8%)"
         ],
         "top_losers": [
-          "RBLBANK(-6.2%/Trail:-6.2%)",
-          "SUDARSCHEM(-7.8%/Trail:-7.8%)"
+          "SUDARSCHEM(-8.3%/Trail:-8.3%)",
+          "INOXINDIA(-8.3%/Trail:-8.3%)"
         ],
         "tickers": [
           "NAZARA",
@@ -3400,24 +3400,24 @@
         "count": 10,
         "hold_win_rate_pct": 50.0,
         "trail_win_rate_pct": 50.0,
-        "avg_mfe_pct": 6.67,
+        "avg_mfe_pct": 6.77,
         "hit_15pct_rate": 0.0,
-        "low_mae_rate": 90.0,
-        "avg_mae_pct": -3.79,
-        "avg_hold_ret_pct": 1.9,
-        "avg_trail_ret_pct": 1.19,
+        "low_mae_rate": 70.0,
+        "avg_mae_pct": -4.72,
+        "avg_hold_ret_pct": -0.2,
+        "avg_trail_ret_pct": -1.2,
         "conf_count": 10,
-        "conf_mfe_pct": 6.67,
-        "conf_mae_pct": -3.79,
-        "conf_trail_ret_pct": 1.19,
+        "conf_mfe_pct": 6.77,
+        "conf_mae_pct": -4.72,
+        "conf_trail_ret_pct": -1.2,
         "top_winners": [
-          "BHEL(+10.2%/MFE:+10%)",
-          "GLAND(+6.2%/MFE:+10%)",
-          "MANORAMA(+6.0%/MFE:+9%)"
+          "GLAND(+5.9%/MFE:+10%)",
+          "BHEL(+3.2%/MFE:+10%)",
+          "SHRIPISTON(+3.1%/MFE:+5%)"
         ],
         "top_losers": [
-          "SHRIPISTON(-3.4%/Trail:-3.4%)",
-          "LUMAXTECH(-3.4%/Trail:-10.6%)"
+          "IPCALAB(-5.7%/Trail:-5.7%)",
+          "AETHER(-7.9%/Trail:-7.9%)"
         ],
         "tickers": [
           "IPCALAB",
