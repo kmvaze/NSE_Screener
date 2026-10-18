@@ -1471,7 +1471,7 @@
     });
 
     // ============================================================================
-    // POINT-IN-TIME BACKTEST RENDERER (FAIL-SAFE NULL-CHECKED)
+    // POINT-IN-TIME BACKTEST RENDERER
     // ============================================================================
     function selectBacktestQuarter(idx) {
       appState.selectedBacktestQuarterIdx = idx;
@@ -1673,7 +1673,7 @@
 
       const portEl = document.getElementById('btStatPortfolioRet');
       if (portEl) {
-        portEl.textContent = `${portEl >= 0 ? '+' : ''}${portRet.toFixed(2)}%`;
+        portEl.textContent = `${portRet >= 0 ? '+' : ''}${portRet.toFixed(2)}%`;
         portEl.style.color = portRet >= 0 ? 'var(--green)' : 'var(--red)';
       }
 
