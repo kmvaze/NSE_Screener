@@ -1004,13 +1004,26 @@ async function enforceAccessControl() {
         return true; 
       }
 
-      // 1. Give Supabase a moment to catch session hash parameters from Google redirect
+      // Check if Supabase returned an error code in the URL query params
+      const urlParams = new URLSearchParams(window.location.search);
+      const errorDescription = urlParams.get('error_description');
+      if (errorDescription) {
+        console.error("OAuth Error from provider:", errorDescription);
+        showToast("Google Login Error: " + errorDescription);
+        return false;
+      }
+
+      // 1. Attempt to get session
       let { data: { session }, error: sessionErr } = await sb.auth.getSession();
       
-      // If session isn't immediately found, check if URL has hash tokens and let client recover
+      if (sessionErr) {
+        console.error("Supabase session error:", sessionErr);
+        showToast("Session Error: " + sessionErr.message);
+      }
+
+      // If session isn't immediately found, give the client a moment to process the URL hash/code
       if (!session) {
-        // Wait up to 1 second for Supabase JS client to parse URL hash tokens from Google OAuth callback
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1200));
         const retrySession = await sb.auth.getSession();
         session = retrySession.data.session;
       }
@@ -1027,9 +1040,10 @@ async function enforceAccessControl() {
       updateAuthUI();
 
       // 2. Fetch or initialize user profile & subscription status from Supabase
-      let { data: profile, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
       
-      if (error || !profile) {
+      if (profileErr || !profile) {
+        console.log("Creating initial user profile in Supabase...");
         const trialDays = 5; 
         const trialEnds = new Date();
         trialEnds.setDate(trialEnds.getDate() + trialDays);
@@ -1041,7 +1055,12 @@ async function enforceAccessControl() {
           is_pro: false
         };
         
-        await sb.from('profiles').upsert([newProfile]);
+        const { error: insertErr } = await sb.from('profiles').upsert([newProfile]);
+        if (insertErr) {
+          console.error("Error creating profile table entry:", insertErr);
+          showToast("DB Error: Could not create profile. Check RLS policies.");
+          return false;
+        }
         profile = newProfile;
       }
 
