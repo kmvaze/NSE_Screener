@@ -325,8 +325,9 @@
     <div id="subBannerText">
       ⏳ <strong>Trial Plan Active:</strong> Upgrade to Pro to unlock continuous institutional feeds.
     </div>
-    <div>
-      <button class="sub-btn" onclick="openUpiModal()">⚡ Upgrade to Pro (₹1,499/mo)</button>
+    <div style="display: flex; gap: 8px;">
+      <button class="sub-btn" onclick="openUpiModal()">⚡ Pay via UPI</button>
+      <button class="sub-btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">💳 Pay via Razorpay</button>
     </div>
   </div>
 
@@ -1250,7 +1251,7 @@ async function loginWithGoogle() {
       await loadCloudWatchlist();
     }
 
-    function evaluateAccess() {
+    ffunction evaluateAccess() {
       if (!currentUser || !userProfile) return;
       const now = new Date();
       const trialEnd = new Date(userProfile.trial_ends_at);
@@ -1258,22 +1259,42 @@ async function loginWithGoogle() {
       const isPro = userProfile.is_pro;
 
       const badge = document.getElementById('trialBadge');
+      const subBanner = document.getElementById('subBanner');
+      const subBannerText = document.getElementById('subBannerText');
+      
       badge.style.display = 'inline-block';
 
       if (isPro) {
+        // --- CASE 1: USER IS PRO ---
         badge.textContent = "⭐ Pro Member";
         badge.style.borderColor = "var(--green)";
         badge.style.color = "var(--green)";
-        document.getElementById('subBanner').style.display = 'none';
+        
+        // Hide the upgrade banner completely once paid!
+        subBanner.style.display = 'none';
       } else if (isTrialActive) {
+        // --- CASE 2: TRIAL IS ACTIVE (Show banner WITH upgrade buttons) ---
         const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
         badge.textContent = `⏳ Free Trial (${daysLeft}d left)`;
-        document.getElementById('subBanner').style.display = 'none';
+        badge.style.borderColor = "var(--yellow)";
+        badge.style.color = "var(--yellow)";
+
+        // Show the upgrade banner so they can buy early if they want
+        subBanner.style.display = 'flex';
+        if (subBannerText) {
+          subBannerText.innerHTML = `⏳ <strong>Free Trial Active (${daysLeft} days left):</strong> Want uninterrupted access? You can upgrade to Pro anytime.`;
+        }
       } else {
+        // --- CASE 3: TRIAL EXPIRED ---
         badge.textContent = "❌ Trial Expired";
         badge.style.borderColor = "var(--red)";
         badge.style.color = "var(--red)";
-        document.getElementById('subBanner').style.display = 'flex';
+
+        // Show the exact same upgrade banner
+        subBanner.style.display = 'flex';
+        if (subBannerText) {
+          subBannerText.innerHTML = `❌ <strong>Trial Expired:</strong> Upgrade to Pro to unlock continuous institutional feeds.`;
+        }
       }
     }
 
