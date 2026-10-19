@@ -996,13 +996,29 @@
     }
 
 async function enforceAccessControl() {
-      // 1. Check Auth State
-      const { data: { session } } = await sb.auth.getSession();
+      // 🚀 BYPASS ACCESS CONTROL ON LOCALHOST FOR DEVELOPMENT
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        currentUser = { id: "local-dev-user", email: "developer@local.test" };
+        updateAuthUI();
+        return true; 
+      }
+
+      // 1. Give Supabase a moment to catch session hash parameters from Google redirect
+      let { data: { session }, error: sessionErr } = await sb.auth.getSession();
+      
+      // If session isn't immediately found, check if URL has hash tokens and let client recover
+      if (!session) {
+        // Wait up to 1 second for Supabase JS client to parse URL hash tokens from Google OAuth callback
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const retrySession = await sb.auth.getSession();
+        session = retrySession.data.session;
+      }
+
       if (!session) {
         currentUser = null;
         userProfile = null;
         updateAuthUI();
-        // Trigger your full-screen Login Gate here if not logged in
         showToast("Authentication Required: Please login with Google");
         return false;
       }
@@ -1014,7 +1030,7 @@ async function enforceAccessControl() {
       let { data: profile, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
       
       if (error || !profile) {
-        const trialDays = 5; // Change trial duration here (e.g., 5 days)
+        const trialDays = 5; 
         const trialEnds = new Date();
         trialEnds.setDate(trialEnds.getDate() + trialDays);
 
@@ -1038,12 +1054,10 @@ async function enforceAccessControl() {
       const isPro = profile.is_pro;
 
       if (isPro || isTrialActive) {
-        evaluateAccess(); // Active trial or Pro access granted
+        evaluateAccess();
         return true;
       } else {
-        // TRIAL EXPIRED & NOT PRO: Force Payment / Block App
         showToast("Your trial has expired. Please upgrade to Pro.");
-        // Open your payment modal / paywall here automatically
         openUpiModal(); 
         return false;
       }
