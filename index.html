@@ -984,54 +984,68 @@
     }
 
     async function init() {
-      try {
-        const [dashRes, priceRes, btRes] = await Promise.all([
-          fetch(`./dashboard_data.json?t=${Date.now()}`),
-          fetch(`./data/price_history.json?t=${Date.now()}`),
-          fetch(`./backtest_data.json?t=${Date.now()}`)
-        ]);
-        if (!dashRes.ok) throw new Error("Failed to load dashboard data");
-        const data = await dashRes.json();
-        
-        try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
-        try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
-
-        appState.asOfDate = data.as_of_date || "";
-        appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
-        appState.sectorRsHistory = data.sector_rs_history || {};
-        
-        const rawStocks = data.stocks || [];
-        appState.stocks = rawStocks.filter(st => {
-          const sym = String(st.symbol || "").trim().toUpperCase();
-          if (sym === "SUNSHINE" || sym === "SUNSHINEPIX" || !st.close || !st.sma_20 || !st.sma_50) return false;
-          return true;
-        });
-
-        appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
-
-        document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
-        
-        populateSectorDropdowns();
-        renderSectorChips();
-        renderSectorTiles();
-        renderSectorRsChart();
-        applyFilterAndSort();
-        renderLandingDashboard();
-        renderPatternsTable();
-        renderBacktestView();
-        updateWatchlistBadge();
-
-        const { data: { session } } = await sb.auth.getSession();
-        if (session) {
-          currentUser = session.user;
-          await fetchUserProfile(currentUser.id);
-        }
-        updateAuthUI();
-      } catch (err) {
-        console.error("Initialization error:", err);
-        document.getElementById('asOfBadge').textContent = "Run pipeline first";
-      }
+  try {
+    // 1. Check if Supabase redirected back with session tokens
+    const { data: { session }, error: sessionError } = await sb.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await fetchUserProfile(currentUser.id);
     }
+
+    // Listen for auth state changes (e.g., login/logout events)
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        currentUser = session.user;
+        await fetchUserProfile(currentUser.id);
+      } else {
+        currentUser = null;
+        userProfile = null;
+      }
+      updateAuthUI();
+    });
+
+    const [dashRes, priceRes, btRes] = await Promise.all([
+      fetch(`./dashboard_data.json?t=${Date.now()}`),
+      fetch(`./data/price_history.json?t=${Date.now()}`),
+      fetch(`./backtest_data.json?t=${Date.now()}`)
+    ]);
+    if (!dashRes.ok) throw new Error("Failed to load dashboard data");
+    const data = await dashRes.json();
+    
+    try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
+    try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
+
+    appState.asOfDate = data.as_of_date || "";
+    appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
+    appState.sectorRsHistory = data.sector_rs_history || {};
+    
+    const rawStocks = data.stocks || [];
+    appState.stocks = rawStocks.filter(st => {
+      const sym = String(st.symbol || "").trim().toUpperCase();
+      if (sym === "SUNSHINE" || sym === "SUNSHINEPIX" || !st.close || !st.sma_20 || !st.sma_50) return false;
+      return true;
+    });
+
+    appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
+
+    document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
+    
+    populateSectorDropdowns();
+    renderSectorChips();
+    renderSectorTiles();
+    renderSectorRsChart();
+    applyFilterAndSort();
+    renderLandingDashboard();
+    renderPatternsTable();
+    renderBacktestView();
+    updateWatchlistBadge();
+
+    updateAuthUI();
+  } catch (err) {
+    console.error("Initialization error:", err);
+    document.getElementById('asOfBadge').textContent = "Run pipeline first";
+  }
+}
 
     function matchIndexToken(st, selectedIndex) {
       if (selectedIndex === "ALL") return true;
