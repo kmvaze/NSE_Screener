@@ -1095,7 +1095,7 @@ async function loginWithGoogle() {
         showToast("Login failed: " + error.message);
       }
     }
-    
+
     async function init() {
       try {
         // CALL ENFORCE ACCESS CONTROL FIRST
@@ -1251,7 +1251,7 @@ async function loginWithGoogle() {
       await loadCloudWatchlist();
     }
 
-    ffunction evaluateAccess() {
+    function evaluateAccess() {
       if (!currentUser || !userProfile) return;
       const now = new Date();
       const trialEnd = new Date(userProfile.trial_ends_at);
