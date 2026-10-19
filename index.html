@@ -44,10 +44,12 @@
       background-color: var(--bg); color: var(--text);
       transition: background-color 0.2s, color 0.2s;
     }
+
     header {
       display: flex; justify-content: space-between; align-items: center;
       margin-bottom: 14px; border-bottom: 1px solid var(--card-border); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;
     }
+
     h1 { font-size: 1.3rem; margin: 0; font-weight: 800; letter-spacing: -0.025em; background: linear-gradient(90deg, var(--text), var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .header-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .badge {
@@ -325,6 +327,16 @@
     </div>
     <div>
       <button class="sub-btn" onclick="openUpiModal()">⚡ Upgrade to Pro (₹1,499/mo)</button>
+    </div>
+  </div>
+
+  <div class="sub-banner" id="subBanner" style="display: none;">
+    <div id="subBannerText">
+      ⏳ <strong>Trial Plan Active:</strong> Upgrade to Pro to unlock continuous institutional feeds.
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="sub-btn" onclick="openUpiModal()">⚡ Pay via UPI</button>
+      <button class="sub-btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">💳 Pay via Razorpay</button>
     </div>
   </div>
 
@@ -983,69 +995,125 @@
       setTimeout(() => { t.remove(); }, 2500);
     }
 
-    async function init() {
-  try {
-    // 1. Check if Supabase redirected back with session tokens
-    const { data: { session }, error: sessionError } = await sb.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      await fetchUserProfile(currentUser.id);
-    }
-
-    // Listen for auth state changes (e.g., login/logout events)
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        currentUser = session.user;
-        await fetchUserProfile(currentUser.id);
-      } else {
+async function enforceAccessControl() {
+      // 1. Check Auth State
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) {
         currentUser = null;
         userProfile = null;
+        updateAuthUI();
+        // Trigger your full-screen Login Gate here if not logged in
+        showToast("Authentication Required: Please login with Google");
+        return false;
       }
+
+      currentUser = session.user;
       updateAuthUI();
-    });
 
-    const [dashRes, priceRes, btRes] = await Promise.all([
-      fetch(`./dashboard_data.json?t=${Date.now()}`),
-      fetch(`./data/price_history.json?t=${Date.now()}`),
-      fetch(`./backtest_data.json?t=${Date.now()}`)
-    ]);
-    if (!dashRes.ok) throw new Error("Failed to load dashboard data");
-    const data = await dashRes.json();
-    
-    try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
-    try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
+      // 2. Fetch or initialize user profile & subscription status from Supabase
+      let { data: profile, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      
+      if (error || !profile) {
+        const trialDays = 5; // Change trial duration here (e.g., 5 days)
+        const trialEnds = new Date();
+        trialEnds.setDate(trialEnds.getDate() + trialDays);
 
-    appState.asOfDate = data.as_of_date || "";
-    appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
-    appState.sectorRsHistory = data.sector_rs_history || {};
-    
-    const rawStocks = data.stocks || [];
-    appState.stocks = rawStocks.filter(st => {
-      const sym = String(st.symbol || "").trim().toUpperCase();
-      if (sym === "SUNSHINE" || sym === "SUNSHINEPIX" || !st.close || !st.sma_20 || !st.sma_50) return false;
-      return true;
-    });
+        const newProfile = {
+          id: currentUser.id,
+          email: currentUser.email,
+          trial_ends_at: trialEnds.toISOString(),
+          is_pro: false
+        };
+        
+        await sb.from('profiles').upsert([newProfile]);
+        profile = newProfile;
+      }
 
-    appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
+      userProfile = profile;
+      
+      // 3. Evaluate Trial vs Pro Status
+      const now = new Date();
+      const trialEnd = new Date(profile.trial_ends_at);
+      const isTrialActive = now < trialEnd;
+      const isPro = profile.is_pro;
 
-    document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
-    
-    populateSectorDropdowns();
-    renderSectorChips();
-    renderSectorTiles();
-    renderSectorRsChart();
-    applyFilterAndSort();
-    renderLandingDashboard();
-    renderPatternsTable();
-    renderBacktestView();
-    updateWatchlistBadge();
+      if (isPro || isTrialActive) {
+        evaluateAccess(); // Active trial or Pro access granted
+        return true;
+      } else {
+        // TRIAL EXPIRED & NOT PRO: Force Payment / Block App
+        showToast("Your trial has expired. Please upgrade to Pro.");
+        // Open your payment modal / paywall here automatically
+        openUpiModal(); 
+        return false;
+      }
+    }
 
-    updateAuthUI();
-  } catch (err) {
-    console.error("Initialization error:", err);
-    document.getElementById('asOfBadge').textContent = "Run pipeline first";
-  }
-}
+
+    async function init() {
+      try {
+        // CALL ENFORCE ACCESS CONTROL FIRST
+        const hasAccess = await enforceAccessControl();
+        if (!hasAccess) {
+          // Stop loading the rest of the terminal data if unauthorized
+          document.getElementById('asOfBadge').textContent = "Access Locked - Login / Upgrade Required";
+          return;
+        }
+
+        // Listen for auth state changes dynamically
+        sb.auth.onAuthStateChange(async (event, session) => {
+          if (session) {
+            currentUser = session.user;
+            await fetchUserProfile(currentUser.id);
+          } else {
+            currentUser = null;
+            userProfile = null;
+          }
+          updateAuthUI();
+        });
+
+        const [dashRes, priceRes, btRes] = await Promise.all([
+          fetch(`./dashboard_data.json?t=${Date.now()}`),
+          fetch(`./data/price_history.json?t=${Date.now()}`),
+          fetch(`./backtest_data.json?t=${Date.now()}`)
+        ]);
+        if (!dashRes.ok) throw new Error("Failed to load dashboard data");
+        const data = await dashRes.json();
+        
+        try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
+        try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
+
+        appState.asOfDate = data.as_of_date || "";
+        appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
+        appState.sectorRsHistory = data.sector_rs_history || {};
+        
+        const rawStocks = data.stocks || [];
+        appState.stocks = rawStocks.filter(st => {
+          const sym = String(st.symbol || "").trim().toUpperCase();
+          if (sym === "SUNSHINE" || sym === "SUNSHINEPIX" || !st.close || !st.sma_20 || !st.sma_50) return false;
+          return true;
+        });
+
+        appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
+
+        document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
+        
+        populateSectorDropdowns();
+        renderSectorChips();
+        renderSectorTiles();
+        renderSectorRsChart();
+        applyFilterAndSort();
+        renderLandingDashboard();
+        renderPatternsTable();
+        renderBacktestView();
+        updateWatchlistBadge();
+
+        updateAuthUI();
+      } catch (err) {
+        console.error("Initialization error:", err);
+        document.getElementById('asOfBadge').textContent = "Run pipeline first";
+      }
+    }
 
     function matchIndexToken(st, selectedIndex) {
       if (selectedIndex === "ALL") return true;
@@ -1164,6 +1232,46 @@
       }
     }
 
+    function payWithRazorpay() {
+      // Replace with your actual live or test Razorpay Key ID
+      const options = {
+        "key": "rzp_test_TpfjUTD4P3yYtu", 
+        "amount": 149900, // Amount in paise (e.g., ₹1,499 = 149900)
+        "currency": "INR",
+        "name": "NSE Alpha Pro",
+        "description": "1 Year Institutional Access",
+        "handler": async function (response){
+          // Payment Successful! Now update Supabase backend database
+          const paymentId = response.razorpay_payment_id;
+          
+          const oneYearFromNow = new Date();
+          oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+          const { error } = await sb.from('profiles').update({
+            is_pro: true,
+            pro_expires_at: oneYearFromNow.toISOString(),
+            razorpay_payment_id: paymentId
+          }).eq('id', currentUser.id);
+
+          if (!error) {
+            showToast("Payment successful! Pro access granted for 1 year 🎉");
+            location.reload(); // Reload app to unlock full features
+          } else {
+            showToast("Error updating subscription status. Contact support.");
+          }
+        },
+        "prefill": {
+          "email": currentUser ? currentUser.email : ""
+        },
+        "theme": {
+          "color": "#38bdf8"
+        }
+      };
+      
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+
     async function loginWithGoogle() {
       await sb.auth.signInWithOAuth({
         provider: 'google',
@@ -1177,15 +1285,21 @@
     }
 
     function updateAuthUI() {
-      if (currentUser) {
-        document.getElementById('authContainer').style.display = 'none';
-        document.getElementById('userProfileContainer').style.display = 'flex';
-        document.getElementById('userEmailDisplay').textContent = currentUser.email;
-      } else {
-        document.getElementById('authContainer').style.display = 'block';
-        document.getElementById('userProfileContainer').style.display = 'none';
-      }
+  const authContainer = document.getElementById('authContainer');
+  const userProfileContainer = document.getElementById('userProfileContainer');
+  const emailDisplay = document.getElementById('userEmailDisplay');
+
+  if (currentUser) {
+    if (authContainer) authContainer.style.display = 'none';
+    if (userProfileContainer) {
+      userProfileContainer.style.display = 'flex';
+      if (emailDisplay) emailDisplay.textContent = currentUser.email;
     }
+  } else {
+    if (authContainer) authContainer.style.display = 'block';
+    if (userProfileContainer) userProfileContainer.style.display = 'none';
+  }
+}
 
     async function loadCloudWatchlist() {
       if (!currentUser) return;
