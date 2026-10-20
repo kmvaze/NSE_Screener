@@ -291,6 +291,34 @@
     .bt-forensic-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-top: 14px;
     }
+    /* Guided Tour Spotlight & Tooltip Styles */
+    .tour-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(3, 7, 18, 0.65); z-index: 9990;
+      transition: opacity 0.25s ease;
+    }
+    .tour-highlight {
+      position: relative !important; z-index: 9995 !important;
+      box-shadow: 0 0 0 4px var(--accent), 0 0 30px rgba(56, 189, 248, 0.5) !important;
+      border-radius: 10px; background: var(--card-bg);
+      transition: box-shadow 0.25s ease;
+    }
+    .tour-popover {
+      display: none; position: fixed; z-index: 9999; width: 340px;
+      background: var(--card-bg); border: 1.5px solid var(--accent);
+      border-radius: 14px; padding: 18px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+      color: var(--text); animation: fadeIn 0.2s ease-out;
+    }
+    .tour-step-badge {
+      font-size: 0.68rem; font-weight: 800; text-transform: uppercase;
+      color: var(--accent); background: rgba(56, 189, 248, 0.12);
+      padding: 3px 8px; border-radius: 6px; display: inline-block; margin-bottom: 8px;
+    }
+    .tour-title { font-size: 1rem; font-weight: 800; margin: 0 0 6px 0; color: var(--text); }
+    .tour-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: 0 0 16px 0; }
+    .tour-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 12px; }
+    .tour-nav-btns { display: flex; gap: 6px; }
   </style>
 </head>
 <body>
@@ -305,6 +333,8 @@
     <div class="header-meta">
       <div class="badge" id="trialBadge" style="display:none; background: rgba(251, 191, 36, 0.15); color: var(--yellow);">Checking Status...</div>
       
+      <button class="tactical-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Dark Theme</button>
+      <button class="tactical-btn" onclick="startProductTour()" style="border-color: var(--accent); color: var(--accent);">🎯 Take a Tour</button>
       <button class="tactical-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Dark Theme</button>
 
       <div id="authContainer">
@@ -922,7 +952,23 @@
       </div>
     </div>
   </div>
-
+<!-- Guided Tour Overlay & Popover -->
+  <div class="tour-backdrop" id="tourBackdrop" onclick="endProductTour()"></div>
+  <div class="tour-popover" id="tourPopover">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="tour-step-badge" id="tourStepCounter">Step 1 of 7</span>
+      <button class="modal-close" style="font-size:1.1rem;" onclick="endProductTour()">&times;</button>
+    </div>
+    <h4 class="tour-title" id="tourTitle">Welcome</h4>
+    <p class="tour-desc" id="tourDesc">Description goes here.</p>
+    <div class="tour-footer">
+      <button class="reset-btn" onclick="endProductTour()" style="font-size:0.72rem;">Skip Tour</button>
+      <div class="tour-nav-btns">
+        <button class="tactical-btn" id="tourPrevBtn" onclick="changeTourStep(-1)">← Back</button>
+        <button class="sub-btn" id="tourNextBtn" onclick="changeTourStep(1)">Next →</button>
+      </div>
+    </div>
+  </div>
   <div id="toastContainer"></div>
 
   <script>
@@ -1183,6 +1229,9 @@
         updateWatchlistBadge();
 
         updateAuthUI();
+        if (!localStorage.getItem('nse_alpha_tour_completed')) {
+          setTimeout(() => startProductTour(), 800);
+        }
       } catch (err) {
         console.error("Initialization error:", err);
         document.getElementById('asOfBadge').textContent = "Run pipeline first";
@@ -2687,6 +2736,133 @@
       appState.sortCol = col;
       appState.sortAsc = !appState.sortAsc;
       updateUIAfterFilter();
+    }
+    // ============================================================================
+    // INTERACTIVE PRODUCT TOUR ENGINE
+    // ============================================================================
+    const TOUR_STEPS = [
+      {
+        tab: 'landing',
+        selector: '#landingSectorTape',
+        title: '1. Triple-Horizon Sector Tape',
+        desc: 'Track real-time institutional money flow across NSE sectors. Focus on sectors in "Leading" or "Early Sector Rotation" with healthy >50-SMA breadth.'
+      },
+      {
+        tab: 'landing',
+        selector: '#landingHeroGrid',
+        title: '2. High-Conviction Command Grid',
+        desc: 'Top 12 diversified institutional setups (max 2 per sector) combining Stage-2 alignment, IASIS delivery flow, and tight volatility coils. Click any card for a deep-dive.'
+      },
+      {
+        tab: 'live',
+        selector: '#btnModeSurety',
+        title: '3. Dual Strategy Archetypes',
+        desc: 'Switch between Part 1 (Surety & Capital Defense for low-drawdown entries near moving average equilibrium) and Part 2 (Aggressive Stage-2 Momentum Frontrunners).'
+      },
+      {
+        tab: 'live',
+        selector: '#mainStockTable',
+        title: '4. Institutional Technical Screener',
+        desc: 'Sort and filter the entire NSE universe by Surety Score, IASIS Delivery Flow, Chart Patterns, and Risk-Reward Ratio. Click any row for full quant diagnostics.'
+      },
+      {
+        tab: 'rrg',
+        selector: '#sectorRsChartCanvas',
+        title: '5. Sector & Peer Relative Strength',
+        desc: 'Visualize sector RS curves against the Nifty 500 baseline (0.0%), or click any sector tile below to drill down into constituent Peer RS curves.'
+      },
+      {
+        tab: 'patterns',
+        selector: '#btnConfluenceOnly',
+        title: '6. Chart Patterns & POC Floor Scanner',
+        desc: 'Scan for genuine VCP Coiled Springs, High-Tight Flags, and Multi-Month Bases verified by Volume Profile Point of Control (POC) floor support.'
+      },
+      {
+        tab: 'backtest',
+        selector: '#btForensicSection',
+        title: '7. 10-Month Point-in-Time Backtest',
+        desc: 'Audit 100% real Bhavcopy performance across 10 monthly checkpoints, including Market-Cap Tiers, Sector Climax Traps, and Factor Ablation tables.'
+      }
+    ];
+
+    let currentTourIdx = 0;
+    let activeHighlightedEl = null;
+
+    function startProductTour() {
+      currentTourIdx = 0;
+      document.getElementById('tourBackdrop').style.display = 'block';
+      document.getElementById('tourPopover').style.display = 'block';
+      renderTourStep();
+    }
+
+    function changeTourStep(delta) {
+      const nextIdx = currentTourIdx + delta;
+      if (nextIdx < 0) return;
+      if (nextIdx >= TOUR_STEPS.length) {
+        endProductTour();
+        showToast('🎉 Tour Completed! Press ⌘K anytime to quick-search.');
+        return;
+      }
+      currentTourIdx = nextIdx;
+      renderTourStep();
+    }
+
+    function renderTourStep() {
+      if (activeHighlightedEl) {
+        activeHighlightedEl.classList.remove('tour-highlight');
+        activeHighlightedEl = null;
+      }
+
+      const step = TOUR_STEPS[currentTourIdx];
+      switchTab(step.tab);
+
+      setTimeout(() => {
+        const targetEl = document.querySelector(step.selector);
+        const popover = document.getElementById('tourPopover');
+
+        document.getElementById('tourStepCounter').textContent = `Step ${currentTourIdx + 1} of ${TOUR_STEPS.length}`;
+        document.getElementById('tourTitle').textContent = step.title;
+        document.getElementById('tourDesc').textContent = step.desc;
+        document.getElementById('tourPrevBtn').style.display = currentTourIdx === 0 ? 'none' : 'inline-block';
+        document.getElementById('tourNextBtn').textContent = currentTourIdx === TOUR_STEPS.length - 1 ? 'Finish ✓' : 'Next →';
+
+        if (!targetEl) {
+          popover.style.top = '50%';
+          popover.style.left = '50%';
+          popover.style.transform = 'translate(-50%, -50%)';
+          return;
+        }
+
+        popover.style.transform = 'none';
+        targetEl.classList.add('tour-highlight');
+        activeHighlightedEl = targetEl;
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        setTimeout(() => {
+          const rect = targetEl.getBoundingClientRect();
+          const popWidth = 340;
+          const popHeight = popover.offsetHeight || 190;
+
+          let topPos = rect.bottom + 14;
+          if (topPos + popHeight > window.innerHeight - 16) {
+            topPos = Math.max(16, rect.top - popHeight - 14);
+          }
+          let leftPos = Math.min(Math.max(16, rect.left), window.innerWidth - popWidth - 16);
+
+          popover.style.top = `${topPos}px`;
+          popover.style.left = `${leftPos}px`;
+        }, 220);
+      }, 60);
+    }
+
+    function endProductTour() {
+      if (activeHighlightedEl) {
+        activeHighlightedEl.classList.remove('tour-highlight');
+        activeHighlightedEl = null;
+      }
+      document.getElementById('tourBackdrop').style.display = 'none';
+      document.getElementById('tourPopover').style.display = 'none';
+      localStorage.setItem('nse_alpha_tour_completed', 'true');
     }
   </script>
 </body>
