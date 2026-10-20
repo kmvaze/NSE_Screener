@@ -229,11 +229,6 @@ def update_incremental_store(lookback_days: int = 720):
 
 
 def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
-    """
-    Detects overnight Stock Splits and Bonus Issues in raw NSE Bhavcopy series
-    (where open[t] / close[t-1] drops by >= 42% on the ex-date) and backward-adjusts
-    historical OHLC & volume prior to the ex-date so SMAs, RS, and bases are never corrupted.
-    """
     standard_ratios = np.array([0.50, 1.0 / 3.0, 0.25, 0.20, 0.10, 2.0 / 3.0, 0.40, 0.30])
     adjusted_groups = []
     adjusted_events = []
@@ -291,8 +286,7 @@ def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
     return df_clean, adjusted_events
 
 
-def classify_mcap_tier(symbol: str, index_name: str) -> str:
-    """Classifies a constituent into a Market-Cap Risk Tier using NSE index membership."""
+def classify_mcap_tier(symbol: str, index_name: str, turnover: float = 0.0) -> str:
     sym_up = str(symbol).strip().upper()
     idx_up = str(index_name).upper()
     tokens = [t.strip() for t in idx_up.split(",") if t.strip()]
@@ -304,20 +298,20 @@ def classify_mcap_tier(symbol: str, index_name: str) -> str:
         or "NIFTY NEXT 50" in tokens
     ):
         return "Tier 1: Large Cap (Nifty 100)"
-    if "NIFTY MIDCAP 150" in tokens:
+    if "NIFTY MIDCAP 150" in tokens or "MIDCAP" in idx_up:
         return "Tier 2: Mid Cap (Midcap 150)"
-    if "NIFTY SMALLCAP 250" in tokens:
+    if "NIFTY SMALLCAP 250" in tokens or "SMALLCAP" in idx_up:
         return "Tier 3: Small Cap (Smallcap 250)"
-    if "NIFTY MICROCAP 250" in tokens:
+    if "NIFTY MICROCAP 250" in tokens or "MICROCAP" in idx_up:
         return "Tier 4: Microcap (Microcap 250)"
-    return "Tier 2/3: Mid & Small Cap (Nifty 500 Core)"
+    
+    if turnover > 12.0:
+        return "Tier 2: Mid Cap (Midcap 150)"
+    else:
+        return "Tier 3: Small Cap (Smallcap 250)"
 
 
 def classify_sector_lifecycle(row: pd.Series) -> tuple:
-    """
-    Identifies whether an outperforming sector is in Early Sector Rotation, Prime Leadership,
-    or Climactic Exhaustion (Buyer Trap), and returns (lifecycle_label, score_multiplier).
-    """
     p20 = float(row.get("perf_20d", 0.0))
     p63 = float(row.get("perf_63d", 0.0))
     sma50_pct = float(row.get("above_sma_pct", 50.0))
@@ -358,16 +352,12 @@ def classify_sector_lifecycle(row: pd.Series) -> tuple:
         return "🟢 Prime Institutional Leadership", round(float(bonus), 3)
 
     if quad == "Weakening":
-        return "🟡 Decelerating Sector", 0.80
+        return "🟡 Decelerating Sector", 0.88
 
-    return "🔴 Lagging Sector Regime", 0.65
+    return "🔴 Lagging Sector Regime", 0.82
 
 
 def detect_genuine_chart_patterns(prices, volumes, highs, lows):
-    """
-    Distinguishes true multi-week Volatility Contraction Patterns (VCP Coiled Springs)
-    from short-term High-Tight Flags so extended momentum spikes are never mislabeled as VCPs.
-    """
     n = len(prices)
     if n < 25:
         return 0.90, "", 21
@@ -515,15 +505,10 @@ def run_screener_engine():
         atr_20 = float(np.mean(tr_arr))
         atr_pct = round(float((atr_20 / (close + 1e-5)) * 100.0), 2)
 
-        # ---------------------------------------------------------------------
-        # NEW INSTITUTIONAL PAID SCREENER CONFLUENCES (100% REAL BHAVCOPY DATA)
-        # ---------------------------------------------------------------------
-        # 1. Opening/Session Relative Volume (RVOL) Expansion
         vol_20_avg = float(np.mean(volumes[-min(20, n_bars):])) + 1e-5
         session_rvol = round(float(volumes[-1] / vol_20_avg), 2)
         is_rvol_expanded = session_rvol >= 2.5
 
-        # 2. Supply Exhaustion Ratio (Up Volume vs Down Volume over trailing 15 sessions)
         sub_15_diff = np.diff(prices[-16:]) if n_bars >= 16 else np.diff(prices)
         sub_15_vols = volumes[-len(sub_15_diff):]
         up_vol_15 = np.sum(sub_15_vols[sub_15_diff > 0]) if np.any(sub_15_diff > 0) else 1.0
@@ -531,7 +516,6 @@ def run_screener_engine():
         supply_exhaustion_ratio = round(float(up_vol_15 / (down_vol_15 + 1e-5)), 2)
         is_supply_exhausted = supply_exhaustion_ratio >= 3.5
 
-        # 3. Multi-Timeframe RS Slope Acceleration (10d vs 30d RS growth)
         stock_series_full = grp.set_index("date")["close"]
         common_s_idx_full = stock_series_full.index.intersection(market_benchmark.index)
         stk_sub_full = stock_series_full.loc[common_s_idx_full]
@@ -556,24 +540,6 @@ def run_screener_engine():
         hist, bins = np.histogram(prices[-50:], bins=10, weights=volumes[-50:])
         poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist) + 1]) / 2.0), 2)
 
-        grp_copy = grp.copy()
-        grp_copy["date_dt"] = pd.to_datetime(grp_copy["date"])
-        w_df = grp_copy.set_index("date_dt").resample("W-FRI").agg(
-            {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-        ).dropna()
-        w_closes = w_df["close"].values
-        w_n = len(w_closes)
-
-        if w_n >= 15:
-            w_series = pd.Series(w_closes)
-            w_ema10 = w_series.ewm(span=10, adjust=False).mean().iloc[-1]
-            w_sma30 = w_series.rolling(min(30, w_n)).mean().iloc[-1]
-            weekly_trend_bull = (w_closes[-1] >= w_ema10) and (w_ema10 >= w_sma30)
-            weekly_trend_bear = w_closes[-1] < w_sma30
-        else:
-            weekly_trend_bull = close >= sma_50
-            weekly_trend_bear = close < sma_50
-
         ma_spread_pct = float(((max(ema_10, ema_21, sma_50) - min(ema_10, ema_21, sma_50)) / (close + 1e-5)) * 100.0)
         is_ma_pinched = ma_spread_pct <= 2.8
 
@@ -593,7 +559,6 @@ def run_screener_engine():
         vol_5d = float(np.mean(volumes[-5:]))
         vol_50d = float(np.mean(volumes[-min(50, n_bars):])) + 1e-5
         vol_dryup_ratio = float(vol_5d / vol_50d)
-        is_vdu = (vol_5d < 0.65 * vol_50d) and ((highs[-1] - lows[-1]) <= 0.85 * atr_20)
 
         stock_series = grp.set_index("date")["close"]
         common_s_idx = stock_series.index.intersection(market_benchmark.index)
@@ -662,23 +627,14 @@ def run_screener_engine():
                     break
         is_pocket_pivot_5d = is_pocket_pivot or is_pocket_pivot_5d
 
-        if n_bars >= 15:
-            recent_low = np.min(lows[-15:-2])
-            ob_zone_high = recent_low + (1.2 * atr_20)
-            is_ob_retest = (lows[-1] <= ob_zone_high) and (close >= recent_low) and (volumes[-1] < vol_50d)
-        else:
-            is_ob_retest = False
-
         base_high = float(np.max(highs[-min(30, n_bars):]))
         base_low = float(np.min(lows[-min(30, n_bars):]))
         base_depth_pct = float(((base_high - base_low) / (base_high + 1e-5)) * 100.0)
-        is_tight_base = base_depth_pct <= 22.0
 
         dist_from_20 = (close - sma_20) / (sma_20 + 1e-5)
         dist_from_50 = (close - sma_50) / (sma_50 + 1e-5)
         dist_from_50_pct = round(float(dist_from_50 * 100.0), 2)
         dist_from_200_pct = round(float(((close - sma_200) / (sma_200 + 1e-5)) * 100.0), 2)
-        is_not_extended = dist_from_50 <= 0.08 and dist_from_20 <= 0.05
         is_extended_danger = dist_from_20 > 0.08
 
         stk_ret_21 = (close / (prices[-min(21, n_bars)] + 1e-5)) - 1.0
@@ -738,25 +694,14 @@ def run_screener_engine():
         else:
             iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
 
-        if (is_rs_divergent or is_sec_rs_divergent) and (is_squeezed or is_vdu):
-            mtf_status = "🎯 RS Pre-Breakout Divergence"
-        elif is_pocket_pivot_5d and (is_squeezed or is_ma_pinched):
-            mtf_status = "🚀 MA Pinch + Pocket Pivot"
-        elif is_squeezed and is_tight_base and weekly_trend_bull:
-            mtf_status = "⚡ Weekly+Daily Squeeze Coil"
-        elif is_ma_pinched and is_tight_base and weekly_trend_bull:
-            mtf_status = "🗜️ Tight MA Compression Base"
-        elif weekly_trend_bull and close > sma_50 and sma_50 > sma_200:
-            mtf_status = "🟢 Stage 2 Trend Template"
-        elif weekly_trend_bear:
-            mtf_status = "🔴 Macro Downtrend (Avoid)"
-        else:
-            mtf_status = ""
-
         raw_struct_stop = min(close - (2.2 * atr_20), sma_50 * 0.975)
         structural_stop = round(float(max(close * 0.915, raw_struct_stop)), 2)
 
-        risk_unit = max(1.0, close - structural_stop)
+        tranche2_limit_price = round(close - (1.5 * atr_20), 2)
+        blended_entry_price = round((close + tranche2_limit_price) / 2.0, 2)
+        cushioned_sl_price = round(min(structural_stop, tranche2_limit_price - (1.0 * atr_20)), 2)
+
+        risk_unit = max(1.0, blended_entry_price - cushioned_sl_price)
         target_dist = max(base_depth_pct / 100.0 * close, 2.5 * atr_20)
         rrr_calc = round(min(8.0, max(1.5, target_dist / risk_unit)), 1)
 
@@ -805,16 +750,17 @@ def run_screener_engine():
             "rsi_14": rsi_14,
             "stoch_k": stoch_k,
             "volume_profile_poc": poc,
-            "multi_timeframe_confluence": mtf_status,
             "chart_pattern_signal": pattern,
             "pattern_timeframe": pattern_tf,
             "rs_line_status": "🔥 RS Line New High" if (rs_is_new_high or is_rs_divergent) else "",
             "sector_rs_status": sector_rs_status,
-            "order_block_status": "⚡ Demand Zone Retest (Light Vol)" if is_ob_retest else "",
             "avg_deliv_20": np.mean(deliv_qtys[-min(20, n_bars):]),
             "atr_20": atr_20,
             "atr_pct": atr_pct,
             "structural_stop": structural_stop,
+            "tranche2_limit_price": tranche2_limit_price,
+            "blended_entry_price": blended_entry_price,
+            "cushioned_sl_price": cushioned_sl_price,
             "vcp_ratio_calc": float(vcp_rat),
             "bb_kc_ratio": bb_kc_ratio,
             "ma_spread_pct": round(ma_spread_pct, 2),
@@ -830,23 +776,19 @@ def run_screener_engine():
             "risk_reward_calc": rrr_calc,
             "session_rvol": session_rvol,
             "is_rvol_expanded": is_rvol_expanded,
+            "is_squeezed": bool(is_squeezed),
+            "is_ma_pinched": bool(is_ma_pinched),
+            "is_rs_divergent": bool(is_rs_divergent),
+            "is_pocket_pivot_5d": bool(is_pocket_pivot_5d),
+            "is_supply_exhausted": bool(is_supply_exhausted),
+            "is_rs_accelerating": bool(is_rs_accelerating),
             "supply_exhaustion_ratio": supply_exhaustion_ratio,
-            "is_supply_exhausted": is_supply_exhausted,
-            "rs_acceleration": rs_acceleration,
-            "is_rs_accelerating": is_rs_accelerating,
-            "is_pocket_pivot": is_pocket_pivot,
-            "is_pocket_pivot_5d": is_pocket_pivot_5d,
-            "is_squeezed": is_squeezed,
-            "is_ma_pinched": is_ma_pinched,
-            "is_rs_divergent": (is_rs_divergent or is_sec_rs_divergent),
-            "is_not_extended": is_not_extended,
             "flow_ratio": round(deliv_flow_ratio, 2),
             "dist_from_20": dist_from_20,
             "dist_from_50_pct": dist_from_50_pct,
             "dist_from_200_pct": dist_from_200_pct,
             "prior_63d_pct": prior_63d_pct,
             "base_depth_pct": round(base_depth_pct, 2),
-            "is_ob_retest": is_ob_retest,
             "reasons_to_avoid": "; ".join(reasons_to_avoid) if reasons_to_avoid else "None. Technical structure remains constructive.",
         })
 
@@ -854,7 +796,10 @@ def run_screener_engine():
         json.dump(price_history_map, f)
 
     ranked = pd.merge(latest_df, pd.DataFrame(stock_tech_rows), on="symbol", how="inner").drop_duplicates(subset=["symbol"])
-    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", "")), axis=1)
+    
+    ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
+    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
+    
     ranked["d_expansion"] = ranked["smooth_deliv_expansion"]
     ranked["deliv_spike"] = (ranked["deliv_qty"] / (ranked["avg_deliv_20"] + 1)).round(2)
     ranked["vcp_ratio"] = ranked["vcp_ratio_calc"]
@@ -864,7 +809,6 @@ def run_screener_engine():
     ranked["above_sma20"] = ranked["close"] >= ranked["sma_20"]
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
     ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"]
-    ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
 
     sec_base_clean = sec_base[sec_base["sector"] != "General Equities"].copy()
     sector_summary = (
@@ -882,13 +826,9 @@ def run_screener_engine():
     above_sma50_map = ranked.groupby("sector")["above_sma50"].mean().mul(100.0).round(2).to_dict()
     sector_summary["above_sma_pct"] = sector_summary["sector"].map(lambda s: above_sma50_map.get(s, 50.0))
 
-    sector_summary["rs_20d"] = sector_summary["perf_20d"]
-    sector_summary["rs_63d"] = sector_summary["perf_63d"]
-    sector_summary["breadth_pct"] = sector_summary["above_sma_pct"]
-
-    rs_63_pct = sector_summary["rs_63d"].rank(pct=True) * 100.0
-    breadth_pct = sector_summary["breadth_pct"]
-    rs_20_pct = sector_summary["rs_20d"].rank(pct=True) * 100.0
+    rs_63_pct = sector_summary["perf_63d"].rank(pct=True) * 100.0
+    breadth_pct = sector_summary["above_sma_pct"]
+    rs_20_pct = sector_summary["perf_20d"].rank(pct=True) * 100.0
 
     sector_summary["rs_ratio"] = (100.0 + sector_summary["perf_20d"] * 0.35).round(2)
     sector_summary["rs_momentum"] = (100.0 + (sector_summary["advance_pct"] - 50.0) * 0.1).round(2)
@@ -953,30 +893,23 @@ def run_screener_engine():
         + 0.15 * up_down_pct
     ).clip(5.0, 99.0).round(1)
 
-    mrs_anchor_pts = 28.0 * np.exp(-((ranked["mrs_score"] - 0.5) ** 2) / 6.5)
-    sma50_anchor_pts = 22.0 * np.clip(1.0 - (np.maximum(0.0, ranked["dist_from_50_pct"] - 1.2) / 7.5), 0.0, 1.0)
+    # Pure Quantitative Strategy Models (Calibrated exactly to Backtest Engine)
+    # 1. Strategy 1: High-Surety Institutional Anchor
+    mrs_anchor_pts = 28.0 * np.exp(-((ranked["mrs_score"] - 0.8) ** 2) / 10.5)
+    sma50_anchor_pts = 22.0 * np.clip(1.0 - (np.maximum(0.0, ranked["dist_from_50_pct"] - 1.5) / 10.0), 0.0, 1.0)
     base_tight_pts = 15.0 * np.clip(1.0 - (ranked["base_depth_pct"] / 25.0), 0.0, 1.0)
 
     p63 = ranked["prior_63d_pct"]
     mom_curve = np.where(
         p63 < 0.0,
-        0.45,
+        0.55,
         np.where(
             p63 < 5.0,
-            0.60 + 0.40 * (p63 / 5.0),
-            np.where(p63 <= 28.0, 1.0, np.clip(1.0 - ((p63 - 28.0) / 30.0), 0.45, 1.0)),
+            0.70 + 0.30 * (p63 / 5.0),
+            np.where(p63 <= 32.0, 1.0, np.clip(1.0 - ((p63 - 32.0) / 35.0), 0.55, 1.0)),
         ),
     )
-    over_200_curve = np.where(
-        ranked["dist_from_200_pct"] < 0.0,
-        0.45,
-        np.where(
-            ranked["dist_from_200_pct"] <= 28.0,
-            1.0,
-            np.clip(1.0 - ((ranked["dist_from_200_pct"] - 28.0) / 35.0), 0.50, 1.0),
-        ),
-    )
-    flow_curve = np.clip(0.65 + 0.35 * ((ranked["iasis_score"] - 48.0) / 18.0), 0.55, 1.05)
+    flow_curve = np.clip(0.70 + 0.30 * ((ranked["iasis_score"] - 48.0) / 18.0), 0.60, 1.05)
 
     raw_surety = (
         mrs_anchor_pts
@@ -985,41 +918,72 @@ def run_screener_engine():
         + (0.20 * ranked["iasis_score"])
         + (0.15 * ranked["frontrunner_score"])
     )
-    sec_adj = np.clip(ranked["sector_climax_mult"], 0.75, 1.06)
-    ranked["surety_score"] = (raw_surety * mom_curve * over_200_curve * flow_curve * sec_adj * stoch_multiplier).clip(5.0, 99.0).round(1)
+    sec_adj = np.clip(ranked["sector_climax_mult"], 0.82, 1.08)
+    ranked["surety_score"] = (raw_surety * mom_curve * flow_curve * sec_adj).clip(5.0, 99.0).round(1)
+    ranked["score_surety_anchor"] = ranked["surety_score"]
 
-    ranked["score_kinetic_launchpad"] = (
-        (0.35 * ranked["surety_score"] + 0.30 * ranked["iasis_score"] + 0.20 * ranked["ignition_score"] + 0.15 * ranked["frontrunner_score"]) * sec_adj
-    ).round(1)
+    # 2. Strategy 2: Momentum Frontrunner
+    ranked["score_momentum_frontrunner"] = (
+        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj
+    ).clip(5.0, 99.0).round(1)
 
+    # 3. Strategy 3: Early Sector Rotation
+    ranked["score_early_sector_rotation"] = (
+        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership"), 1.08, 0.92)
+    ).clip(5.0, 99.0).round(1)
+
+    # 4. Strategy 4: High-RS Pullback Structure
+    pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.5)) ** 2) / 8.0)
+    stoch_oversold_pts = 30.0 * np.clip(1.0 - (ranked["stoch_k"] / 60.0), 0.0, 1.0)
+    ranked["score_high_rs_pullback"] = (
+        (pullback_depth_pts + stoch_oversold_pts + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"]) * sec_adj
+    ).clip(5.0, 99.0).round(1)
+
+    # Exact Backtest-Synchronized Institutional Setup Classifier
     def get_signal(r):
-        c_pattern = r["chart_pattern_signal"]
-        if r["mrs_score"] > 8.0 or r["dist_from_50_pct"] > 14.0 or r["prior_63d_pct"] > 38.0:
+        c_pattern = str(r["chart_pattern_signal"])
+        s_life = str(r["sector_lifecycle"])
+        mrs = float(r["mrs_score"])
+        close = float(r["close"])
+        sma50 = float(r["sma_50"])
+        sma200 = float(r["sma_200"])
+        stoch = float(r["stoch_k"])
+        s_anchor = float(r["score_surety_anchor"])
+        s_mom = float(r["score_momentum_frontrunner"])
+        s_rot = float(r["score_early_sector_rotation"])
+        s_pull = float(r["score_high_rs_pullback"])
+
+        if mrs > 8.0 or float(r["dist_from_50_pct"]) > 14.0 or float(r["prior_63d_pct"]) > 38.0:
             return "⚠️ Extended (Wait for Dip)"
-        if not r["above_200sma"]:
+        if not bool(r["above_200sma"]):
             return "🔴 Below 200-SMA (Overhead Supply)"
-        if r["is_pocket_pivot_5d"] and (r["is_squeezed"] or r["is_ma_pinched"]) and r["mrs_score"] <= 3.5:
-            return "🚀 Pocket Pivot Ignition"
-        if c_pattern == "🎯 VCP Coiled Spring" and r["mrs_score"] <= 3.0 and r["dist_from_50_pct"] <= 7.0:
+
+        scores = [
+            (s_anchor, "🛡️ High-Surety Anchor"),
+            (s_mom, "🚀 Momentum Frontrunner"),
+            (s_rot, "🔄 Early Sector Rotation Leader"),
+            (s_pull, "📉 High-RS Pullback"),
+        ]
+        scores.sort(key=lambda x: x[0], reverse=True)
+        top_score, top_label = scores[0]
+
+        if top_label == "📉 High-RS Pullback" and (mrs <= 1.0 or stoch < 45.0) and close >= sma50 * 0.98:
+            return "📉 High-RS Pullback"
+        if top_label == "🔄 Early Sector Rotation Leader" and ("Rotation" in s_life or "Prime" in s_life or "Leading" in s_life):
+            return "🔄 Early Sector Rotation Leader"
+        if top_label == "🚀 Momentum Frontrunner" and float(r["frontrunner_score"]) >= 70.0 and close >= sma50:
+            return "🚀 Momentum Frontrunner"
+        if c_pattern == "🎯 VCP Coiled Spring" and mrs <= 3.0:
             return "🎯 VCP Coiled Spring"
-        if c_pattern == "🟢 Multi-Month Base / Cup" and r["mrs_score"] <= 3.5:
-            return "🟢 Multi-Month Base"
-        if c_pattern == "🚩 High-Tight Flag & Pole":
-            return "🚩 Bull Flag & Pole"
-        if r["is_rs_divergent"] and r["mrs_score"] <= 3.0:
-            return "🎯 RS Pre-Breakout Coil"
-        if -3.0 <= r["mrs_score"] <= 0.8 and r["stoch_k"] < 40 and r["above_200sma"] and r["above_sma50"]:
-            return "🔄 High-RS Pullback"
-        if -1.5 <= r["mrs_score"] <= 2.8 and r["dist_from_50_pct"] <= 6.0 and 42 <= r["rsi_14"] <= 64 and r["above_200sma"]:
-            return "🟢 Low-Risk Buy Zone"
-        if r["flow_ratio"] >= 1.6 and r["above_200sma"] and r["mrs_score"] <= 3.5:
-            return "⚡ Stealth Accumulation"
-        if r["frontrunner_score"] >= 80.0 and r["above_200sma"]:
-            return "🔥 Momentum Frontrunner"
-        return "Consolidation / Base"
+        if bool(r["is_pocket_pivot_5d"]) and (bool(r["is_squeezed"]) or bool(r["is_ma_pinched"])) and mrs <= 3.5:
+            return "⚡ Pocket Pivot Ignition"
+        if s_anchor >= 45.0 and close >= sma50 * 0.98:
+            return "🛡️ High-Surety Anchor"
+
+        return top_label
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
-    ranked = ranked.sort_values(by=["surety_score", "score_kinetic_launchpad", "iasis_score"], ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+    ranked = ranked.sort_values(by=["score_surety_anchor", "score_momentum_frontrunner", "iasis_score"], ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
 
     output_stocks = []
     seen = set()
@@ -1046,7 +1010,7 @@ def run_screener_engine():
             "sector": clean(r.get("sector", "Capital Goods"), True),
             "industry": clean(r.get("industry", r.get("sector", "General Equities")), True),
             "index_name": clean(r.get("index_name", "Nifty 500"), True),
-            "mcap_tier": clean(r.get("mcap_tier", "Tier 2/3: Mid & Small Cap"), True),
+            "mcap_tier": clean(r.get("mcap_tier", "Tier 2: Mid Cap"), True),
             "close": clean(r.get("close")),
             "sma_20": clean(r.get("sma_20")),
             "sma_50": clean(r.get("sma_50")),
@@ -1055,6 +1019,9 @@ def run_screener_engine():
             "rsi_14": clean(r.get("rsi_14")),
             "stoch_k": clean(r.get("stoch_k")),
             "atr_stop_loss": clean(r.get("atr_stop_loss")),
+            "tranche2_limit_price": clean(r.get("tranche2_limit_price")),
+            "blended_entry_price": clean(r.get("blended_entry_price")),
+            "cushioned_sl_price": clean(r.get("cushioned_sl_price")),
             "atr_pct": clean(r.get("atr_pct")),
             "volume_profile_poc": clean(r.get("volume_profile_poc")),
             "multi_timeframe_confluence": clean(r.get("multi_timeframe_confluence", ""), True),
@@ -1100,7 +1067,10 @@ def run_screener_engine():
             "beta_neutral_mrs": clean(r.get("beta_neutral_mrs")),
             "inst_signal": clean(r.get("inst_signal", "Consolidation / Base"), True),
             "surety_score": clean(r.get("surety_score")),
-            "score_kinetic_launchpad": clean(r.get("score_kinetic_launchpad")),
+            "score_high_rs_pullback": clean(r.get("score_high_rs_pullback")),
+            "score_momentum_frontrunner": clean(r.get("score_momentum_frontrunner")),
+            "score_surety_anchor": clean(r.get("score_surety_anchor")),
+            "score_early_sector_rotation": clean(r.get("score_early_sector_rotation")),
             "ignition_score": clean(r.get("ignition_score")),
             "frontrunner_score": clean(r.get("frontrunner_score")),
             "iasis_score": clean(r.get("iasis_score")),
@@ -1126,7 +1096,7 @@ def run_screener_engine():
     with open(OUTPUT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with Institutional Paid Screener Confluences.")
+    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with 4 Finalized Strategies & 50/50 ATR Split Entries.")
 
 
 if __name__ == "__main__":
