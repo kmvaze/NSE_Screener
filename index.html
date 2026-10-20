@@ -1038,72 +1038,81 @@
     }
 
     async function enforceAccessControl() {
-      const hostname = window.location.hostname;
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        currentUser = { id: "local-dev-user", email: "developer@local.test" };
-        updateAuthUI();
-        return true; 
-      }
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    currentUser = { id: "local-dev-user", email: "developer@local.test" };
+    updateAuthUI();
+    return true; 
+  }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const errorDescription = urlParams.get('error_description');
-      if (errorDescription) {
-        console.error("OAuth Error from provider:", errorDescription);
-        showToast("Google Login Error: " + errorDescription);
-        return false;
-      }
+  const urlParams = new URLSearchParams(window.location.search);
+  const errorDescription = urlParams.get('error_description');
+  if (errorDescription) {
+    console.error("OAuth Error from provider:", errorDescription);
+    showToast("Google Login Error: " + errorDescription);
+    return false;
+  }
 
-      let { data: { session }, error: sessionErr } = await sb.auth.getSession();
-      
-      if (sessionErr) {
-        console.error("Supabase session error:", sessionErr);
-        showToast("Session Error: " + sessionErr.message);
-      }
+  // 1. Fetch Session with raw debugging
+  let { data: { session }, error: sessionErr } = await sb.auth.getSession();
+  
+  if (sessionErr) {
+    console.error("RAW SUPABASE SESSION ERROR:", JSON.stringify(sessionErr, null, 2));
+    showToast("Session Error: " + sessionErr.message);
+  }
 
-      if (!session) {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        const retrySession = await sb.auth.getSession();
-        session = retrySession.data.session;
-      }
-
-      if (!session) {
-        currentUser = null;
-        userProfile = null;
-        updateAuthUI();
-        showToast("Authentication Required: Please login with Google");
-        return false;
-      }
-
-      currentUser = session.user;
-      updateAuthUI();
-
-      let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-      
-      if (profileErr || !profile) {
-        const trialDays = 5; 
-        const trialEnds = new Date();
-        trialEnds.setDate(trialEnds.getDate() + trialDays);
-
-        const newProfile = {
-          id: currentUser.id,
-          email: currentUser.email,
-          trial_ends_at: trialEnds.toISOString(),
-          is_pro: false
-        };
-        
-        const { error: insertErr } = await sb.from('profiles').upsert([newProfile]);
-        if (insertErr) {
-          console.error("Error creating profile table entry:", insertErr);
-          showToast("DB Error: Could not create profile. Check RLS policies.");
-          return false;
-        }
-        profile = newProfile;
-      }
-
-      userProfile = profile;
-      evaluateAccess();
-      return true;
+  if (!session) {
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const retrySession = await sb.auth.getSession();
+    session = retrySession.data.session;
+    if (retrySession.error) {
+      console.error("RAW SUPABASE RETRY SESSION ERROR:", JSON.stringify(retrySession.error, null, 2));
     }
+  }
+
+  if (!session) {
+    currentUser = null;
+    userProfile = null;
+    updateAuthUI();
+    console.warn("No active session found. User needs to authenticate.");
+    return false;
+  }
+
+  currentUser = session.user;
+  updateAuthUI();
+
+  // 2. Query Profile Table with raw debugging
+  let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  
+  if (profileErr) {
+    console.warn("Profile fetch warning/error (will attempt upsert):", JSON.stringify(profileErr, null, 2));
+  }
+
+  if (profileErr || !profile) {
+    const trialDays = 5; 
+    const trialEnds = new Date();
+    trialEnds.setDate(trialEnds.getDate() + trialDays);
+
+    const newProfile = {
+      id: currentUser.id,
+      email: currentUser.email,
+      trial_ends_at: trialEnds.toISOString(),
+      is_pro: false
+    };
+    
+    const { error: insertErr } = await sb.from('profiles').upsert([newProfile]);
+    if (insertErr) {
+      console.error("RAW PROFILES UPSERT ERROR (Likely RLS or 401/403):", JSON.stringify(insertErr, null, 2));
+      showToast("DB Error: Could not sync user profile. Check console for details.");
+      return false;
+    }
+    profile = newProfile;
+  }
+
+  userProfile = profile;
+  evaluateAccess();
+  return true;
+}
 
     async function loginWithGoogle() {
       const { error } = await sb.auth.signInWithOAuth({
