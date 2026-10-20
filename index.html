@@ -291,6 +291,7 @@
     .bt-forensic-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-top: 14px;
     }
+
     /* Guided Tour Spotlight & Tooltip Styles */
     .tour-backdrop {
       display: none; position: fixed; inset: 0;
@@ -304,7 +305,7 @@
       transition: box-shadow 0.25s ease;
     }
     .tour-popover {
-      display: none; position: fixed; z-index: 9999; width: 340px;
+      display: none; position: fixed; z-index: 9999; width: 350px;
       background: var(--card-bg); border: 1.5px solid var(--accent);
       border-radius: 14px; padding: 18px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
@@ -333,21 +334,20 @@
     <div class="header-meta">
       <div class="badge" id="trialBadge" style="display:none; background: rgba(251, 191, 36, 0.15); color: var(--yellow);">Checking Status...</div>
       
-      <button class="tactical-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Dark Theme</button>
       <button class="tactical-btn" onclick="startProductTour()" style="border-color: var(--accent); color: var(--accent);">🎯 Take a Tour</button>
       <button class="tactical-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Dark Theme</button>
-
-      <div id="authContainer">
-        <button class="tactical-btn" onclick="loginWithGoogle()" style="background:#fff; color:#030712; font-weight:700;">🌐 Continue with Google</button>
-      </div>
-      <div id="userProfileContainer" style="display:none; align-items:center; gap:8px;">
-        <span id="userEmailDisplay" style="font-size:0.75rem; color:var(--muted);"></span>
-        <button class="reset-btn" onclick="handleLogout()">Logout</button>
-      </div>
-
       <button class="cmd-trigger" onclick="openCmdPalette()"><span>Search Ticker / Setup</span><kbd>⌘K</kbd></button>
       <div class="badge" id="stockCountBadge">0 Stocks</div>
       <div class="badge" id="asOfBadge">Loading...</div>
+
+      <!-- Google Login / User Profile Positioned Rightmost -->
+      <div id="authContainer" style="margin-left: auto;">
+        <button class="tactical-btn" onclick="loginWithGoogle()" style="background:#fff; color:#030712; font-weight:700; border-color:#cbd5e1;">🌐 Continue with Google</button>
+      </div>
+      <div id="userProfileContainer" style="display:none; align-items:center; gap:8px; margin-left: auto;">
+        <span id="userEmailDisplay" style="font-size:0.75rem; color:var(--muted); font-weight:600;"></span>
+        <button class="reset-btn" onclick="handleLogout()">Logout</button>
+      </div>
     </div>
   </header>
 
@@ -388,12 +388,6 @@
       </div>
     </div>
 
-    <!-- Sector Momentum Tape -->
-    <div style="margin-bottom: 20px;">
-      <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 8px;">Triple-Horizon Sector Momentum &amp; Breadth Tape</div>
-      <div id="landingSectorTape" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px;"></div>
-    </div>
-
     <!-- High Conviction Card & Tile Grid -->
     <div class="landing-hero-grid" id="landingHeroGrid"></div>
   </div>
@@ -419,13 +413,13 @@
           <option value="ALL">All Sectors</option>
         </select>
         <select id="indexSelect" onchange="onIndexSelect(this.value)">
-          <option value="ALL">All Indices</option>
+          <option value="ALL">All Universe Indices</option>
           <optgroup label="Benchmark & Large Cap">
-            <option value="Nifty 50">Nifty 50</option>
-            <option value="Nifty Next 50">Nifty Next 50</option>
+            <option value="Nifty 50">Nifty 50 (Large Cap)</option>
+            <option value="Nifty Next 50">Nifty Next 50 (Large Cap)</option>
             <option value="Nifty 500" selected>Nifty 500 (Default)</option>
           </optgroup>
-          <optgroup label="Mid & Small Cap">
+          <optgroup label="Mid, Small & Microcap">
             <option value="Nifty Midcap 150">Nifty Midcap 150</option>
             <option value="Nifty Smallcap 250">Nifty Smallcap 250</option>
             <option value="Nifty Microcap 250">Nifty Microcap 250</option>
@@ -544,7 +538,7 @@
         </div>
       </div>
 
-      <div class="table-container" style="margin-bottom:0;">
+      <div class="table-container" style="margin-bottom:0;" id="sectorDrilldownTableWrapper">
         <table>
           <thead>
             <tr>
@@ -699,7 +693,6 @@
       <details class="bt-forensic-details" id="btForensicSection" style="display: none;">
         <summary>🔬 View 10-Month Quantitative Forensic Audits (Patterns • Factors • Cap Tiers • Sector Lifecycle • Timing)</summary>
         <div class="bt-forensic-grid">
-          <!-- Table A: Chart Pattern Confirmation Audit -->
           <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">
               📐 Chart Pattern &amp; Confluence Confirmation Audit (Cohorts &amp; Specific Geometries)
@@ -721,7 +714,6 @@
             </table>
           </div>
 
-          <!-- Table B: Advanced Factor Ablation Audit (AVWAP, CR, Volatility Black Hole) -->
           <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--teal); border-bottom: 1px solid var(--card-border);">
               ⚡ Advanced Institutional Factors Ablation (100D AVWAP • Closing Range • Volatility Black Hole)
@@ -743,7 +735,6 @@
             </table>
           </div>
 
-          <!-- Existing Audits: Market-Cap, Sector Lifecycle, Timing -->
           <div class="table-container" style="margin-bottom: 0;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">Market-Cap Risk Tier Matrix</div>
             <table>
@@ -828,10 +819,10 @@
       <p>Official technical guidelines and dual-archetype execution rules for the NSE Alpha Pro Engine.</p>
       
       <h3>Part 1: Surety &amp; Capital Defense Archetype (High Win Rate / Low Drawdown)</h3>
-      <p>Focuses on capital preservation during choppy or contracting markets (&lt;50% stocks above 50-SMA)[cite: 2]. Enters tight bases (&le;22%) near moving average equilibrium with strong institutional delivery flow (IASIS &ge; 58) and tightly clamped drawdowns (&le;6% MAE)[cite: 2].</p>
+      <p>Focuses on capital preservation during choppy or contracting markets (&lt;50% stocks above 50-SMA). Enters tight bases (&le;22%) near moving average equilibrium with strong institutional delivery flow (IASIS &ge; 58) and tightly clamped drawdowns (&le;6% MAE).</p>
 
       <h3>Part 2: Aggressive Run-Up Archetype (High Alpha / Multi-Baggers)</h3>
-      <p>Focuses on maximum trend capture and velocity during market expansions (&gt;55% stocks above 50-SMA)[cite: 2]. Enters leading Stage-2 compounders and early-rotation sectors on confirmed structural triggers, accepting standard pullback volatility to capture +50% to +400% MFE runs[cite: 2].</p>
+      <p>Focuses on maximum trend capture and velocity during market expansions (&gt;55% stocks above 50-SMA). Enters leading Stage-2 compounders and early-rotation sectors on confirmed structural triggers, accepting standard pullback volatility to capture +50% to +400% MFE runs.</p>
     </div>
   </div>
 
@@ -865,7 +856,7 @@
 
   <!-- Quant Breakdown Modal -->
   <div class="modal-overlay" id="quantModal" onclick="closeModalOnOverlay(event)">
-    <div class="modal-card">
+    <div class="modal-card" id="quantModalCard">
       <div class="modal-header">
         <div>
           <div style="display:flex; align-items:center; gap:8px;">
@@ -952,11 +943,12 @@
       </div>
     </div>
   </div>
-<!-- Guided Tour Overlay & Popover -->
+
+  <!-- Guided Tour Overlay & Popover -->
   <div class="tour-backdrop" id="tourBackdrop" onclick="endProductTour()"></div>
   <div class="tour-popover" id="tourPopover">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span class="tour-step-badge" id="tourStepCounter">Step 1 of 7</span>
+      <span class="tour-step-badge" id="tourStepCounter">Step 1 of 8</span>
       <button class="modal-close" style="font-size:1.1rem;" onclick="endProductTour()">&times;</button>
     </div>
     <h4 class="tour-title" id="tourTitle">Welcome</h4>
@@ -969,11 +961,13 @@
       </div>
     </div>
   </div>
+
   <div id="toastContainer"></div>
 
   <script>
     const SUPABASE_URL = 'https://ydjzbwkaxwcfkqzfndum.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
+    // Ensure your valid, uncorrupted Supabase Anon Key is pasted here:
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3TAINNTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
 
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
@@ -1084,81 +1078,71 @@
     }
 
     async function enforceAccessControl() {
-  const hostname = window.location.hostname;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    currentUser = { id: "local-dev-user", email: "developer@local.test" };
-    updateAuthUI();
-    return true; 
-  }
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        currentUser = { id: "local-dev-user", email: "developer@local.test" };
+        updateAuthUI();
+        return true; 
+      }
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const errorDescription = urlParams.get('error_description');
-  if (errorDescription) {
-    console.error("OAuth Error from provider:", errorDescription);
-    showToast("Google Login Error: " + errorDescription);
-    return false;
-  }
+      const urlParams = new URLSearchParams(window.location.search);
+      const errorDescription = urlParams.get('error_description');
+      if (errorDescription) {
+        console.error("OAuth Error from provider:", errorDescription);
+        showToast("Google Login Error: " + errorDescription);
+        return false;
+      }
 
-  // 1. Fetch Session with raw debugging
-  let { data: { session }, error: sessionErr } = await sb.auth.getSession();
-  
-  if (sessionErr) {
-    console.error("RAW SUPABASE SESSION ERROR:", JSON.stringify(sessionErr, null, 2));
-    showToast("Session Error: " + sessionErr.message);
-  }
+      let { data: { session }, error: sessionErr } = await sb.auth.getSession();
+      
+      if (sessionErr) {
+        console.error("RAW SUPABASE SESSION ERROR:", JSON.stringify(sessionErr, null, 2));
+        showToast("Session Error: " + sessionErr.message);
+      }
 
-  if (!session) {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    const retrySession = await sb.auth.getSession();
-    session = retrySession.data.session;
-    if (retrySession.error) {
-      console.error("RAW SUPABASE RETRY SESSION ERROR:", JSON.stringify(retrySession.error, null, 2));
+      if (!session) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const retrySession = await sb.auth.getSession();
+        session = retrySession.data.session;
+      }
+
+      if (!session) {
+        currentUser = null;
+        userProfile = null;
+        updateAuthUI();
+        return false;
+      }
+
+      currentUser = session.user;
+      updateAuthUI();
+
+      let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+
+      if (profileErr || !profile) {
+        const trialDays = 5; 
+        const trialEnds = new Date();
+        trialEnds.setDate(trialEnds.getDate() + trialDays);
+
+        const newProfile = {
+          id: currentUser.id,
+          email: currentUser.email,
+          trial_ends_at: trialEnds.toISOString(),
+          is_pro: false
+        };
+        
+        const { error: insertErr } = await sb.from('profiles').upsert([newProfile]);
+        if (insertErr) {
+          console.error("RAW PROFILES UPSERT ERROR:", JSON.stringify(insertErr, null, 2));
+          showToast("DB Error: Could not sync user profile.");
+          return false;
+        }
+        profile = newProfile;
+      }
+
+      userProfile = profile;
+      evaluateAccess();
+      return true;
     }
-  }
-
-  if (!session) {
-    currentUser = null;
-    userProfile = null;
-    updateAuthUI();
-    console.warn("No active session found. User needs to authenticate.");
-    return false;
-  }
-
-  currentUser = session.user;
-  updateAuthUI();
-
-  // 2. Query Profile Table with raw debugging
-  let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-  
-  if (profileErr) {
-    console.warn("Profile fetch warning/error (will attempt upsert):", JSON.stringify(profileErr, null, 2));
-  }
-
-  if (profileErr || !profile) {
-    const trialDays = 5; 
-    const trialEnds = new Date();
-    trialEnds.setDate(trialEnds.getDate() + trialDays);
-
-    const newProfile = {
-      id: currentUser.id,
-      email: currentUser.email,
-      trial_ends_at: trialEnds.toISOString(),
-      is_pro: false
-    };
-    
-    const { error: insertErr } = await sb.from('profiles').upsert([newProfile]);
-    if (insertErr) {
-      console.error("RAW PROFILES UPSERT ERROR (Likely RLS or 401/403):", JSON.stringify(insertErr, null, 2));
-      showToast("DB Error: Could not sync user profile. Check console for details.");
-      return false;
-    }
-    profile = newProfile;
-  }
-
-  userProfile = profile;
-  evaluateAccess();
-  return true;
-}
 
     async function loginWithGoogle() {
       const { error } = await sb.auth.signInWithOAuth({
@@ -1229,6 +1213,7 @@
         updateWatchlistBadge();
 
         updateAuthUI();
+
         if (!localStorage.getItem('nse_alpha_tour_completed')) {
           setTimeout(() => startProductTour(), 800);
         }
@@ -1238,24 +1223,59 @@
       }
     }
 
+    // ============================================================================
+    // FIXED INDEX TOKEN MATCHING (PREVENTS NIFTY 50 / 500 SUBSTRING COLLISION
+    // AND HANDLES MIDCAP / SMALLCAP / MICROCAP TIER FALLBACKS)
+    // ============================================================================
     function matchIndexToken(st, selectedIndex) {
-      if (selectedIndex === "ALL") return true;
-      const sym = (st.symbol || "").toUpperCase();
-      const rawIndex = (st.index_name || "").toUpperCase();
+      if (!selectedIndex || selectedIndex === "ALL") return true;
+
+      const sym = String(st.symbol || "").trim().toUpperCase();
+      const rawIndex = String(st.index_name || "").toUpperCase();
+      const mcapTier = String(st.mcap_tier || "").toUpperCase();
       const target = selectedIndex.trim().toUpperCase();
+      const tokens = rawIndex.split(',').map(s => s.trim()).filter(Boolean);
+
+      const isLargeCap100 = NIFTY_50_SET.has(sym) || NIFTY_NEXT_50_SET.has(sym) || tokens.includes("NIFTY 50") || tokens.includes("NIFTY NEXT 50");
 
       if (target === "NIFTY 50") {
-        return NIFTY_50_SET.has(sym) || rawIndex.includes("NIFTY 50");
-      } else if (target === "NIFTY NEXT 50") {
-        return NIFTY_NEXT_50_SET.has(sym) || rawIndex.includes("NIFTY NEXT 50");
+        // Strict token check so "NIFTY 500" does not match "NIFTY 50"
+        return NIFTY_50_SET.has(sym) || tokens.includes("NIFTY 50");
       }
 
-      if (rawIndex) {
-        const tokens = rawIndex.split(',').map(s => s.trim().toUpperCase());
-        if (tokens.includes(target)) return true;
+      if (target === "NIFTY NEXT 50") {
+        return NIFTY_NEXT_50_SET.has(sym) || tokens.includes("NIFTY NEXT 50");
       }
 
-      return false;
+      if (target === "NIFTY 500") {
+        return tokens.includes("NIFTY 500") || isLargeCap100 || tokens.includes("NIFTY MIDCAP 150") || tokens.includes("NIFTY SMALLCAP 250");
+      }
+
+      if (target === "NIFTY MIDCAP 150") {
+        if (tokens.includes("NIFTY MIDCAP 150") || mcapTier.includes("MID CAP")) return true;
+        // Fallback when only nifty500.csv is present in data folder: non-Nifty-100 members of Nifty 500
+        if (!isLargeCap100 && !tokens.includes("NIFTY SMALLCAP 250") && !tokens.includes("NIFTY MICROCAP 250") && tokens.includes("NIFTY 500")) {
+          return true;
+        }
+        return false;
+      }
+
+      if (target === "NIFTY SMALLCAP 250") {
+        if (tokens.includes("NIFTY SMALLCAP 250") || mcapTier.includes("SMALL CAP")) return true;
+        if (!isLargeCap100 && !tokens.includes("NIFTY MIDCAP 150") && !tokens.includes("NIFTY MICROCAP 250") && tokens.includes("NIFTY 500")) {
+          return true;
+        }
+        return false;
+      }
+
+      if (target === "NIFTY MICROCAP 250") {
+        if (tokens.includes("NIFTY MICROCAP 250") || mcapTier.includes("MICROCAP") || mcapTier.includes("TIER 4")) return true;
+        // Fallback if microcap csv wasn't loaded separately: stocks outside Nifty 500 or lower-turnover small/micro universe
+        if (!isLargeCap100 && !tokens.includes("NIFTY 500")) return true;
+        return false;
+      }
+
+      return tokens.includes(target);
     }
 
     function setStrategyMode(mode) {
@@ -1531,29 +1551,11 @@
     }
 
     // ============================================================================
-    // RENDER LANDING DASHBOARD
+    // RENDER LANDING DASHBOARD (SECTOR STRIP REMOVED)
     // ============================================================================
     function renderLandingDashboard() {
-      const tape = document.getElementById('landingSectorTape');
       const grid = document.getElementById('landingHeroGrid');
-      if (!tape || !grid) return;
-
-      tape.innerHTML = appState.sectors.map(sec => {
-        const isPos = sec.perf_20d >= 0;
-        return `
-          <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 16px; min-width: 210px; flex-shrink: 0;">
-            <div style="font-size: 0.75rem; color: var(--muted); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sec.sector}</div>
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
-              <span style="font-size: 1rem; font-weight: 800; color: var(--text);">${sec.sector_composite_score} <span style="font-size: 0.65rem; color: var(--muted); font-weight: 400;">Score</span></span>
-              <span style="font-size: 0.75rem; font-weight: 700; color: ${isPos ? 'var(--green)' : 'var(--red)'};">${isPos ? '+' : ''}${sec.perf_20d}%</span>
-            </div>
-            <div style="font-size: 0.68rem; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between;">
-              <span>Breadth: ${sec.above_sma_pct}%</span>
-              <span style="color: var(--accent); font-weight: 600;">${sec.quadrant}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
+      if (!grid) return;
 
       const qualified = appState.stocks.filter(st => {
         const above50 = Boolean(st.close >= st.sma_50);
@@ -1735,7 +1737,7 @@
         e.preventDefault();
         openCmdPalette();
       }
-      if (e.key === 'Escape') { closeCmdPalette(); closeModal(); closeUpiModal(); }
+      if (e.key === 'Escape') { closeCmdPalette(); closeModal(); closeUpiModal(); endProductTour(); }
     });
 
     // ============================================================================
@@ -1765,7 +1767,8 @@
       if (pick.mcap_tier) return pick.mcap_tier;
       const sym = String(pick.symbol || "").toUpperCase();
       const idxStr = String(pick.index_name || "").toUpperCase();
-      if (NIFTY_50_SET.has(sym) || NIFTY_NEXT_50_SET.has(sym) || idxStr.includes("NIFTY 50") || idxStr.includes("NEXT 50")) {
+      const tokens = idxStr.split(',').map(s => s.trim());
+      if (NIFTY_50_SET.has(sym) || NIFTY_NEXT_50_SET.has(sym) || tokens.includes("NIFTY 50") || tokens.includes("NIFTY NEXT 50")) {
         return "Tier 1: Large Cap (Nifty 100)";
       }
       if (idxStr.includes("MICROCAP")) return "Tier 4: Microcap";
@@ -1805,7 +1808,6 @@
       }
       forensicSection.style.display = 'block';
 
-      // 1. Chart Pattern Confluence Audit Table
       const patTbody = document.getElementById('btPatternAuditTableBody');
       if (patTbody) {
         patTbody.innerHTML = patternAudit.map(pa => {
@@ -1825,7 +1827,6 @@
         }).join('');
       }
 
-      // 2. Advanced Factors Ablation Table (AVWAP, Closing Range, Volatility Black Hole)
       const factorTbody = document.getElementById('btAdvancedFactorsAuditTableBody');
       if (factorTbody) {
         factorTbody.innerHTML = factorAudit.map(fa => {
@@ -1845,7 +1846,6 @@
         }).join('');
       }
 
-      // 3. Market-Cap Risk Tier Matrix
       const mcapTbody = document.getElementById('btMcapAuditTableBody');
       if (mcapTbody) {
         mcapTbody.innerHTML = mcapSummary.map(mc => `
@@ -1861,7 +1861,6 @@
         `).join('');
       }
 
-      // 4. Sector Climax Audit
       const climaxTbody = document.getElementById('btSectorClimaxTableBody');
       if (climaxTbody) {
         climaxTbody.innerHTML = climaxAudit.map(sc => {
@@ -1880,7 +1879,6 @@
         }).join('');
       }
 
-      // 5. Intra-Month Timing Audit
       const intraTbody = document.getElementById('btIntramonthTableBody');
       if (intraTbody) {
         intraTbody.innerHTML = intramonthAudit.map(im => `
@@ -1967,8 +1965,6 @@
 
       const hit15Count = mfes.filter(v => v >= 15.0).length;
       const hit15Rate = picks.length > 0 ? ((hit15Count / picks.length) * 100.0) : 0;
-      const lowMaeCount = maes.filter(v => v >= -6.0).length;
-      const lowMaeRate = picks.length > 0 ? ((lowMaeCount / picks.length) * 100.0) : 0;
 
       const benchmarkRet = Number(rawEntry.universe_benchmark_ret_pct || 0);
       const alphaVal = portRet - benchmarkRet;
@@ -2097,7 +2093,7 @@
     }
 
     // ============================================================================
-    // SECTOR & STOCK RS CHARTS + DRILLDOWN (WITH 0.0% BASELINE REFERENCE LINES)
+    // SECTOR & STOCK RS CHARTS + DRILLDOWN
     // ============================================================================
     function renderSectorChips() {
       const container = document.getElementById('sectorChipsContainer');
@@ -2375,7 +2371,6 @@
     function calculatePatternConfluence(st) {
       let score = 0;
 
-      // 1. Tape & Flow (30 pts max)
       const iasis = Number(st.iasis_score || 0);
       const delivPct = Number(st.deliv_pct || 0);
       const upDown = Number(st.up_down_vol_ratio || 1.0);
@@ -2388,7 +2383,6 @@
       if (upDown >= 1.3) score += 7;
       else if (upDown >= 1.05) score += 4;
 
-      // 2. Volume Profile POC Floor Support (25 pts max)
       const poc = Number(st.volume_profile_poc || 0);
       const close = Number(st.close || 0);
       if (poc > 0 && close >= poc) {
@@ -2399,7 +2393,6 @@
         score -= 10;
       }
 
-      // 3. RS & Sector Confluence (25 pts max)
       const front = Number(st.frontrunner_score || 0);
       const secStatus = String(st.sector_rs_status || "");
       if (secStatus.includes("Leading")) score += 12;
@@ -2408,7 +2401,6 @@
       if (front >= 75) score += 13;
       else if (front >= 60) score += 8;
 
-      // 4. Tightness & Execution Risk (20 pts max)
       const vcp = Number(st.vcp_ratio || 1.0);
       const mrs = Number(st.mrs_score || 0);
       const rrr = Number(st.risk_reward_ratio || 2.5);
@@ -2444,13 +2436,11 @@
         const sma200 = Number(st.sma_200 || 0);
         const mrs = Number(st.mrs_score || 0);
 
-        // Pattern Category Filter
         if (patFilter === 'FLAG' && !pStr.includes('FLAG') && !confStr.includes('FLAG')) return false;
         if (patFilter === 'VCP' && !pStr.includes('VCP') && vcpRatio > 0.68) return false;
         if (patFilter === 'BASE' && !pStr.includes('MULTI-MONTH') && !confStr.includes('BASE')) return false;
         if (patFilter === 'MACRO' && !pStr.includes('MACRO') && !(close >= sma50 && sma50 >= sma200)) return false;
 
-        // Base Scan Horizon Filter (Mechanical structural boundaries)
         if (tf === '21') {
           if (Math.abs(mrs) > 4.5 || (close < sma20)) return false;
         } else if (tf === '50') {
@@ -2461,7 +2451,6 @@
           if (close < sma200 || sma50 < sma200) return false;
         }
 
-        // Confluence Filter
         if (appState.filterConfluenceOnly && st._confScore < 65) return false;
 
         return hasSignal || vcpRatio <= 0.65;
@@ -2737,51 +2726,75 @@
       appState.sortAsc = !appState.sortAsc;
       updateUIAfterFilter();
     }
+
     // ============================================================================
-    // INTERACTIVE PRODUCT TOUR ENGINE
+    // INTERACTIVE PRODUCT TOUR ENGINE (WITH STOCK MODAL & SECTOR DRILLDOWN)
     // ============================================================================
     const TOUR_STEPS = [
       {
         tab: 'landing',
-        selector: '#landingSectorTape',
-        title: '1. Triple-Horizon Sector Tape',
-        desc: 'Track real-time institutional money flow across NSE sectors. Focus on sectors in "Leading" or "Early Sector Rotation" with healthy >50-SMA breadth.'
+        selector: '#landingHeroGrid',
+        title: '1. High-Conviction Command Grid',
+        desc: 'Top 12 diversified institutional setups (max 2 per sector) combining Stage-2 alignment, IASIS delivery flow, and tight volatility coils.',
+        beforeAction: () => { closeModal(); }
       },
       {
         tab: 'landing',
-        selector: '#landingHeroGrid',
-        title: '2. High-Conviction Command Grid',
-        desc: 'Top 12 diversified institutional setups (max 2 per sector) combining Stage-2 alignment, IASIS delivery flow, and tight volatility coils. Click any card for a deep-dive.'
+        selector: '#quantModalCard',
+        title: '2. Stock Quant Breakdown Modal',
+        desc: 'Clicking any stock card or table row opens this diagnostic modal. It reveals exact ATR Stop-Loss levels, Volume Profile POC floor support, and technical reasons to avoid.',
+        beforeAction: () => {
+          if (appState.stocks.length > 0) openStockModal(appState.stocks[0]);
+        }
       },
       {
         tab: 'live',
         selector: '#btnModeSurety',
         title: '3. Dual Strategy Archetypes',
-        desc: 'Switch between Part 1 (Surety & Capital Defense for low-drawdown entries near moving average equilibrium) and Part 2 (Aggressive Stage-2 Momentum Frontrunners).'
+        desc: 'Switch between Part 1 (Surety & Capital Defense for low-drawdown entries near moving average equilibrium) and Part 2 (Aggressive Stage-2 Momentum Frontrunners).',
+        beforeAction: () => { closeModal(); }
       },
       {
         tab: 'live',
-        selector: '#mainStockTable',
-        title: '4. Institutional Technical Screener',
-        desc: 'Sort and filter the entire NSE universe by Surety Score, IASIS Delivery Flow, Chart Patterns, and Risk-Reward Ratio. Click any row for full quant diagnostics.'
+        selector: '#indexSelect',
+        title: '4. Multi-Index & Cap-Tier Filtering',
+        desc: 'Filter recommendations across Nifty 50, Nifty Next 50, Nifty 500, Midcap 150, Smallcap 250, or Microcap 250 universes.',
+        beforeAction: () => { closeModal(); }
       },
       {
         tab: 'rrg',
-        selector: '#sectorRsChartCanvas',
-        title: '5. Sector & Peer Relative Strength',
-        desc: 'Visualize sector RS curves against the Nifty 500 baseline (0.0%), or click any sector tile below to drill down into constituent Peer RS curves.'
+        selector: '#sectorTilesGrid',
+        title: '5. Interactive Sector RS Tiles',
+        desc: 'Evaluate Triple-Horizon Sector RS and Breadth (>50-SMA %). Click any sector tile to drill down into all constituent stocks for that sector.',
+        beforeAction: () => { closeModal(); }
+      },
+      {
+        tab: 'rrg',
+        selector: '#sectorDrilldownContainer',
+        title: '6. Sector Constituents & Peer RS Drilldown',
+        desc: 'Clicking a sector tile opens this constituent breakdown! Compare individual stock Peer RS curves against the sector benchmark and inspect every stock in the sector.',
+        beforeAction: () => {
+          if (appState.sectors.length > 0) {
+            const topSec = [...appState.sectors].sort((a, b) => b.sector_composite_score - a.sector_composite_score)[0].sector;
+            appState.selectedDrilldownSector = topSec;
+            renderSectorTiles();
+            renderSectorDrilldown(topSec);
+          }
+        }
       },
       {
         tab: 'patterns',
         selector: '#btnConfluenceOnly',
-        title: '6. Chart Patterns & POC Floor Scanner',
-        desc: 'Scan for genuine VCP Coiled Springs, High-Tight Flags, and Multi-Month Bases verified by Volume Profile Point of Control (POC) floor support.'
+        title: '7. Chart Patterns & POC Floor Scanner',
+        desc: 'Scan for genuine VCP Coiled Springs, High-Tight Flags, and Multi-Month Bases verified by Volume Profile Point of Control (POC) floor support.',
+        beforeAction: () => { closeModal(); }
       },
       {
         tab: 'backtest',
         selector: '#btForensicSection',
-        title: '7. 10-Month Point-in-Time Backtest',
-        desc: 'Audit 100% real Bhavcopy performance across 10 monthly checkpoints, including Market-Cap Tiers, Sector Climax Traps, and Factor Ablation tables.'
+        title: '8. 10-Month Point-in-Time Backtest',
+        desc: 'Audit 100% real Bhavcopy performance across 10 monthly checkpoints, including Market-Cap Tiers, Sector Climax Traps, and Factor Ablation tables.',
+        beforeAction: () => { closeModal(); }
       }
     ];
 
@@ -2815,6 +2828,9 @@
 
       const step = TOUR_STEPS[currentTourIdx];
       switchTab(step.tab);
+      if (typeof step.beforeAction === 'function') {
+        step.beforeAction();
+      }
 
       setTimeout(() => {
         const targetEl = document.querySelector(step.selector);
@@ -2840,8 +2856,8 @@
 
         setTimeout(() => {
           const rect = targetEl.getBoundingClientRect();
-          const popWidth = 340;
-          const popHeight = popover.offsetHeight || 190;
+          const popWidth = 350;
+          const popHeight = popover.offsetHeight || 195;
 
           let topPos = rect.bottom + 14;
           if (topPos + popHeight > window.innerHeight - 16) {
@@ -2851,8 +2867,8 @@
 
           popover.style.top = `${topPos}px`;
           popover.style.left = `${leftPos}px`;
-        }, 220);
-      }, 60);
+        }, 240);
+      }, 80);
     }
 
     function endProductTour() {
@@ -2860,6 +2876,7 @@
         activeHighlightedEl.classList.remove('tour-highlight');
         activeHighlightedEl = null;
       }
+      closeModal();
       document.getElementById('tourBackdrop').style.display = 'none';
       document.getElementById('tourPopover').style.display = 'none';
       localStorage.setItem('nse_alpha_tour_completed', 'true');
