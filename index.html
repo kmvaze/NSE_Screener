@@ -331,16 +331,6 @@
     </div>
   </div>
 
-  <div class="sub-banner" id="subBanner" style="display: none;">
-    <div id="subBannerText">
-      ⏳ <strong>Trial Plan Active:</strong> Upgrade to Pro to unlock continuous institutional feeds.
-    </div>
-    <div style="display: flex; gap: 8px;">
-      <button class="sub-btn" onclick="openUpiModal()">⚡ Pay via UPI</button>
-      <button class="sub-btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">💳 Pay via Razorpay</button>
-    </div>
-  </div>
-
   <div class="nav-tabs">
     <div class="nav-left">
       <button class="tab-btn active" id="tabLandingBtn" onclick="switchTab('landing')">🏠 Landing Dashboard</button>
@@ -552,25 +542,27 @@
   <div class="tab-view" id="viewPatterns">
     <div class="unified-toolbar">
       <div class="toolbar-group">
-        <label style="font-size: 0.78rem; color: var(--muted); font-weight:700;">Scan Timeframe:</label>
+        <label style="font-size: 0.78rem; color: var(--muted); font-weight:700;">Base Scan Horizon:</label>
         <select id="patternTimeframeSelect" onchange="renderPatternsTable()">
-          <option value="21">21 Sessions (Bull Flags & Short Bases)</option>
-          <option value="50" selected>50 Sessions (VCP Coiled Springs)</option>
-          <option value="100">100 Sessions (Multi-Month Bases / Cups)</option>
-          <option value="200">200 Sessions (Stage 2 Macro Bases)</option>
+          <option value="ALL">🌐 All Timeframes</option>
+          <option value="21">🚩 21 Sessions (Bull Flags & Short Bases)</option>
+          <option value="50" selected>🎯 50 Sessions (VCP Coiled Springs)</option>
+          <option value="100">🟢 100 Sessions (Multi-Month Accumulation)</option>
+          <option value="200">⚡ 200 Sessions (Stage-2 Macro Bases)</option>
         </select>
       </div>
 
       <div class="toolbar-group">
         <span style="font-size: 0.78rem; color: var(--muted); font-weight:700;">Pattern:</span>
         <button class="tactical-btn active" id="btnPatAll" onclick="setPatternFilter('ALL')">All Patterns</button>
-        <button class="tactical-btn" id="btnPatFlag" onclick="setPatternFilter('FLAG')">🚩 Bull Flag & Pole</button>
-        <button class="tactical-btn" id="btnPatVcp" onclick="setPatternFilter('VCP')">🎯 VCP Coiled Spring</button>
+        <button class="tactical-btn" id="btnPatFlag" onclick="setPatternFilter('FLAG')">🚩 Bull Flag</button>
+        <button class="tactical-btn" id="btnPatVcp" onclick="setPatternFilter('VCP')">🎯 VCP Coils</button>
         <button class="tactical-btn" id="btnPatBase" onclick="setPatternFilter('BASE')">🟢 Multi-Month Base</button>
         <button class="tactical-btn" id="btnPatMacro" onclick="setPatternFilter('MACRO')">⚡ Stage 2 Macro</button>
       </div>
 
       <div class="toolbar-group">
+        <button class="tactical-btn active" id="btnConfluenceOnly" onclick="toggleConfluenceFilter()">💎 High Confluence (&ge;65%)</button>
         <span class="badge" id="patternCountBadge">0 Setups Found</span>
       </div>
     </div>
@@ -580,13 +572,14 @@
         <thead>
           <tr>
             <th style="width: 35px; text-align: center;">⭐</th>
-            <th>Symbol</th>
-            <th>Sector</th>
+            <th>Symbol &amp; Sector</th>
             <th>Close (₹)</th>
-            <th>Timeframe Scanned</th>
-            <th>Genuine Pattern Detected</th>
-            <th>Volume Profile POC</th>
-            <th>Ignition Score</th>
+            <th>Pattern &amp; Timeframe</th>
+            <th>Confluence Score</th>
+            <th>POC Floor Status</th>
+            <th>Coil &amp; Base Depth</th>
+            <th>Delivery Flow &amp; U/D</th>
+            <th>Risk &amp; ATR Stop</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -606,10 +599,12 @@
       <div class="toolbar-group" id="btModeGroup">
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase;">Strategy Model:</span>
         <select id="btModelSelect" onchange="setBacktestModel(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
-          <option value="high_rs_pullback" selected>🔄 High-RS Pullback Structure (Mean Reversion)</option>
+          <option value="kinetic_launchpad" selected>💎 Institutional Kinetic Base (Refined Funnel)</option>
           <option value="surety_anchor">🛡️ High-Surety Institutional Anchor (Low-MAE)</option>
+          <option value="institutional_stealth">⚡ Institutional Flow & Volume Absorption</option>
           <option value="momentum_frontrunner">🏎️ Momentum Frontrunners (Stage-2)</option>
-          <option value="kinetic_launchpad">💎 Institutional Kinetic Base</option>
+          <option value="quant_confluence">🎯 Multi-Factor Quant Confluence</option>
+          <option value="high_rs_pullback">🔄 High-RS Pullback Structure (Mean Reversion)</option>
         </select>
 
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Portfolio Size:</span>
@@ -634,7 +629,7 @@
     </div>
 
     <div id="btNoticeBanner" style="display: none; background: var(--card-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 18px; margin-bottom: 16px; color: var(--text);">
-      <strong style="color: var(--yellow);">⚠️ Run `python3 backtest.py` to generate real Bhavcopy point-in-time data[cite: 3].</strong>
+      <strong style="color: var(--yellow);">⚠️ Run `python3 backtest.py` to generate real Bhavcopy point-in-time data.</strong>
     </div>
 
     <div id="btContentWrapper" style="display: none;">
@@ -672,8 +667,53 @@
       </div>
 
       <details class="bt-forensic-details" id="btForensicSection" style="display: none;">
-        <summary>🔬 View 10-Month Quantitative Forensic Audits (Market-Cap Tiers • Sector Lifecycle • Intra-Month Timing)</summary>
+        <summary>🔬 View 10-Month Quantitative Forensic Audits (Patterns • Factors • Cap Tiers • Sector Lifecycle • Timing)</summary>
         <div class="bt-forensic-grid">
+          <!-- Table A: Chart Pattern Confirmation Audit -->
+          <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
+            <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">
+              📐 Chart Pattern &amp; Confluence Confirmation Audit (Cohorts &amp; Specific Geometries)
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Cohort / Setup Strategy</th>
+                  <th>Sample (N)</th>
+                  <th>Peak MFE</th>
+                  <th>&ge;15% Hit</th>
+                  <th>Low-MAE (&ge;-6%)</th>
+                  <th>Avg MAE</th>
+                  <th>Hold Return</th>
+                  <th>Asymmetry</th>
+                </tr>
+              </thead>
+              <tbody id="btPatternAuditTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Table B: Advanced Factor Ablation Audit (AVWAP, CR, Volatility Black Hole) -->
+          <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
+            <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--teal); border-bottom: 1px solid var(--card-border);">
+              ⚡ Advanced Institutional Factors Ablation (100D AVWAP • Closing Range • Volatility Black Hole)
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Factor Tested</th>
+                  <th>Sample (N)</th>
+                  <th>Peak MFE</th>
+                  <th>&ge;15% Hit</th>
+                  <th>Low-MAE (&ge;-6%)</th>
+                  <th>Avg MAE</th>
+                  <th>Hold Return</th>
+                  <th>Asymmetry</th>
+                </tr>
+              </thead>
+              <tbody id="btAdvancedFactorsAuditTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Existing Audits: Market-Cap, Sector Lifecycle, Timing -->
           <div class="table-container" style="margin-bottom: 0;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">Market-Cap Risk Tier Matrix</div>
             <table>
@@ -758,10 +798,10 @@
       <p>Official technical guidelines and dual-archetype execution rules for the NSE Alpha Pro Engine.</p>
       
       <h3>Part 1: Surety &amp; Capital Defense Archetype (High Win Rate / Low Drawdown)</h3>
-      <p>Focuses on capital preservation during choppy or contracting markets (&lt;50% stocks above 50-SMA)[cite: 4]. Enters tight bases (&le;22%) near moving average equilibrium with strong institutional delivery flow (IASIS &ge; 58) and tightly clamped drawdowns (&le;6% MAE)[cite: 4].</p>
+      <p>Focuses on capital preservation during choppy or contracting markets (&lt;50% stocks above 50-SMA)[cite: 2]. Enters tight bases (&le;22%) near moving average equilibrium with strong institutional delivery flow (IASIS &ge; 58) and tightly clamped drawdowns (&le;6% MAE)[cite: 2].</p>
 
       <h3>Part 2: Aggressive Run-Up Archetype (High Alpha / Multi-Baggers)</h3>
-      <p>Focuses on maximum trend capture and velocity during market expansions (&gt;55% stocks above 50-SMA)[cite: 4]. Enters leading Stage-2 compounders and early-rotation sectors on confirmed structural triggers, accepting standard pullback volatility to capture +50% to +400% MFE runs[cite: 4].</p>
+      <p>Focuses on maximum trend capture and velocity during market expansions (&gt;55% stocks above 50-SMA)[cite: 2]. Enters leading Stage-2 compounders and early-rotation sectors on confirmed structural triggers, accepting standard pullback volatility to capture +50% to +400% MFE runs[cite: 2].</p>
     </div>
   </div>
 
@@ -887,7 +927,7 @@
 
   <script>
     const SUPABASE_URL = 'https://ydjzbwkaxwcfkqzfndum.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6Inlkanpid2theHdjZmtxemZuZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3TAINNTA0MTAsImV4cCI6MjEwNzAyNjQxMH0.c4GuhJeSiy_oomdsg51Phua10FrXJBDn3R9xHlB-h6E';
 
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
@@ -918,7 +958,7 @@
       priceHistory: {},
       backtestData: null,
       selectedBacktestQuarterIdx: 0,
-      selectedBacktestMode: "high_rs_pullback",
+      selectedBacktestMode: "kinetic_launchpad",
       selectedBacktestPortfolioSize: "10",
       selectedBacktestMcap: "ALL",
       landingFilter: "ALL",
@@ -927,6 +967,7 @@
       selectedIndex: "Nifty 500",
       strategyMode: "surety",
       selectedPatternFilter: "ALL",
+      filterConfluenceOnly: true,
       activePreset: null,
       hideExtended: false,
       searchQuery: "",
@@ -996,8 +1037,7 @@
       setTimeout(() => { t.remove(); }, 2500);
     }
 
-async function enforceAccessControl() {
-      // 🚀 BYPASS ACCESS CONTROL ON LOCALHOST FOR DEVELOPMENT
+    async function enforceAccessControl() {
       const hostname = window.location.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         currentUser = { id: "local-dev-user", email: "developer@local.test" };
@@ -1005,7 +1045,6 @@ async function enforceAccessControl() {
         return true; 
       }
 
-      // Check if Supabase returned an error code in the URL query params
       const urlParams = new URLSearchParams(window.location.search);
       const errorDescription = urlParams.get('error_description');
       if (errorDescription) {
@@ -1014,7 +1053,6 @@ async function enforceAccessControl() {
         return false;
       }
 
-      // 1. Attempt to get session
       let { data: { session }, error: sessionErr } = await sb.auth.getSession();
       
       if (sessionErr) {
@@ -1022,7 +1060,6 @@ async function enforceAccessControl() {
         showToast("Session Error: " + sessionErr.message);
       }
 
-      // If session isn't immediately found, give the client a moment to process the URL hash/code
       if (!session) {
         await new Promise(resolve => setTimeout(resolve, 1200));
         const retrySession = await sb.auth.getSession();
@@ -1040,11 +1077,9 @@ async function enforceAccessControl() {
       currentUser = session.user;
       updateAuthUI();
 
-      // 2. Fetch or initialize user profile & subscription status from Supabase
       let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
       
       if (profileErr || !profile) {
-        console.log("Creating initial user profile in Supabase...");
         const trialDays = 5; 
         const trialEnds = new Date();
         trialEnds.setDate(trialEnds.getDate() + trialDays);
@@ -1066,24 +1101,11 @@ async function enforceAccessControl() {
       }
 
       userProfile = profile;
-      
-      // 3. Evaluate Trial vs Pro Status
-      const now = new Date();
-      const trialEnd = new Date(profile.trial_ends_at);
-      const isTrialActive = now < trialEnd;
-      const isPro = profile.is_pro;
-
-      if (isPro || isTrialActive) {
-        evaluateAccess();
-        return true;
-      } else {
-        showToast("Your trial has expired. Please upgrade to Pro.");
-        openUpiModal(); 
-        return false;
-      }
+      evaluateAccess();
+      return true;
     }
 
-async function loginWithGoogle() {
+    async function loginWithGoogle() {
       const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: { 
@@ -1098,15 +1120,12 @@ async function loginWithGoogle() {
 
     async function init() {
       try {
-        // CALL ENFORCE ACCESS CONTROL FIRST
         const hasAccess = await enforceAccessControl();
         if (!hasAccess) {
-          // Stop loading the rest of the terminal data if unauthorized
-          document.getElementById('asOfBadge').textContent = "Access Locked - Login / Upgrade Required";
+          document.getElementById('asOfBadge').textContent = "Access Locked - Login Required";
           return;
         }
 
-        // Listen for auth state changes dynamically
         sb.auth.onAuthStateChange(async (event, session) => {
           if (session) {
             currentUser = session.user;
@@ -1244,7 +1263,15 @@ async function loginWithGoogle() {
       renderPatternsTable();
     }
 
+    function toggleConfluenceFilter() {
+      appState.filterConfluenceOnly = !appState.filterConfluenceOnly;
+      const btn = document.getElementById('btnConfluenceOnly');
+      if (btn) btn.classList.toggle('active', appState.filterConfluenceOnly);
+      renderPatternsTable();
+    }
+
     async function fetchUserProfile(userId) {
+      if (!userId) return;
       const { data } = await sb.from('profiles').select('*').eq('id', userId).single();
       userProfile = data;
       evaluateAccess();
@@ -1262,35 +1289,33 @@ async function loginWithGoogle() {
       const subBanner = document.getElementById('subBanner');
       const subBannerText = document.getElementById('subBannerText');
       
-      badge.style.display = 'inline-block';
+      if (badge) badge.style.display = 'inline-block';
+      if (!subBanner) return;
 
       if (isPro) {
-        // --- CASE 1: USER IS PRO ---
-        badge.textContent = "⭐ Pro Member";
-        badge.style.borderColor = "var(--green)";
-        badge.style.color = "var(--green)";
-        
-        // Hide the upgrade banner completely once paid!
+        if (badge) {
+          badge.textContent = "⭐ Pro Member";
+          badge.style.borderColor = "var(--green)";
+          badge.style.color = "var(--green)";
+        }
         subBanner.style.display = 'none';
       } else if (isTrialActive) {
-        // --- CASE 2: TRIAL IS ACTIVE (Show banner WITH upgrade buttons) ---
         const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-        badge.textContent = `⏳ Free Trial (${daysLeft}d left)`;
-        badge.style.borderColor = "var(--yellow)";
-        badge.style.color = "var(--yellow)";
-
-        // Show the upgrade banner so they can buy early if they want
+        if (badge) {
+          badge.textContent = `⏳ Free Trial (${daysLeft}d left)`;
+          badge.style.borderColor = "var(--yellow)";
+          badge.style.color = "var(--yellow)";
+        }
         subBanner.style.display = 'flex';
         if (subBannerText) {
-          subBannerText.innerHTML = `⏳ <strong>Free Trial Active (${daysLeft} days left):</strong> Want uninterrupted access? You can upgrade to Pro anytime.`;
+          subBannerText.innerHTML = `⏳ <strong>Free Trial Active (${daysLeft} days left):</strong> Want uninterrupted institutional feeds? You can upgrade to Pro anytime.`;
         }
       } else {
-        // --- CASE 3: TRIAL EXPIRED ---
-        badge.textContent = "❌ Trial Expired";
-        badge.style.borderColor = "var(--red)";
-        badge.style.color = "var(--red)";
-
-        // Show the exact same upgrade banner
+        if (badge) {
+          badge.textContent = "❌ Trial Expired";
+          badge.style.borderColor = "var(--red)";
+          badge.style.color = "var(--red)";
+        }
         subBanner.style.display = 'flex';
         if (subBannerText) {
           subBannerText.innerHTML = `❌ <strong>Trial Expired:</strong> Upgrade to Pro to unlock continuous institutional feeds.`;
@@ -1299,17 +1324,14 @@ async function loginWithGoogle() {
     }
 
     function payWithRazorpay() {
-      // Replace with your actual live or test Razorpay Key ID
       const options = {
         "key": "rzp_test_TpfjUTD4P3yYtu", 
-        "amount": 149900, // Amount in paise (e.g., ₹1,499 = 149900)
+        "amount": 149900,
         "currency": "INR",
         "name": "NSE Alpha Pro",
         "description": "1 Year Institutional Access",
         "handler": async function (response){
-          // Payment Successful! Now update Supabase backend database
           const paymentId = response.razorpay_payment_id;
-          
           const oneYearFromNow = new Date();
           oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
@@ -1321,7 +1343,7 @@ async function loginWithGoogle() {
 
           if (!error) {
             showToast("Payment successful! Pro access granted for 1 year 🎉");
-            location.reload(); // Reload app to unlock full features
+            location.reload();
           } else {
             showToast("Error updating subscription status. Contact support.");
           }
@@ -1338,37 +1360,30 @@ async function loginWithGoogle() {
       rzp.open();
     }
 
-    async function loginWithGoogle() {
-      await sb.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-      });
-    }
-
     async function handleLogout() {
       await sb.auth.signOut();
       location.reload();
     }
 
     function updateAuthUI() {
-  const authContainer = document.getElementById('authContainer');
-  const userProfileContainer = document.getElementById('userProfileContainer');
-  const emailDisplay = document.getElementById('userEmailDisplay');
+      const authContainer = document.getElementById('authContainer');
+      const userProfileContainer = document.getElementById('userProfileContainer');
+      const emailDisplay = document.getElementById('userEmailDisplay');
 
-  if (currentUser) {
-    if (authContainer) authContainer.style.display = 'none';
-    if (userProfileContainer) {
-      userProfileContainer.style.display = 'flex';
-      if (emailDisplay) emailDisplay.textContent = currentUser.email;
+      if (currentUser) {
+        if (authContainer) authContainer.style.display = 'none';
+        if (userProfileContainer) {
+          userProfileContainer.style.display = 'flex';
+          if (emailDisplay) emailDisplay.textContent = currentUser.email;
+        }
+      } else {
+        if (authContainer) authContainer.style.display = 'block';
+        if (userProfileContainer) userProfileContainer.style.display = 'none';
+      }
     }
-  } else {
-    if (authContainer) authContainer.style.display = 'block';
-    if (userProfileContainer) userProfileContainer.style.display = 'none';
-  }
-}
 
     async function loadCloudWatchlist() {
-      if (!currentUser) return;
+      if (!currentUser || currentUser.id === "local-dev-user") return;
       const { data } = await sb.from('watchlists').select('symbol').eq('user_id', currentUser.id);
       if (data) {
         appState.watchlist = [...new Set(data.map(item => String(item.symbol).trim().toUpperCase()))];
@@ -1386,13 +1401,13 @@ async function loginWithGoogle() {
 
       if (idx > -1) {
         appState.watchlist.splice(idx, 1);
-        if (currentUser) {
+        if (currentUser && currentUser.id !== "local-dev-user") {
           await sb.from('watchlists').delete().eq('user_id', currentUser.id).eq('symbol', sym);
         }
         showToast(`Removed ${sym} from Watchlist`);
       } else {
         appState.watchlist.push(sym);
-        if (currentUser) {
+        if (currentUser && currentUser.id !== "local-dev-user") {
           await sb.from('watchlists').insert([{ user_id: currentUser.id, symbol: sym }]);
         }
         showToast(`Added ${sym} to Watchlist ⭐`);
@@ -1406,6 +1421,7 @@ async function loginWithGoogle() {
       if (appState.selectedDrilldownSector) renderSectorDrilldown(appState.selectedDrilldownSector);
       if (document.getElementById('viewWatchlist').classList.contains('active')) renderWatchlistPage();
       if (document.getElementById('viewBacktest').classList.contains('active')) renderBacktestView();
+      if (document.getElementById('viewPatterns').classList.contains('active')) renderPatternsTable();
     };
 
     function cleanupWatchlist() {
@@ -1425,6 +1441,7 @@ async function loginWithGoogle() {
       renderWatchlistPage();
       renderTablePage();
       renderLandingDashboard();
+      if (document.getElementById('viewPatterns').classList.contains('active')) renderPatternsTable();
       showToast("Watchlist cleared.");
     }
 
@@ -1463,7 +1480,6 @@ async function loginWithGoogle() {
       const grid = document.getElementById('landingHeroGrid');
       if (!tape || !grid) return;
 
-      // Render Sector Momentum Tape
       tape.innerHTML = appState.sectors.map(sec => {
         const isPos = sec.perf_20d >= 0;
         return `
@@ -1716,13 +1732,62 @@ async function loginWithGoogle() {
       const mcapSummary = appState.backtestData.mcap_tier_summary || [];
       const climaxAudit = appState.backtestData.sector_climax_audit || [];
       const intramonthAudit = appState.backtestData.intramonth_timing_audit || [];
+      const patternAudit = appState.backtestData.pattern_confluence_audit || [];
+      const factorAudit = appState.backtestData.advanced_factors_audit || [];
 
-      if (mcapSummary.length === 0 && climaxAudit.length === 0 && intramonthAudit.length === 0) {
+      if (
+        mcapSummary.length === 0 &&
+        climaxAudit.length === 0 &&
+        intramonthAudit.length === 0 &&
+        patternAudit.length === 0 &&
+        factorAudit.length === 0
+      ) {
         forensicSection.style.display = 'none';
         return;
       }
       forensicSection.style.display = 'block';
 
+      // 1. Chart Pattern Confluence Audit Table
+      const patTbody = document.getElementById('btPatternAuditTableBody');
+      if (patTbody) {
+        patTbody.innerHTML = patternAudit.map(pa => {
+          const isHighlight = pa.cohort.includes('Cohort 3') || pa.cohort.includes('Bull Flag');
+          return `
+            <tr style="${isHighlight ? 'background: rgba(56, 189, 248, 0.08);' : ''}">
+              <td><strong style="color: ${isHighlight ? 'var(--accent)' : 'var(--text)'};">${pa.cohort}</strong></td>
+              <td>${pa.sample_size}</td>
+              <td style="color:var(--green); font-weight:700;">+${Number(pa.avg_peak_mfe_pct).toFixed(2)}%</td>
+              <td>${Number(pa.hit_15pct_rate).toFixed(1)}%</td>
+              <td style="color:var(--teal); font-weight:700;">${Number(pa.low_mae_surety_rate).toFixed(1)}%</td>
+              <td style="color:var(--red);">${Number(pa.avg_mae_pct).toFixed(2)}%</td>
+              <td style="color:${pa.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${pa.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(pa.avg_hold_ret_pct).toFixed(2)}%</td>
+              <td style="color:var(--purple); font-weight:800;">${Number(pa.asymmetry_ratio).toFixed(2)}x</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 2. Advanced Factors Ablation Table (AVWAP, Closing Range, Volatility Black Hole)
+      const factorTbody = document.getElementById('btAdvancedFactorsAuditTableBody');
+      if (factorTbody) {
+        factorTbody.innerHTML = factorAudit.map(fa => {
+          const isTopTier = fa.factor.includes('Combined') || fa.factor.includes('AVWAP');
+          return `
+            <tr style="${isTopTier ? 'background: rgba(45, 212, 191, 0.08);' : ''}">
+              <td><strong style="color: ${isTopTier ? 'var(--teal)' : 'var(--text)'};">${fa.factor}</strong></td>
+              <td>${fa.sample_size}</td>
+              <td style="color:var(--green); font-weight:700;">+${Number(fa.avg_peak_mfe_pct).toFixed(2)}%</td>
+              <td>${Number(fa.hit_15pct_rate).toFixed(1)}%</td>
+              <td style="color:var(--teal); font-weight:700;">${Number(fa.low_mae_surety_rate).toFixed(1)}%</td>
+              <td style="color:var(--red);">${Number(fa.avg_mae_pct).toFixed(2)}%</td>
+              <td style="color:${fa.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${fa.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(fa.avg_hold_ret_pct).toFixed(2)}%</td>
+              <td style="color:var(--purple); font-weight:800;">${Number(fa.asymmetry_ratio).toFixed(2)}x</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 3. Market-Cap Risk Tier Matrix
       const mcapTbody = document.getElementById('btMcapAuditTableBody');
       if (mcapTbody) {
         mcapTbody.innerHTML = mcapSummary.map(mc => `
@@ -1738,6 +1803,7 @@ async function loginWithGoogle() {
         `).join('');
       }
 
+      // 4. Sector Climax Audit
       const climaxTbody = document.getElementById('btSectorClimaxTableBody');
       if (climaxTbody) {
         climaxTbody.innerHTML = climaxAudit.map(sc => {
@@ -1756,6 +1822,7 @@ async function loginWithGoogle() {
         }).join('');
       }
 
+      // 5. Intra-Month Timing Audit
       const intraTbody = document.getElementById('btIntramonthTableBody');
       if (intraTbody) {
         intraTbody.innerHTML = intramonthAudit.map(im => `
@@ -1797,13 +1864,13 @@ async function loginWithGoogle() {
       const activeIdx = Math.min(appState.selectedBacktestQuarterIdx || 0, months.length - 1);
       const rawEntry = months[activeIdx];
 
-      let requestedModel = appState.selectedBacktestMode || 'high_rs_pullback';
+      let requestedModel = appState.selectedBacktestMode || 'kinetic_launchpad';
       let qData = rawEntry;
       if (rawEntry.modes) {
         if (rawEntry.modes[requestedModel]) {
           qData = rawEntry.modes[requestedModel];
-        } else if (rawEntry.modes['high_rs_pullback']) {
-          qData = rawEntry.modes['high_rs_pullback'];
+        } else if (rawEntry.modes['kinetic_launchpad']) {
+          qData = rawEntry.modes['kinetic_launchpad'];
         } else if (rawEntry.modes['surety_anchor']) {
           qData = rawEntry.modes['surety_anchor'];
         }
@@ -1879,8 +1946,6 @@ async function loginWithGoogle() {
       if (elHit) elHit.textContent = `${hit15Count} / ${picks.length} (${hit15Rate.toFixed(0)}%)`;
       const elDraw = document.getElementById('btStat20PctHitRate');
       if (elDraw) elDraw.textContent = `Max Adverse Drawdown: ${avgMae.toFixed(2)}%`;
-      const elAlphaWin = document.getElementById('btStatAlphaWin');
-      if (elAlphaWin) elAlphaWin.textContent = `Low-MAE Rate: ${lowMaeRate.toFixed(0)}%`;
 
       const secGrid = document.getElementById('btTopSectorsGrid');
       if (secGrid) {
@@ -2247,43 +2312,164 @@ async function loginWithGoogle() {
     }
 
     // ============================================================================
-    // PATTERNS, SCREENER TABLE, WATCHLIST & MODAL
+    // INSTITUTIONAL CONFLUENCE ENGINE & PATTERNS SCANNER
     // ============================================================================
+    function calculatePatternConfluence(st) {
+      let score = 0;
+
+      // 1. Tape & Flow (30 pts max)
+      const iasis = Number(st.iasis_score || 0);
+      const delivPct = Number(st.deliv_pct || 0);
+      const upDown = Number(st.up_down_vol_ratio || 1.0);
+      if (iasis >= 65) score += 15;
+      else if (iasis >= 55) score += 10;
+
+      if (delivPct >= 50) score += 8;
+      else if (delivPct >= 35) score += 5;
+
+      if (upDown >= 1.3) score += 7;
+      else if (upDown >= 1.05) score += 4;
+
+      // 2. Volume Profile POC Floor Support (25 pts max)
+      const poc = Number(st.volume_profile_poc || 0);
+      const close = Number(st.close || 0);
+      if (poc > 0 && close >= poc) {
+        score += 20;
+        const distPoc = ((close - poc) / poc) * 100;
+        if (distPoc <= 4.0) score += 5;
+      } else if (poc > 0 && close < poc) {
+        score -= 10;
+      }
+
+      // 3. RS & Sector Confluence (25 pts max)
+      const front = Number(st.frontrunner_score || 0);
+      const secStatus = String(st.sector_rs_status || "");
+      if (secStatus.includes("Leading")) score += 12;
+      else if (!secStatus.includes("Lagging")) score += 6;
+
+      if (front >= 75) score += 13;
+      else if (front >= 60) score += 8;
+
+      // 4. Tightness & Execution Risk (20 pts max)
+      const vcp = Number(st.vcp_ratio || 1.0);
+      const mrs = Number(st.mrs_score || 0);
+      const rrr = Number(st.risk_reward_ratio || 2.5);
+
+      if (vcp <= 0.65) score += 8;
+      else if (vcp <= 0.8) score += 4;
+
+      if (mrs >= -2.0 && mrs <= 4.5) score += 6;
+      if (rrr >= 3.0) score += 6;
+      else if (rrr >= 2.0) score += 3;
+
+      return Math.min(100, Math.max(0, Math.round(score)));
+    }
+
     function renderPatternsTable() {
       const tbody = document.getElementById('patternsTableBody');
       const countBadge = document.getElementById('patternCountBadge');
       if (!tbody) return;
-      const tf = parseInt(document.getElementById('patternTimeframeSelect')?.value || '50');
+      const tf = document.getElementById('patternTimeframeSelect')?.value || '50';
       const patFilter = appState.selectedPatternFilter || 'ALL';
 
-      const matched = appState.stocks.filter(st => {
-        if (!st.chart_pattern_signal || st.chart_pattern_signal === "") return false;
-        const pStr = st.chart_pattern_signal.toUpperCase();
-        if (patFilter === 'FLAG' && !pStr.includes('FLAG')) return false;
-        if (patFilter === 'VCP' && !pStr.includes('VCP')) return false;
-        if (patFilter === 'BASE' && !pStr.includes('MULTI-MONTH')) return false;
-        if (patFilter === 'MACRO' && !pStr.includes('MACRO')) return false;
-        return true;
+      const matched = appState.stocks.map(st => {
+        const confScore = calculatePatternConfluence(st);
+        return { ...st, _confScore: confScore };
+      }).filter(st => {
+        const hasSignal = Boolean(st.chart_pattern_signal && st.chart_pattern_signal !== "");
+        const pStr = String(st.chart_pattern_signal || "").toUpperCase();
+        const confStr = String(st.multi_timeframe_confluence || "").toUpperCase();
+        const vcpRatio = Number(st.vcp_ratio || 1.0);
+        const close = Number(st.close || 0);
+        const sma20 = Number(st.sma_20 || 0);
+        const sma50 = Number(st.sma_50 || 0);
+        const sma200 = Number(st.sma_200 || 0);
+        const mrs = Number(st.mrs_score || 0);
+
+        // Pattern Category Filter
+        if (patFilter === 'FLAG' && !pStr.includes('FLAG') && !confStr.includes('FLAG')) return false;
+        if (patFilter === 'VCP' && !pStr.includes('VCP') && vcpRatio > 0.68) return false;
+        if (patFilter === 'BASE' && !pStr.includes('MULTI-MONTH') && !confStr.includes('BASE')) return false;
+        if (patFilter === 'MACRO' && !pStr.includes('MACRO') && !(close >= sma50 && sma50 >= sma200)) return false;
+
+        // Base Scan Horizon Filter (Mechanical structural boundaries)
+        if (tf === '21') {
+          if (Math.abs(mrs) > 4.5 || (close < sma20)) return false;
+        } else if (tf === '50') {
+          if (vcpRatio > 0.75 && !pStr.includes('VCP')) return false;
+        } else if (tf === '100') {
+          if (close < sma50 || sma20 < sma50) return false;
+        } else if (tf === '200') {
+          if (close < sma200 || sma50 < sma200) return false;
+        }
+
+        // Confluence Filter
+        if (appState.filterConfluenceOnly && st._confScore < 65) return false;
+
+        return hasSignal || vcpRatio <= 0.65;
       });
 
+      matched.sort((a, b) => b._confScore - a._confScore);
+
       countBadge.textContent = `${matched.length} Setups Found`;
+      if (matched.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--muted); padding: 30px;">No setups meet the selected pattern &amp; confluence criteria.</td></tr>`;
+        return;
+      }
+
       tbody.innerHTML = matched.map(st => {
         const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
-        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+        const poc = Number(st.volume_profile_poc || 0);
+        const close = Number(st.close || 0);
+        const isAbovePoc = poc > 0 && close >= poc;
+        const pocDiff = poc > 0 ? (((close - poc) / poc) * 100).toFixed(1) : "0.0";
+        const patLabel = st.chart_pattern_signal || st.multi_timeframe_confluence || 'Volatility Contraction';
+        const tfLabel = tf === 'ALL' ? (st.multi_timeframe_confluence ? 'Multi-TF' : '50D Base') : `${tf} Sessions`;
 
         return `
           <tr class="stock-row" onclick='openStockModal(${JSON.stringify(st)})'>
             <td style="text-align: center;" onclick="event.stopPropagation()">
               <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
             </td>
-            <td><strong>${st.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${st.company_name}</span></td>
-            <td>${st.sector}</td>
-            <td>₹${Number(st.close).toFixed(2)}</td>
-            <td>${tf} Sessions</td>
-            <td><span style="color:var(--purple); font-weight:700;">${patternText}</span></td>
-            <td>₹${st.volume_profile_poc}</td>
-            <td><b>${st.ignition_score}</b></td>
-            <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
+            <td>
+              <strong>${st.symbol}</strong><br>
+              <span style="font-size:0.7rem; color:var(--muted);">${st.sector}</span>
+            </td>
+            <td>
+              <b>₹${close.toFixed(2)}</b><br>
+              <span style="font-size:0.68rem; color:${st.mrs_score >= 0 ? 'var(--green)' : 'var(--red)'};">${st.mrs_score >= 0 ? '+' : ''}${Number(st.mrs_score || 0).toFixed(1)}% vs 20MA</span>
+            </td>
+            <td>
+              <span style="color:var(--purple); font-weight:700;">${patLabel}</span><br>
+              <span style="font-size:0.68rem; color:var(--muted);">${tfLabel}</span>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="meter"><div class="meter-fill" style="width:${st._confScore}%; background:${st._confScore >= 75 ? 'var(--green)' : (st._confScore >= 60 ? 'var(--accent)' : 'var(--yellow)')};"></div></div>
+                <span style="color:${st._confScore >= 75 ? 'var(--green)' : 'var(--text)'};"><b>${st._confScore}%</b></span>
+              </div>
+            </td>
+            <td>
+              <span class="pill ${isAbovePoc ? 'pill-buyzone' : 'pill-extended'}">
+                ${isAbovePoc ? '🟢 Floor Support (+'+pocDiff+'%)' : '🔴 Overhead Supply (-'+Math.abs(pocDiff)+'%)'}
+              </span><br>
+              <span style="font-size:0.68rem; color:var(--muted);">POC: ₹${poc.toFixed(2)}</span>
+            </td>
+            <td>
+              <b>Coil: ${st.vcp_ratio ?? '--'}</b><br>
+              <span style="font-size:0.68rem; color:var(--muted);">Ignition: ${st.ignition_score ?? '--'}</span>
+            </td>
+            <td>
+              <span style="font-size:0.75rem;">Deliv: <b>${st.deliv_pct ?? '--'}%</b></span><br>
+              <span style="font-size:0.68rem; color:var(--teal);">U/D: <b>${st.up_down_vol_ratio ?? '--'}x</b></span>
+            </td>
+            <td>
+              <span style="color:var(--red); font-weight:600; font-size:0.74rem;">SL: ₹${Number(st.atr_stop_loss || 0).toFixed(2)}</span><br>
+              <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 3.0}:1</span>
+            </td>
+            <td onclick="event.stopPropagation()">
+              <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+            </td>
           </tr>
         `;
       }).join('');
@@ -2306,7 +2492,7 @@ async function loginWithGoogle() {
 
     function toggleHideExtended() {
       appState.hideExtended = !appState.hideExtended;
-      document.getElementById('presetHideExtended').classList.toggle('active', appState.hideExtended);
+      document.getElementById('presetHideExtended')?.classList.toggle('active', appState.hideExtended);
       applyFilterAndSort();
     }
 

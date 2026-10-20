@@ -669,6 +669,90 @@
       "asymmetry_ratio": 1.47
     }
   ],
+  "pattern_confluence_audit": [
+    {
+      "cohort": "Cohort 1: Baseline Setups (No Pattern Required)",
+      "sample_size": 1828,
+      "avg_peak_mfe_pct": 25.18,
+      "hit_15pct_rate": 48.1,
+      "low_mae_surety_rate": 28.6,
+      "avg_mae_pct": -12.34,
+      "avg_hold_ret_pct": 5.98,
+      "asymmetry_ratio": 2.04
+    },
+    {
+      "cohort": "Cohort 2: Standalone Pattern (Geometric Detection Only)",
+      "sample_size": 1492,
+      "avg_peak_mfe_pct": 23.53,
+      "hit_15pct_rate": 46.2,
+      "low_mae_surety_rate": 28.8,
+      "avg_mae_pct": -12.39,
+      "avg_hold_ret_pct": 4.92,
+      "asymmetry_ratio": 1.9
+    },
+    {
+      "cohort": "Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)",
+      "sample_size": 287,
+      "avg_peak_mfe_pct": 25.14,
+      "hit_15pct_rate": 47.0,
+      "low_mae_surety_rate": 26.8,
+      "avg_mae_pct": -12.99,
+      "avg_hold_ret_pct": 5.81,
+      "asymmetry_ratio": 1.94
+    },
+    {
+      "cohort": "Pattern Breakdown: \ud83c\udfaf VCP Coiled Spring",
+      "sample_size": 172,
+      "avg_peak_mfe_pct": 19.55,
+      "hit_15pct_rate": 40.1,
+      "low_mae_surety_rate": 32.6,
+      "avg_mae_pct": -12.23,
+      "avg_hold_ret_pct": 2.32,
+      "asymmetry_ratio": 1.6
+    },
+    {
+      "cohort": "Pattern Breakdown: \ud83d\udea9 Bull Flag & Pole",
+      "sample_size": 307,
+      "avg_peak_mfe_pct": 29.24,
+      "hit_15pct_rate": 53.7,
+      "low_mae_surety_rate": 23.5,
+      "avg_mae_pct": -12.57,
+      "avg_hold_ret_pct": 9.15,
+      "asymmetry_ratio": 2.33
+    },
+    {
+      "cohort": "Pattern Breakdown: \ud83d\udfe2 Multi-Month Base",
+      "sample_size": 77,
+      "avg_peak_mfe_pct": 16.62,
+      "hit_15pct_rate": 40.3,
+      "low_mae_surety_rate": 26.0,
+      "avg_mae_pct": -13.28,
+      "avg_hold_ret_pct": -1.39,
+      "asymmetry_ratio": 1.25
+    },
+    {
+      "cohort": "Pattern Breakdown: \u26a1 Stage 2 Macro Base",
+      "sample_size": 936,
+      "avg_peak_mfe_pct": 22.96,
+      "hit_15pct_rate": 45.3,
+      "low_mae_surety_rate": 30.0,
+      "avg_mae_pct": -12.29,
+      "avg_hold_ret_pct": 4.53,
+      "asymmetry_ratio": 1.87
+    }
+  ],
+  "advanced_factors_audit": [
+    {
+      "factor": "1. Base Universe Stage-2 Setups",
+      "sample_size": 1828,
+      "avg_peak_mfe_pct": 25.18,
+      "hit_15pct_rate": 48.1,
+      "low_mae_surety_rate": 28.6,
+      "avg_mae_pct": -12.34,
+      "avg_hold_ret_pct": 5.98,
+      "asymmetry_ratio": 2.04
+    }
+  ],
   "monthly_forensics": [
     {
       "month": "Jan 2026",

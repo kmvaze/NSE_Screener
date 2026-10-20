@@ -244,6 +244,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         highs = grp["high"].values
         lows = grp["low"].values
         deliv_qtys = grp["deliv_qty"].values
+        opens = grp["open"].values
 
         n_bars = len(prices)
         if n_bars < 20:
@@ -273,6 +274,51 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         atr_20 = float(np.mean(tr_arr))
         atr_pct = round(float((atr_20 / (close + 1e-5)) * 100.0), 2)
 
+        # 1. Volume Profile POC
+        poc_bars = min(50, n_bars)
+        sub_highs = highs[-poc_bars:]
+        sub_lows = lows[-poc_bars:]
+        sub_vols = volumes[-poc_bars:]
+        p_min, p_max = float(np.min(sub_lows)), float(np.max(sub_highs))
+        
+        if p_max > p_min:
+            n_bins = 20
+            bins = np.linspace(p_min, p_max, n_bins + 1)
+            vol_profile = np.zeros(n_bins)
+            typical_prices = (sub_highs + sub_lows + prices[-poc_bars:]) / 3.0
+            bin_indices = np.clip(np.digitize(typical_prices, bins) - 1, 0, n_bins - 1)
+            for b_idx, v_qty in zip(bin_indices, sub_vols):
+                vol_profile[b_idx] += v_qty
+            max_bin_idx = int(np.argmax(vol_profile))
+            volume_profile_poc = round(float((bins[max_bin_idx] + bins[max_bin_idx + 1]) / 2.0), 2)
+        else:
+            volume_profile_poc = close
+
+        # 2. Confluence Feature 1: Opening/Session Relative Volume (RVOL) Expansion
+        vol_20_avg = float(np.mean(volumes[-min(20, n_bars):])) + 1e-5
+        session_rvol = round(float(volumes[-1] / vol_20_avg), 2)
+        is_rvol_expanded = session_rvol >= 1.5
+
+        # 3. Confluence Feature 2: Supply Exhaustion Ratio (Up Volume vs Down Volume over trailing 15 sessions)
+        sub_15_diff = np.diff(prices[-16:]) if n_bars >= 16 else np.diff(prices)
+        sub_15_vols = volumes[-len(sub_15_diff):]
+        up_vol_15 = np.sum(sub_15_vols[sub_15_diff > 0]) if np.any(sub_15_diff > 0) else 1.0
+        down_vol_15 = np.sum(sub_15_vols[sub_15_diff < 0]) if np.any(sub_15_diff < 0) else 1.0
+        supply_exhaustion_ratio = round(float(up_vol_15 / (down_vol_15 + 1e-5)), 2)
+
+        # 4. Confluence Feature 3: Multi-Timeframe RS Slope Acceleration (10d vs 30d RS growth)
+        stock_series = grp.set_index("date")["close"]
+        common_s_idx = stock_series.index.intersection(market_benchmark.index)
+        stk_sub = stock_series.loc[common_s_idx]
+        bm_sub = market_benchmark.loc[common_s_idx]
+        rs_full_series = (stk_sub / bm_sub).values
+        if len(rs_full_series) >= 30:
+            rs_slope_10 = (rs_full_series[-1] - rs_full_series[-10]) / (rs_full_series[-10] + 1e-5)
+            rs_slope_30 = (rs_full_series[-1] - rs_full_series[-30]) / (rs_full_series[-30] + 1e-5)
+            rs_acceleration = round(float(rs_slope_10 - (rs_slope_30 / 3.0)), 4)
+        else:
+            rs_acceleration = 0.0
+
         diffs = np.diff(prices)
         avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
         avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
@@ -301,21 +347,15 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         vol_50d = float(np.mean(volumes[-min(50, n_bars):])) + 1e-5
         vol_dryup_ratio = float(vol_5d / vol_50d)
 
-        stock_series = grp.set_index("date")["close"]
-        common_s_idx = stock_series.index.intersection(market_benchmark.index)
-        stk_sub = stock_series.loc[common_s_idx]
-        bm_sub = market_benchmark.loc[common_s_idx]
-        rs_series = (stk_sub / bm_sub).values
-
         sec_name = grp["sector"].iloc[-1] if "sector" in grp.columns else "Capital Goods"
         sec_bm = sector_benchmarks.get(sec_name, market_benchmark)
         sec_sub = sec_bm.reindex(common_s_idx).ffill().bfill()
         sec_rs_series = (stk_sub / (sec_sub + 1e-5)).values
 
-        if len(rs_series) >= 63:
-            rs_63_high = np.max(rs_series[-63:-1])
+        if len(rs_full_series) >= 63:
+            rs_63_high = np.max(rs_full_series[-63:-1])
             price_63_high = np.max(highs[-63:-1])
-            is_rs_divergent = (rs_series[-1] >= rs_63_high) and (close < price_63_high * 0.99)
+            is_rs_divergent = (rs_full_series[-1] >= rs_63_high) and (close < price_63_high * 0.99)
         else:
             is_rs_divergent = False
 
@@ -395,6 +435,8 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         deliv_up = np.sum(deliv_cash_all[1:][diffs_deliv > 0]) if np.any(diffs_deliv > 0) else 1.0
         deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
         deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
+        
+        recent_deliv_pct = float(np.mean(deliv_qtys[-5:] / (volumes[-5:] + 1e-5)) * 100.0) if np.sum(volumes[-5:]) > 0 else 30.0
 
         pinch_pts = float(np.clip(20.0 * (1.0 - (ma_spread_pct / 6.5)), 2.0, 20.0))
         squeeze_pts = float(np.clip(15.0 * (1.35 - bb_kc_ratio), 2.0, 15.0))
@@ -443,6 +485,13 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             "atr_20": atr_20,
             "atr_pct": atr_pct,
             "structural_stop": structural_stop,
+            "volume_profile_poc": volume_profile_poc,
+            "poc_floor_support": bool(close >= volume_profile_poc),
+            "session_rvol": session_rvol,
+            "is_rvol_expanded": is_rvol_expanded,
+            "supply_exhaustion_ratio": supply_exhaustion_ratio,
+            "rs_acceleration": rs_acceleration,
+            "deliv_pct": round(recent_deliv_pct, 1),
             "vcp_ratio": float(vcp_rat),
             "bb_kc_ratio": bb_kc_ratio,
             "ma_spread_pct": round(ma_spread_pct, 2),
@@ -459,7 +508,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             "is_ma_pinched": is_ma_pinched,
             "is_rs_divergent": (is_rs_divergent or is_sec_rs_divergent),
             "flow_ratio": round(deliv_flow_ratio, 2),
-            "prior_63d_pct": prior_63d_pct,
+            "prior_63d_run_pct": prior_63d_pct,
             "prior_63d_run_pct": prior_63d_pct,
             "dist_from_50_pct": dist_from_50_pct,
             "base_depth_pct": round(base_depth_pct, 2),
@@ -572,6 +621,63 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         + (0.15 * ranked["frontrunner_score"])
     )
     ranked["surety_score"] = (raw_surety * mom_curve * flow_curve * np.clip(ranked["sector_climax_mult"], 0.82, 1.06)).clip(5.0, 99.0).round(1)
+
+    # Institutional Pattern & Advanced Factor Confluence Score (0 - 100)
+    def calculate_confluence_score(r):
+        pts = 0.0
+        iasis = float(r.get("iasis_score", 50.0))
+        deliv_pct = float(r.get("deliv_pct", 30.0))
+        up_down = float(r.get("up_down_vol_ratio", 1.0))
+        rvol_val = float(r.get("session_rvol", 1.0))
+        supply_ex = float(r.get("supply_exhaustion_ratio", 1.0))
+        rs_accel = float(r.get("rs_acceleration", 0.0))
+
+        # Flow & Tape (30 max)
+        if iasis >= 65.0:
+            pts += 10.0
+        elif iasis >= 55.0:
+            pts += 6.0
+        if deliv_pct >= 35.0:
+            pts += 5.0
+        if up_down >= 1.2:
+            pts += 5.0
+        if rvol_val >= 1.5:
+            pts += 5.0
+        if supply_ex >= 1.5:
+            pts += 5.0
+
+        # Volume Profile POC Floor & RS Acceleration (25 max)
+        if bool(r.get("poc_floor_support", False)):
+            pts += 15.0
+        else:
+            pts -= 10.0
+        if rs_accel > 0.0:
+            pts += 10.0
+
+        # Sector & RS Leadership (25 max)
+        s_rs = str(r.get("sector_rs_status", ""))
+        front_score = float(r.get("frontrunner_score", 50.0))
+        if "Leading" in s_rs or "New High" in s_rs:
+            pts += 12.0
+        elif "Lagging" not in s_rs:
+            pts += 6.0
+        if front_score >= 75.0:
+            pts += 13.0
+        elif front_score >= 60.0:
+            pts += 8.0
+
+        # Base Geometry & Low-Risk Equilibrium (20 max)
+        if float(r.get("vcp_ratio", 1.0)) <= 0.65:
+            pts += 8.0
+        elif float(r.get("vcp_ratio", 1.0)) <= 0.80:
+            pts += 4.0
+        if -2.0 <= float(r.get("mrs_score", 0.0)) <= 4.5:
+            pts += 6.0
+        pts += 6.0
+
+        return float(np.clip(round(pts, 1), 0.0, 100.0))
+
+    ranked["pattern_confluence_score"] = ranked.apply(calculate_confluence_score, axis=1)
 
     def get_signal(r):
         c_pattern = r["chart_pattern_signal"]
@@ -753,10 +859,6 @@ def simulate_ideal_buy_trigger(
     atr_at_t0: float,
     today_price: float,
 ) -> dict:
-    """
-    Unconstrained Structure-Driven Confirmation Engine:
-    No 15-day timeout. Signals remain active as long as structural support holds.
-    """
     fut_all = sym_df_with_mas[sym_df_with_mas["date"] >= signal_date].reset_index(drop=True)
     if len(fut_all) < 2:
         return {
@@ -1026,7 +1128,6 @@ def select_top_stocks_for_model(
     else:
         qualified = pool[pool["above_200sma"]].sort_values(by=["score_baseline"], ascending=False)
 
-    # Global Score Priority with a max 2-per-sector cap
     seen_sectors = {}
     capped_picks = []
 
@@ -1314,8 +1415,26 @@ def run_quarterly_backtest():
     mcap_stats_accumulator = {}
     sector_lifecycle_accumulator = {}
 
+    pattern_confluence_accumulator = {
+        "Cohort 1: Baseline Setups (No Pattern Required)": [],
+        "Cohort 2: Standalone Pattern (Geometric Detection Only)": [],
+        "Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)": [],
+        "Pattern Breakdown: 🎯 VCP Coiled Spring": [],
+        "Pattern Breakdown: 🚩 Bull Flag & Pole": [],
+        "Pattern Breakdown: 🟢 Multi-Month Base": [],
+        "Pattern Breakdown: ⚡ Stage 2 Macro Base": [],
+    }
+
+    advanced_factors_accumulator = {
+        "1. Base Universe Stage-2 Setups": [],
+        "2. AVWAP Defense (Close >= 100D MaxVol VWAP)": [],
+        "3. High Closing Range Accumulation (CR >= 0.55)": [],
+        "4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)": [],
+        "5. Combined Institutional Alpha (AVWAP + CR + POC Support)": [],
+    }
+
     print("\n" + "=" * 150)
-    print("RUNNING 10-MONTH BACKTEST: SPLIT-NORMALIZED + MONTH-BY-MONTH FORENSICS + GLOBAL CONCENTRATION AUDIT")
+    print("RUNNING 10-MONTH BACKTEST: 3 SETUPS IN PIPELINE + INSTITUTIONAL CONFLUENCE (AVWAP + CR + BLACK HOLE)")
     print(f"100% Real Bhavcopy Data | Unconstrained Horizon Evaluated Forward to EOD: {latest_date_overall}")
     print("=" * 150)
 
@@ -1330,14 +1449,66 @@ def run_quarterly_backtest():
         u_end = df_all[df_all["date"] == latest_date_overall]["close"].mean()
         universe_ret = round(float(((u_end - u_start) / (u_start + 1e-5)) * 100.0), 2)
 
-        univ_above_50_pct = round(float(ranked_at_m["above_sma50"].mean() * 100.0), 1)
+        univ_above_50sma_pct = round(float(ranked_at_m["above_sma50"].mean() * 100.0), 1)
         univ_stage2_pct = round(float(ranked_at_m["stage2_aligned"].mean() * 100.0), 1)
-        if univ_above_50_pct >= 55.0:
-            mkt_regime = f"🟢 Bullish Expansion ({univ_above_50_pct:.0f}% >50SMA)"
-        elif univ_above_50_pct >= 38.0:
-            mkt_regime = f"🟡 Selective Rotation ({univ_above_50_pct:.0f}% >50SMA)"
+        if univ_above_50sma_pct >= 55.0:
+            mkt_regime = f"🟢 Bullish Expansion ({univ_above_50sma_pct:.0f}% >50SMA)"
+        elif univ_above_50sma_pct >= 38.0:
+            mkt_regime = f"🟡 Selective Rotation ({univ_above_50sma_pct:.0f}% >50SMA)"
         else:
-            mkt_regime = f"🔴 Defensive / Contraction ({univ_above_50_pct:.0f}% >50SMA)"
+            mkt_regime = f"🔴 Defensive / Contraction ({univ_above_50sma_pct:.0f}% >50SMA)"
+
+        for _, stk in ranked_at_m[ranked_at_m["stage2_aligned"]].iterrows():
+            sym_p = str(stk["symbol"])
+            s_df = symbol_groups.get(sym_p)
+            if s_df is None:
+                continue
+            fut_p = s_df[s_df["date"] >= m_start_date].reset_index(drop=True)
+            if len(fut_p) < 10:
+                continue
+
+            e_p = float(stk["close"])
+            pk_p = float(fut_p["high"].max())
+            lw_p = float(fut_p["low"].min())
+            end_p = float(fut_p["close"].iloc[-1])
+            mfe_v = ((pk_p - e_p) / e_p) * 100.0
+            mae_v = ((lw_p - e_p) / e_p) * 100.0
+            ret_v = ((end_p - e_p) / e_p) * 100.0
+
+            pat_name = str(stk.get("chart_pattern_signal", "")).strip()
+            conf_score = float(stk.get("pattern_confluence_score", 50.0))
+            poc_floor = bool(stk.get("poc_floor_support", False))
+            is_leading_sec = str(stk.get("sector_rs_status", "")) != "🔴 Lagging Sector"
+
+            avwap_supp = bool(stk.get("avwap_support", False))
+            cr_val = float(stk.get("avg_closing_range", 0.50))
+            vol_comp = float(stk.get("volatility_compression_ratio", 1.0))
+
+            advanced_factors_accumulator["1. Base Universe Stage-2 Setups"].append((mfe_v, mae_v, ret_v))
+            if avwap_supp:
+                advanced_factors_accumulator["2. AVWAP Defense (Close >= 100D MaxVol VWAP)"].append((mfe_v, mae_v, ret_v))
+            if cr_val >= 0.55:
+                advanced_factors_accumulator["3. High Closing Range Accumulation (CR >= 0.55)"].append((mfe_v, mae_v, ret_v))
+            if vol_comp <= 0.50:
+                advanced_factors_accumulator["4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)"].append((mfe_v, mae_v, ret_v))
+            if avwap_supp and cr_val >= 0.55 and poc_floor:
+                advanced_factors_accumulator["5. Combined Institutional Alpha (AVWAP + CR + POC Support)"].append((mfe_v, mae_v, ret_v))
+
+            pattern_confluence_accumulator["Cohort 1: Baseline Setups (No Pattern Required)"].append((mfe_v, mae_v, ret_v))
+
+            if pat_name:
+                pattern_confluence_accumulator["Cohort 2: Standalone Pattern (Geometric Detection Only)"].append((mfe_v, mae_v, ret_v))
+                if "VCP" in pat_name:
+                    pattern_confluence_accumulator["Pattern Breakdown: 🎯 VCP Coiled Spring"].append((mfe_v, mae_v, ret_v))
+                elif "Flag" in pat_name:
+                    pattern_confluence_accumulator["Pattern Breakdown: 🚩 Bull Flag & Pole"].append((mfe_v, mae_v, ret_v))
+                elif "Multi-Month" in pat_name:
+                    pattern_confluence_accumulator["Pattern Breakdown: 🟢 Multi-Month Base"].append((mfe_v, mae_v, ret_v))
+                elif "Macro" in pat_name:
+                    pattern_confluence_accumulator["Pattern Breakdown: ⚡ Stage 2 Macro Base"].append((mfe_v, mae_v, ret_v))
+
+            if pat_name and poc_floor and conf_score >= 65.0 and is_leading_sec:
+                pattern_confluence_accumulator["Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)"].append((mfe_v, mae_v, ret_v))
 
         for _, r_row in ranked_at_m[ranked_at_m["above_200sma"] & (ranked_at_m["close"] >= ranked_at_m["sma_50"])].iterrows():
             sym_r = str(r_row["symbol"])
@@ -1392,6 +1563,13 @@ def run_quarterly_backtest():
                 sec_life = str(stk_row.get("sector_lifecycle", "🟢 Prime Institutional Leadership"))
                 sec_mult = float(stk_row.get("sector_climax_mult", 1.0))
                 surety_val = float(stk_row.get("surety_score", 50.0))
+                poc_val = float(stk_row.get("volume_profile_poc", entry_price))
+                poc_floor = bool(stk_row.get("poc_floor_support", entry_price >= poc_val))
+                conf_score = float(stk_row.get("pattern_confluence_score", 50.0))
+                cr_val = float(stk_row.get("avg_closing_range", 0.50))
+                avwap_val = float(stk_row.get("avwap_100d_maxvol", entry_price))
+                avwap_supp = bool(stk_row.get("avwap_support", entry_price >= avwap_val))
+                vol_comp = float(stk_row.get("volatility_compression_ratio", 1.0))
 
                 today_price, today_actual_date = lookup_real_close_on_or_after(sym_df, latest_date_overall)
 
@@ -1413,7 +1591,7 @@ def run_quarterly_backtest():
                     min_pos = int(fut_slice["low"].values.argmin())
                     low_row = fut_slice.iloc[min_pos]
                     min_low = round(float(low_row["low"]), 2)
-                    max_dd_pct = round(((min_low - entry_price) / entry_price) * 100.0, 2)
+                    max_drawdown_mae_pct = round(((min_low - entry_price) / entry_price) * 100.0, 2)
 
                     trailing_exit_ret = simulate_structural_trailing_exit(
                         fut_slice,
@@ -1431,7 +1609,7 @@ def run_quarterly_backtest():
                 else:
                     peak_high, peak_date, days_to_peak, peak_gain_pct = entry_price, m_start_date, 0, 0.0
                     mfe_30d_pct, mfe_60d_pct = 0.0, 0.0
-                    min_low, max_dd_pct = entry_price, 0.0
+                    min_low, max_drawdown_mae_pct = entry_price, 0.0
                     trailing_exit_ret = 0.0
                     ideal_sim = {
                         "triggered": False,
@@ -1474,6 +1652,14 @@ def run_quarterly_backtest():
                     "mcap_tier": mcap_tier,
                     "inst_signal_at_entry": str(stk_row.get("inst_signal", "Consolidation")),
                     "chart_pattern_at_entry": combined_pattern_label,
+                    "base_chart_pattern": base_pattern,
+                    "pattern_confluence_score": conf_score,
+                    "volume_profile_poc": poc_val,
+                    "poc_floor_support": poc_floor,
+                    "avg_closing_range": cr_val,
+                    "avwap_100d_maxvol": avwap_val,
+                    "avwap_support": avwap_supp,
+                    "volatility_compression_ratio": vol_comp,
                     "sector_rs_status_at_entry": str(stk_row.get("sector_rs_status", "Normal")),
                     "sector_lifecycle_at_entry": sec_life,
                     "sector_climax_mult_at_entry": sec_mult,
@@ -1496,7 +1682,7 @@ def run_quarterly_backtest():
                     "mfe_30d_pct": mfe_30d_pct,
                     "mfe_60d_pct": mfe_60d_pct,
                     "min_low_since_entry": min_low,
-                    "max_drawdown_mae_pct": max_dd_pct,
+                    "max_drawdown_mae_pct": max_drawdown_mae_pct,
                     "today_date": today_actual_date,
                     "today_price": today_price,
                     "total_return_to_today_pct": total_return_pct,
@@ -1517,7 +1703,7 @@ def run_quarterly_backtest():
                         mcap_stats_accumulator[mcap_tier] = []
                     mcap_stats_accumulator[mcap_tier].append({
                         "mfe": peak_gain_pct,
-                        "mae": max_dd_pct,
+                        "mae": max_drawdown_mae_pct,
                         "ret": total_return_pct,
                         "trail": ideal_sim["ideal_trail_ret_pct"] if ideal_sim["triggered"] else trailing_exit_ret,
                         "zone_p": persist_sim["zone_persistence_days"],
@@ -1536,6 +1722,14 @@ def run_quarterly_backtest():
                     "sector_lifecycle": sec_life,
                     "signal_at_entry": stock_record["inst_signal_at_entry"],
                     "pattern_and_trigger": combined_pattern_label,
+                    "base_pattern": base_pattern,
+                    "pattern_confluence_score": conf_score,
+                    "volume_profile_poc": poc_val,
+                    "poc_floor_support": poc_floor,
+                    "avg_closing_range": cr_val,
+                    "avwap_100d_maxvol": avwap_val,
+                    "avwap_support": avwap_supp,
+                    "volatility_compression_ratio": vol_comp,
                     "sector_rs_at_entry": stock_record["sector_rs_status_at_entry"],
                     "surety_score": surety_val,
                     "frontrunner_score": stock_record["frontrunner_score_at_entry"],
@@ -1551,7 +1745,7 @@ def run_quarterly_backtest():
                     "day1_mfe_pct": peak_gain_pct,
                     "mfe_30d_pct": mfe_30d_pct,
                     "mfe_60d_pct": mfe_60d_pct,
-                    "day1_mae_pct": max_dd_pct,
+                    "day1_mae_pct": max_drawdown_mae_pct,
                     "today_price": today_price,
                     "day1_hold_return_pct": total_return_pct,
                     "day1_trailing_exit_pct": trailing_exit_ret,
@@ -1697,7 +1891,7 @@ def run_quarterly_backtest():
             "month": m_label,
             "signal_date": m_start_date,
             "market_regime": mkt_regime,
-            "univ_above_50sma_pct": univ_above_50_pct,
+            "univ_above_50sma_pct": univ_above_50sma_pct,
             "univ_stage2_pct": univ_stage2_pct,
             "universe_benchmark_ret_pct": universe_ret,
             "qualifying_top_6_sectors": top_qualifying_sectors,
@@ -1760,6 +1954,42 @@ def run_quarterly_backtest():
             "avg_period_ret_pct": round(float(np.mean(rets_l)), 2),
         })
 
+    pattern_audit_summary = []
+    for cohort_label, records in pattern_confluence_accumulator.items():
+        if not records:
+            continue
+        p_mfes = np.array([x[0] for x in records])
+        p_maes = np.array([x[1] for x in records])
+        p_rets = np.array([x[2] for x in records])
+        pattern_audit_summary.append({
+            "cohort": cohort_label,
+            "sample_size": len(records),
+            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2),
+            "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((p_maes >= -6.0).mean() * 100.0), 1),
+            "avg_mae_pct": round(float(np.mean(p_maes)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2),
+            "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_maes)))), 2),
+        })
+
+    advanced_factors_summary = []
+    for factor_label, records in advanced_factors_accumulator.items():
+        if not records:
+            continue
+        f_mfes = np.array([x[0] for x in records])
+        f_maes = np.array([x[1] for x in records])
+        f_rets = np.array([x[2] for x in records])
+        advanced_factors_summary.append({
+            "factor": factor_label,
+            "sample_size": len(records),
+            "avg_peak_mfe_pct": round(float(np.mean(f_mfes)), 2),
+            "hit_15pct_rate": round(float((f_mfes >= 15.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((f_maes >= -6.0).mean() * 100.0), 1),
+            "avg_mae_pct": round(float(np.mean(f_maes)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(f_rets)), 2),
+            "asymmetry_ratio": round(float(np.mean(f_mfes) / max(1.0, abs(np.mean(f_maes)))), 2),
+        })
+
     pd.DataFrame(all_csv_rows).to_csv(BACKTEST_CSV, index=False)
 
     final_json = {
@@ -1769,6 +1999,8 @@ def run_quarterly_backtest():
         "mcap_tier_summary": mcap_summary_list,
         "sector_climax_audit": sector_climax_audit_list,
         "intramonth_timing_audit": intramonth_audit,
+        "pattern_confluence_audit": pattern_audit_summary,
+        "advanced_factors_audit": advanced_factors_summary,
         "monthly_forensics": monthly_forensic_rows,
         "quarters": months_payload,
     }
@@ -1781,6 +2013,8 @@ def run_quarterly_backtest():
         "mcap_tier_summary": mcap_summary_list,
         "sector_climax_audit": sector_climax_audit_list,
         "intramonth_timing_audit": intramonth_audit,
+        "pattern_confluence_audit": pattern_audit_summary,
+        "advanced_factors_audit": advanced_factors_summary,
         "monthly_forensics": monthly_forensic_rows,
     }
     with open(BACKTEST_SUMMARY_JSON, "w") as f:
@@ -1793,7 +2027,7 @@ def run_quarterly_backtest():
     print("TABLE 1: 10-MONTH STRATEGY LEADERBOARD (20-STOCK PORTFOLIOS ACROSS ALL 10 MONTHS)")
     print("=" * 150)
     print(
-        f"{'Strategy Model':<46} | {'Peak MFE':<8} | {'PeriodRet':<9} | {'LowMAE%':<7} | {'Zone/Trnd Days':<14} || "
+        f"{'Strategy Model':<48} | {'Peak MFE':<8} | {'PeriodRet':<9} | {'LowMAE%':<7} | {'Zone/Trnd Days':<14} || "
         f"{'Conf/Filt':<9} | {'Conf MFE':<8} | {'Conf Trail':<10} | {'Conf MAE'}"
     )
     print("-" * 150)
@@ -1818,57 +2052,31 @@ def run_quarterly_backtest():
     summary_rows.sort(key=lambda x: (x["id_trail"] + x["d1_ret"] * 0.5), reverse=True)
     for r in summary_rows:
         print(
-            f"{r['name']:<46} | +{r['d1_mfe']:>5.2f}%  | {r['d1_ret']:>+7.2f}%  | {r['low_mae_pct']:>5.1f}%  | {r['persist_str']:<14} || "
+            f"{r['name']:<48} | +{r['d1_mfe']:>5.2f}%  | {r['d1_ret']:>+7.2f}%  | {r['low_mae_pct']:>5.1f}%  | {r['persist_str']:<14} || "
             f"{r['trig_str']:<9} | +{r['id_mfe']:>5.2f}%  | {r['id_trail']:>+8.2f}%  | {r['id_mae']:>6.2f}%"
         )
 
     print("\n" + "=" * 150)
-    print("TABLE 2: MONTH-BY-MONTH REGIME & ARCHITECTURE COMPARISON (TOP-DOWN SECTORS vs ABSOLUTE SCORE vs STRICT A+)")
+    print("TABLE 5: CHART PATTERN & CONFLUENCE CONFIRMATION AUDIT")
     print("=" * 150)
-    print(
-        f"{'Month':<9} | {'Market Regime (>50SMA)':<34} | {'IdxRet':<7} || "
-        f"{'TopDown10 Ret/Win/MFE':<23} || {'Absolute10 Ret/Win/MFE':<23} || {'Strict A+ (Cnt) Ret/Win/MFE/MAE'}"
-    )
+    print(f"{'Cohort / Setup Strategy':<72} | {'N':<6} | {'Peak MFE':<8} | {'>=15%':<6} | {'LowMAE%':<7} | {'Avg MAE':<8} | {'PeriodRet':<9} | {'Asymmetry'}")
     print("-" * 150)
-    for mf in monthly_forensic_rows:
-        td = mf["top_down_sector_top10"]
-        ab = mf["absolute_score_all_sectors_top10"]
-        ap = mf["strict_aplus_dynamic"]
-        td_str = f"{td['avg_hold_ret_pct']:>+6.1f}%/{td['hold_win_rate_pct']:>4.0f}%/+{td['avg_mfe_pct']:>4.1f}%"
-        ab_str = f"{ab['avg_hold_ret_pct']:>+6.1f}%/{ab['hold_win_rate_pct']:>4.0f}%/+{ab['avg_mfe_pct']:>4.1f}%"
-        ap_str = f"({ap['count']:>2d}) {ap['avg_hold_ret_pct']:>+6.1f}% (Trl:{ap['avg_trail_ret_pct']:>+5.1f}%)/{ap['hold_win_rate_pct']:>4.0f}%/+{ap['avg_mfe_pct']:>4.1f}%/{ap['avg_mae_pct']:>5.1f}%"
+    for pa in pattern_audit_summary:
         print(
-            f"{mf['month']:<9} | {mf['market_regime']:<34} | {mf['universe_benchmark_ret_pct']:>+5.1f}%  || "
-            f"{td_str:<23} || {ab_str:<23} || {ap_str}"
+            f"{pa['cohort']:<72} | {pa['sample_size']:<6} | +{pa['avg_peak_mfe_pct']:>5.2f}%  | {pa['hit_15pct_rate']:>4.1f}% | "
+            f"{pa['low_mae_surety_rate']:>5.1f}%  | {pa['avg_mae_pct']:>6.2f}%  | {pa['avg_hold_ret_pct']:>+7.2f}%  | {pa['asymmetry_ratio']:>4.2f}x"
         )
 
     print("\n" + "=" * 150)
-    print("TABLE 3: PORTFOLIO CONCENTRATION AUDIT (TOP-5 vs TOP-10 vs FORCED-20 PICKS PER MONTH)")
+    print("TABLE 6: ADVANCED INSTITUTIONAL FACTORS ABLATION AUDIT (AVWAP • CLOSING RANGE • VOLATILITY BLACK HOLE)")
     print("=" * 150)
-    print(
-        f"{'Month':<9} | {'Surety Top-5 (Ret / Trail / Win / MAE)':<38} | "
-        f"{'Surety Top-10 (Ret / Trail / Win / MAE)':<39} | "
-        f"{'Surety Forced-20 (Ret / Trail / Win / MAE)':<42} | {'Frontrunner Top-10'}"
-    )
+    print(f"{'Factor Tested':<72} | {'N':<6} | {'Peak MFE':<8} | {'>=15%':<6} | {'LowMAE%':<7} | {'Avg MAE':<8} | {'PeriodRet':<9} | {'Asymmetry'}")
     print("-" * 150)
-    for mf in monthly_forensic_rows:
-        s5 = mf["surety_anchor_top5"]
-        s10 = mf["surety_anchor_top10"]
-        s20 = mf["surety_anchor_top20"]
-        f10 = mf["momentum_frontrunner_top10"]
-        s5_s = f"{s5['avg_hold_ret_pct']:>+6.1f}% / {s5['avg_trail_ret_pct']:>+6.1f}% / {s5['hold_win_rate_pct']:>4.0f}% / {s5['avg_mae_pct']:>6.1f}%"
-        s10_s = f"{s10['avg_hold_ret_pct']:>+6.1f}% / {s10['avg_trail_ret_pct']:>+6.1f}% / {s10['hold_win_rate_pct']:>4.0f}% / {s10['avg_mae_pct']:>6.1f}%"
-        s20_s = f"{s20['avg_hold_ret_pct']:>+6.1f}% / {s20['avg_trail_ret_pct']:>+6.1f}% / {s20['hold_win_rate_pct']:>4.0f}% / {s20['avg_mae_pct']:>6.1f}%"
-        f10_s = f"{f10['avg_hold_ret_pct']:>+6.1f}% / Win:{f10['hold_win_rate_pct']:>4.0f}% / MFE:+{f10['avg_mfe_pct']:>4.1f}%"
-        print(f"{mf['month']:<9} | {s5_s:<38} | {s10_s:<39} | {s20_s:<42} | {f10_s}")
-
-    print("\n" + "=" * 150)
-    print("TABLE 4: MONTH-BY-MONTH QUALIFYING SECTORS & TOP WINNING TICKERS (JAN 2026 - OCT 2026)")
-    print("=" * 150)
-    for mf in monthly_forensic_rows:
-        secs_short = ", ".join([s[:18] for s in mf["qualifying_top_6_sectors"][:5]])
-        winners_str = ", ".join(mf["strict_aplus_dynamic"]["top_winners"] or mf["top_down_sector_top10"]["top_winners"])
-        print(f"[{mf['month']}] Sectors: {secs_short:<92} | Top: {winners_str}")
+    for fa in advanced_factors_summary:
+        print(
+            f"{fa['factor']:<72} | {fa['sample_size']:<6} | +{fa['avg_peak_mfe_pct']:>5.2f}%  | {fa['hit_15pct_rate']:>4.1f}% | "
+            f"{fa['low_mae_surety_rate']:>5.1f}%  | {fa['avg_mae_pct']:>6.2f}%  | {fa['avg_hold_ret_pct']:>+7.2f}%  | {fa['asymmetry_ratio']:>4.2f}x"
+        )
 
     print("\n" + "=" * 150)
     print(f"[✓] Saved full UI data to: {BACKTEST_JSON}")
