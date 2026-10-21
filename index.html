@@ -972,7 +972,35 @@
       </div>
     </div>
   </div>
+<div class="paywall-overlay" id="paywallOverlay">
+  <div class="paywall-card">
+    <div class="paywall-icon" id="paywallIcon">🔒</div>
+    <h2 class="paywall-title" id="paywallTitle">Institutional Alpha Terminal</h2>
+    <p class="paywall-desc" id="paywallDesc">
+      Access real-time quantitative stock screening, 50/50 ATR split entries, and multi-factor institutional playbooks.
+    </p>
 
+    <!-- State 1: Unauthenticated -> Force Google Login -->
+    <div id="paywallLoginAction" class="paywall-actions" style="display: none;">
+      <button class="sub-btn" style="width: 100%; padding: 13px; font-size: 0.92rem; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="loginWithGoogle()">
+        <span style="font-size: 1.1rem;">🌐</span> Continue with Google (Start 2-Day Free Trial)
+      </button>
+    </div>
+
+    <!-- State 2: Trial Expired -> Force Payment -->
+    <div id="paywallPaymentAction" class="paywall-actions" style="display: none;">
+      <button class="sub-btn" style="width: 100%; padding: 13px; font-size: 0.92rem; background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">
+        💳 Upgrade to Pro (₹1,499 / Year)
+      </button>
+      <button class="tactical-btn" style="width: 100%; padding: 11px; font-weight: 700; border-color: var(--card-border);" onclick="openUpiModal()">
+        ⚡ Pay via UPI QR
+      </button>
+      <div style="font-size: 0.72rem; color: var(--muted); margin-top: 6px;">
+        Instant license activation upon payment verification.
+      </div>
+    </div>
+  </div>
+</div>
   <div id="toastContainer"></div>
 
   <script>
@@ -1245,6 +1273,38 @@
       evaluateAccess();
       return true;
     }
+
+    function enforcePaywallDisplay(state) {
+  const overlay = document.getElementById('paywallOverlay');
+  const loginAction = document.getElementById('paywallLoginAction');
+  const paymentAction = document.getElementById('paywallPaymentAction');
+  const title = document.getElementById('paywallTitle');
+  const desc = document.getElementById('paywallDesc');
+  const icon = document.getElementById('paywallIcon');
+
+  if (state === 'ACTIVE') {
+    document.body.classList.remove('content-locked');
+    if (overlay) overlay.style.display = 'none';
+    return;
+  }
+
+  document.body.classList.add('content-locked');
+  if (overlay) overlay.style.display = 'flex';
+
+  if (state === 'AUTH_REQUIRED') {
+    if (icon) icon.textContent = "👋";
+    if (title) title.textContent = "Welcome to NSE Alpha Pro";
+    if (desc) desc.textContent = "Sign in to unlock your complimentary 2-day institutional trial with full access to 50/50 ATR split entries and momentum setups.";
+    if (loginAction) loginAction.style.display = 'flex';
+    if (paymentAction) paymentAction.style.display = 'none';
+  } else if (state === 'TRIAL_EXPIRED') {
+    if (icon) icon.textContent = "⏳";
+    if (title) title.textContent = "Your 2-Day Trial Has Expired";
+    if (desc) desc.textContent = "Your free trial period has concluded. Upgrade to Pro to continue accessing live quantitative scans, RS matrices, and institutional setups.";
+    if (loginAction) loginAction.style.display = 'none';
+    if (paymentAction) paymentAction.style.display = 'flex';
+  }
+}
 
     async function loginWithGoogle() {
       const { error } = await sb.auth.signInWithOAuth({
