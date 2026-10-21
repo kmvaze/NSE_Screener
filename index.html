@@ -1314,54 +1314,37 @@
       }
     }
 
-  async function fetchSecureScreenerData() {
-  // Ensure we have a valid, active session and token
-  let { data: { session } } = await sb.auth.getSession();
+async function fetchSecureScreenerData() {
+  const { data: { session } } = await sb.auth.getSession();
   
   if (!session) {
     updateAuthUI();
     return null;
   }
 
-  // If token is close to expiry, refresh it
-  if (session.expires_at && (session.expires_at * 1000 - Date.now() < 60000)) {
-    const refreshed = await sb.auth.refreshSession();
-    if (refreshed.data.session) {
-      session = refreshed.data.session;
-    }
-  }
-
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-endpoint`, {
-      method: 'GET',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
-      }
+    // sb.functions.invoke handles headers, apikey, and session tokens automatically
+    const { data, error } = await sb.functions.invoke('dynamic-endpoint', {
+      method: 'GET'
     });
 
-    const result = await response.json().catch(() => ({}));
-
-    if (response.status === 401) {
-      console.warn("[Client] 401 Unauthorized details:", result);
+    if (error) {
+      console.warn("[Functions Error]", error);
+      // If error contains trial expired status
+      if (error.context?.status === 403) {
+        enforcePaywallDisplay('TRIAL_EXPIRED');
+      }
       return null;
     }
 
-    if (response.status === 403) {
-      console.warn("[Client] 403 Trial Expired:", result);
-      enforcePaywallDisplay('TRIAL_EXPIRED');
-      return null;
-    }
-
-    if (!response.ok) {
-      throw new Error(result.details || result.message || `Server status ${response.status}`);
+    if (!data) {
+      throw new Error("No data returned from endpoint.");
     }
 
     enforcePaywallDisplay('ACTIVE');
-    return result;
+    return data;
   } catch (err) {
-    console.error("Failed to load screener data:", err);
+    console.error("Failed to load screener data via invoke:", err);
     return null;
   }
 }
