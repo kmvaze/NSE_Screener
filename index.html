@@ -1271,7 +1271,7 @@
 
   // 2. Call the secure Edge Function passing the JWT Bearer Token
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/get-screener-data`, {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-endpoint`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
