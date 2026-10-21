@@ -1315,48 +1315,48 @@
     }
 
     async function fetchSecureScreenerData() {
-  const { data: { session } } = await sb.auth.getSession();[cite: 2]
-  
-  if (!session) {
-    // Unauthenticated: Keep top-right button active, do not lock screen with popup
-    updateAuthUI();[cite: 2]
-    return null;
-  }
-
-  try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/get-screener-data`, {[cite: 2]
-      method: 'GET',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,[cite: 2]
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
+      const { data: { session } } = await sb.auth.getSession();
+      
+      if (!session) {
+        // Unauthenticated: Keep top-right button active, do not lock screen with popup
+        updateAuthUI();
+        return null;
       }
-    });
 
-    if (response.status === 401) {
-      console.warn("Session expired. Please sign in via the top-right button.");[cite: 2]
-      return null;
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-endpoint`, {
+          method: 'GET',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          console.warn("Session expired. Please sign in via the top-right button.");
+          return null;
+        }
+
+        if (response.status === 403) {
+          // 2-Day trial has expired: Trigger payment modal
+          enforcePaywallDisplay('TRIAL_EXPIRED');
+          return null;
+        }
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.message || `Server status ${response.status}`);
+        }
+
+        // Success: Hide any overlay
+        enforcePaywallDisplay('ACTIVE');
+        return await response.json();
+      } catch (err) {
+        console.error("Failed to load screener data:", err);
+        return null;
+      }
     }
-
-    if (response.status === 403) {
-      // 2-Day trial has expired: Trigger payment modal
-      enforcePaywallDisplay('TRIAL_EXPIRED');
-      return null;
-    }
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.message || `Server status ${response.status}`);
-    }
-
-    // Success: Hide any overlay
-    enforcePaywallDisplay('ACTIVE');
-    return await response.json();
-  } catch (err) {
-    console.error("Failed to load screener data:", err);
-    return null;
-  }
-}
 
     async function init() {
       try {
