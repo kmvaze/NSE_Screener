@@ -1187,11 +1187,13 @@
 
       const urlParams = new URLSearchParams(window.location.search);
       const errorDescription = urlParams.get('error_description');
-      if (errorDescription) {
-        console.error("OAuth Error from provider:", errorDescription);
-        showToast("Google Login Error: " + errorDescription);
-        return false;
-      }
+      // Only bypasses if you explicitly visit: http://localhost:8000/?dev_mode=true
+  if (urlParams.get('dev_mode') === 'true' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    currentUser = { id: "local-dev-user", email: "developer@local.test" };
+    userProfile = { is_pro: true, trial_ends_at: "2099-01-01" };
+    updateAuthUI();
+    return true;
+  }
 
       let { data: { session }, error: sessionErr } = await sb.auth.getSession();
       
@@ -1257,6 +1259,56 @@
       }
     }
 
+    async function fetchSecureScreenerData() {
+  // 1. Check if user has an active Supabase session
+  const { data: { session } } = await sb.auth.getSession();
+  
+  if (!session) {
+    console.warn("No active auth session found. Locking screener.");
+    enforcePaywallDisplay('AUTH_REQUIRED');
+    return null;
+  }
+
+  // 2. Call the secure Edge Function passing the JWT Bearer Token
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/get-screener-data`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // 3. Handle unauthenticated / session expired
+    if (response.status === 401) {
+      console.warn("Session unauthorized or token expired.");
+      enforcePaywallDisplay('AUTH_REQUIRED');
+      return null;
+    }
+
+    // 4. Handle 2-day trial expired (and not pro)
+    if (response.status === 403) {
+      const errData = await response.json().catch(() => ({}));
+      console.warn("Trial expired:", errData.message);
+      enforcePaywallDisplay('TRIAL_EXPIRED');
+      return null;
+    }
+
+    // 5. Handle any server error
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Server returned status ${response.status}`);
+    }
+
+    // 6. Return verified dashboard payload
+    return await response.json();
+  } catch (err) {
+    console.error("Failed to load screener data from secure function:", err);
+    showToast("Error loading data: " + err.message);
+    return null;
+  }
+}
+
     async function init() {
       try {
         const hasAccess = await enforceAccessControl();
@@ -1266,23 +1318,37 @@
         }
 
         sb.auth.onAuthStateChange(async (event, session) => {
-          if (session) {
-            currentUser = session.user;
-            await fetchUserProfile(currentUser.id);
-          } else {
-            currentUser = null;
-            userProfile = null;
-          }
-          updateAuthUI();
-        });
+  if (event === 'SIGNED_IN' && session) {
+    currentUser = session.user;
+    updateAuthUI();
+    // Refetch the data now that the user is authenticated
+    await init();
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    userProfile = null;
+    updateAuthUI();
+    enforcePaywallDisplay('AUTH_REQUIRED');
+  }
+});
 
-        const [dashRes, priceRes, btRes] = await Promise.all([
-          fetch(`./dashboard_data.json?t=${Date.now()}`).catch(() => ({ ok: false })),
-          fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
-          fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
-        ]);
-        if (!dashRes.ok) throw new Error("Failed to load dashboard data");
-        const data = await dashRes.json();
+        // New secure flow in init():
+const data = await fetchSecureScreenerData();
+
+// If access is locked (no login or trial expired), stop initialization immediately
+if (!data) {
+  document.getElementById('asOfBadge').textContent = "Access Restricted";
+  document.getElementById('stockCountBadge').textContent = "0 Stocks";
+  return;
+}
+
+// User is verified and entitled to the data!
+enforcePaywallDisplay('ACTIVE');
+
+// Load supporting visual histories (price history and backtest caches)
+const [priceRes, btRes] = await Promise.all([
+  fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
+  fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
+]);
         
         try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
         try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
