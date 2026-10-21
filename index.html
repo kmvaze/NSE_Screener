@@ -1316,10 +1316,10 @@
 
   async function fetchSecureScreenerData() {
   // Ensure we have a valid, active session and token
-  let { data: { session } } = await sb.auth.getSession();[cite: 6]
+  let { data: { session } } = await sb.auth.getSession();
   
   if (!session) {
-    updateAuthUI();[cite: 6]
+    updateAuthUI();
     return null;
   }
 
@@ -1335,9 +1335,9 @@
     const response = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-endpoint`, {
       method: 'GET',
       headers: {
-        'apikey': SUPABASE_ANON_KEY,[cite: 6]
-        'Authorization': `Bearer ${session.access_token}`,[cite: 6]
-        'Content-Type': 'application/json'[cite: 6]
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
       }
     });
 
@@ -1350,7 +1350,7 @@
 
     if (response.status === 403) {
       console.warn("[Client] 403 Trial Expired:", result);
-      enforcePaywallDisplay('TRIAL_EXPIRED');[cite: 6]
+      enforcePaywallDisplay('TRIAL_EXPIRED');
       return null;
     }
 
@@ -1358,7 +1358,7 @@
       throw new Error(result.details || result.message || `Server status ${response.status}`);
     }
 
-    enforcePaywallDisplay('ACTIVE');[cite: 6]
+    enforcePaywallDisplay('ACTIVE');
     return result;
   } catch (err) {
     console.error("Failed to load screener data:", err);
