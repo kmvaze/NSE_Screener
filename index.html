@@ -986,7 +986,7 @@
     <div class="paywall-icon">⏳</div>
     <h2 class="paywall-title">Institutional Access</h2>
     <p class="paywall-desc" id="paywallModalDesc">
-      Your 2-day trial has concluded. Upgrade to Pro or sign in with your active account to continue.
+      Upgrade to Pro or sign in with your active account to continue.
     </p>
 
     <!-- Payment & Login Actions -->
@@ -1213,6 +1213,7 @@
       const hostname = window.location.hostname;
       if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || window.location.protocol === 'file:') {
         currentUser = { id: "local-dev-user", email: "developer@local.test" };
+        userProfile = { is_pro: true, trial_ends_at: "2099-01-01" };
         updateAuthUI();
         return true; 
       }
@@ -1315,6 +1316,21 @@
     }
 
 async function fetchSecureScreenerData() {
+  const hostname = window.location.hostname;
+  
+  // Localhost / Development Bypass: Load dashboard_data.json from the same root level
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || window.location.protocol === 'file:') {
+    try {
+      const localRes = await fetch(`./dashboard_data.json?t=${Date.now()}`);
+      if (localRes.ok) {
+        enforcePaywallDisplay('ACTIVE');
+        return await localRes.json();
+      }
+    } catch (e) {
+      console.warn("Local dashboard_data.json not found in root directory.");
+    }
+  }
+
   const { data: { session } } = await sb.auth.getSession();
   
   if (!session) {
@@ -1323,14 +1339,12 @@ async function fetchSecureScreenerData() {
   }
 
   try {
-    // sb.functions.invoke handles headers, apikey, and session tokens automatically
     const { data, error } = await sb.functions.invoke('dynamic-endpoint', {
       method: 'GET'
     });
 
     if (error) {
       console.warn("[Functions Error]", error);
-      // If error contains trial expired status
       if (error.context?.status === 403) {
         enforcePaywallDisplay('TRIAL_EXPIRED');
       }
