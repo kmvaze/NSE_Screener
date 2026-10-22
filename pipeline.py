@@ -7,6 +7,8 @@ import zipfile
 from datetime import date, datetime, timedelta
 import pandas as pd
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -14,6 +16,8 @@ CSV_STORE = os.path.join(DATA_DIR, "csv_store")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
+
+
 
 os.makedirs(CSV_STORE, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -1092,12 +1096,43 @@ def run_screener_engine():
         "sector_rs_history": sector_rs_history,
         "stocks": output_stocks,
     }
-
     with open(OUTPUT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
     print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with 4 Finalized Strategies & 50/50 ATR Split Entries.")
 
+    # Upload the newly created file to Supabase secure-quant bucket
+    upload_dashboard_to_supabase(OUTPUT_JSON)
+
+from supabase import create_client
+
+
+def upload_dashboard_to_supabase(json_path: str):
+    supabase_url = os.environ.get("SUPABASE_URL", "https://ydjzbwkaxwcfkqzfndum.supabase.co")
+    # MUST be the service_role key, NOT the anon key, to allow server write operations
+    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not service_role_key:
+        print("[!] SUPABASE_SERVICE_ROLE_KEY environment variable not set. Skipping upload.")
+        return
+
+    try:
+        supabase = create_client(supabase_url, service_role_key)
+
+        with open(json_path, "rb") as f:
+            # Overwrites dashboard_data.json in your storage bucket
+            supabase.storage.from_("secure-quant").upload(
+                path="dashboard_data.json",
+                file=f,
+                file_options={"cache-control": "300", "upsert": "true"},
+            )
+        print("[✓] Successfully uploaded latest dashboard_data.json to Supabase Storage.")
+    except Exception as e:
+        print(f"[!] Failed to upload to Supabase Storage: {e}")
 
 if __name__ == "__main__":
     run_screener_engine()
+
+        
+
+        

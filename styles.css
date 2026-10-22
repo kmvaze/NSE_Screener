@@ -317,3 +317,121 @@ tr.stock-row:hover { background: rgba(56, 189, 248, 0.06); }
 .tour-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: 0 0 16px 0; }
 .tour-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 12px; }
 .tour-nav-btns { display: flex; gap: 6px; }
+/* ============================================================================
+   PAYWALL LOCK SCREEN STYLING (ELEGANT CENTERED GLASS CARD)
+   ============================================================================ */
+.paywall-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(3, 7, 18, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 20000;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.paywall-card {
+  background: var(--card-bg);
+  border: 1px solid var(--accent);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 35px var(--accent-glow);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+  text-align: center;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.paywall-icon {
+  font-size: 2.4rem;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+
+.paywall-title {
+  margin: 0 0 8px 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.paywall-desc {
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+}
+
+.paywall-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+body.content-locked {
+  overflow: hidden !important;
+}
+/* ============================================================================
+   RESPONSIVE MOBILE BREAKPOINTS (< 768px and < 480px)
+   ============================================================================ */
+@media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .header-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+  #authContainer, #userProfileContainer {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  .landing-hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .factor-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .factor-box[style*="grid-column: span 2"] {
+    grid-column: span 2 !important;
+  }
+  .bt-forensic-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .bt-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+  .factor-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .factor-box[style*="grid-column: span 2"] {
+    grid-column: span 1 !important;
+  }
+  .bt-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .unified-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-group {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .toolbar-group select, .toolbar-group input, .toolbar-group button {
+    flex: 1;
+  }
+}

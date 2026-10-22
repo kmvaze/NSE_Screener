@@ -7,6 +7,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let userProfile = null;
+let isAuthListenerAttached = false;
 
 const NIFTY_50_SET = new Set([
   "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", 
@@ -244,6 +245,14 @@ function updateUIAfterFilter() {
     return appState.sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
   });
 
+  // --- UPDATE ARROWS ON TABLE HEADERS ---
+  const arrowSpans = document.querySelectorAll('#mainStockTable thead th span[id^="sort_"]');
+  arrowSpans.forEach(span => { span.textContent = ''; });
+  const activeSortSpan = document.getElementById(`sort_${appState.sortCol}`);
+  if (activeSortSpan) {
+    activeSortSpan.textContent = appState.sortAsc ? ' ▲' : ' ▼';
+  }
+
   appState.currentPage = 1;
   renderTablePage();
   updateGlobalBadge();
@@ -297,7 +306,7 @@ async function enforceAccessControl() {
   let { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
 
   if (profileErr || !profile) {
-    const trialDays = 5; 
+    const trialDays = 2; 
     const trialEnds = new Date();
     trialEnds.setDate(trialEnds.getDate() + trialDays);
 
@@ -319,6 +328,7 @@ async function enforceAccessControl() {
 
   userProfile = profile;
   evaluateAccess();
+  await loadCloudWatchlist();
   return true;
 }
 
@@ -414,19 +424,21 @@ async function init() {
       return;
     }
 
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        currentUser = session.user;
-        updateAuthUI();
-        // Refetch the data now that the user is authenticated
-        await init();
-      } else if (event === 'SIGNED_OUT') {
-        currentUser = null;
-        userProfile = null;
-        updateAuthUI();
-        enforcePaywallDisplay('AUTH_REQUIRED');
-      }
-    });
+if (!isAuthListenerAttached) {
+      isAuthListenerAttached = true;
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session && (!currentUser || currentUser.id !== session.user.id)) {
+          currentUser = session.user;
+          updateAuthUI();
+          await init();
+        } else if (event === 'SIGNED_OUT') {
+          currentUser = null;
+          userProfile = null;
+          updateAuthUI();
+          enforcePaywallDisplay('AUTH_REQUIRED');
+        }
+      });
+    }
 
     // New secure flow in init():
     const data = await fetchSecureScreenerData();

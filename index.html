@@ -4,7 +4,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script src="./quant_engine.js"></script>
   <script src="./ui_controller.js"></script>
   <meta charset="UTF-8" />
@@ -181,11 +180,7 @@
         <h3 style="margin:0; font-size:0.95rem; color:var(--accent);">📊 Sector Relative Strength (RS) Spread Chart</h3>
         <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
           <div>
-            <label style="font-size: 0.75rem; color: var(--muted);">Baseline Index:</label>
-            <select id="baselineIndexSelect" onchange="renderSectorRsChart()">
-              <option value="Nifty 500" selected>Nifty 500 Benchmark</option>
-              <option value="Nifty 50">Nifty 50 Benchmark</option>
-            </select>
+            <span class="badge" style="border-color: var(--card-border); color: var(--muted);">Baseline: <strong>Nifty 500 Benchmark (0.00%)</strong></span>
           </div>
           <div style="display: flex; gap: 6px;">
             <button class="reset-btn" onclick="selectTopSectors(5)">Top 5</button>
@@ -680,7 +675,7 @@
         </button>
 
         <button class="sub-btn" id="modalRazorpayBtn" style="width: 100%; padding: 13px; font-size: 0.92rem; background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">
-          💳 Upgrade to Pro (₹1,499 / Month)
+          💳 Upgrade to Pro (₹1,499 / Year)
         </button>
         <button class="tactical-btn" id="modalUpiBtn" style="width: 100%; padding: 11px; font-weight: 700; border-color: var(--card-border);" onclick="openUpiModal()">
           ⚡ Pay via UPI QR

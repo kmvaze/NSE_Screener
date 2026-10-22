@@ -951,7 +951,7 @@ function clearAllSectors() {
 function renderSectorRsChart() {
   const ctx = document.getElementById('sectorRsChartCanvas');
   if (!ctx) return;
-  const baseline = document.getElementById('baselineIndexSelect')?.value || 'Nifty 500';
+  const baseline = 'Nifty 500 Benchmark';
   const sectorsToPlot = appState.sectors.filter(s => appState.selectedChartSectors.includes(s.sector));
   let labels = [];
   let datasets = [];
@@ -1150,29 +1150,31 @@ function renderSectorDrilldown(sectorName) {
   renderStockRsChart();
 
   tbody.innerHTML = secStocks.map(st => {
-    const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
-    const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
-    const rsStatusText = st.rs_line_status && st.rs_line_status !== "Normal RS" ? st.rs_line_status : "";
+        const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
+        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+        const sectorRsText = st.sector_rs_status || '🟢 Outperforming Sector';
+        const marketRsText = st.rs_line_status || '—';
+        const activeScore = getStrategyScore(st, appState.strategyMode).toFixed(1);
 
-    return `
-      <tr class="stock-row" onclick='openStockModal(${JSON.stringify(st)})'>
-        <td style="text-align: center;" onclick="event.stopPropagation()">
-          <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
-        </td>
-        <td><strong>${st.symbol}</strong></td>
-        <td>${st.sector}</td>
-        <td>₹${Number(st.close).toFixed(2)}</td>
-        <td><span class="pill pill-buyzone">${st.inst_signal}</span></td>
-        <td><b>${st.score_surety_anchor ?? st.surety_score ?? '--'}</b></td>
-        <td><b>${st.iasis_score ?? '--'}</b></td>
-        <td>${patternText}</td>
-        <td>${rsStatusText}</td>
-        <td>${st.rs_line_status || ''}</td>
-        <td>${st.risk_reward_ratio || 3.0}:1</td>
-        <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
-      </tr>
-    `;
-  }).join('');
+        return `
+          <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
+            <td style="text-align: center;" onclick="event.stopPropagation()">
+              <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+            </td>
+            <td><strong>${st.symbol}</strong></td>
+            <td>${st.sector}</td>
+            <td>₹${Number(st.close).toFixed(2)}</td>
+            <td><span class="pill pill-buyzone">${st.inst_signal}</span></td>
+            <td><b>${activeScore}</b></td>
+            <td><b>${st.iasis_score ?? '--'}</b></td>
+            <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
+            <td><span style="color:var(--green); font-weight:600;">${sectorRsText}</span></td>
+            <td><span style="color:var(--accent); font-weight:600;">${marketRsText}</span></td>
+            <td>${st.risk_reward_ratio || 3.0}:1</td>
+            <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
+          </tr>
+        `;
+      }).join('');
 
   updateGlobalBadge();
 }
@@ -1205,6 +1207,13 @@ function renderWatchlistPage() {
         <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
       `;
       tr.onclick = () => openStockModal(st);
+    } else {
+      tr.innerHTML = `
+        <td style="text-align: center;" onclick="event.stopPropagation()"><button class="star-btn starred" onclick="toggleWatchlist('${sym}', event)">⭐</button></td>
+        <td><strong>${sym}</strong></td>
+        <td colspan="6" style="color: var(--muted); font-style: italic;">Ticker not present in current active Bhavcopy universe</td>
+        <td onclick="event.stopPropagation()"><button class="reset-btn" onclick="toggleWatchlist('${sym}', event)">Remove</button></td>
+      `;
     }
     tbody.appendChild(tr);
   });
@@ -1256,7 +1265,7 @@ function filterCmdResults(query) {
     div.className = 'cmd-item';
     div.innerHTML = `
       <div><b>${st.symbol}</b> <span style="color:var(--muted); font-size:0.75rem;">${st.company_name}</span></div>
-      <div><span class="pill" style="background:#131c31; color:var(--accent);">${st.inst_signal}</span></div>
+      <div><span class="pill" style="background: rgba(56, 189, 248, 0.14); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">${st.inst_signal}</span></div>
     `;
     div.onclick = () => { closeCmdPalette(); openStockModal(st); };
     resContainer.appendChild(div);
@@ -1452,4 +1461,5 @@ function endProductTour() {
   document.getElementById('tourBackdrop').style.display = 'none';
   document.getElementById('tourPopover').style.display = 'none';
   localStorage.setItem('nse_alpha_tour_completed', 'true');
+  switchTab('landing');
 }
