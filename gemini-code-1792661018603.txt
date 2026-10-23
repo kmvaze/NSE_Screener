@@ -1,0 +1,16 @@
+Equity_Analyzer_Website/
+├── .env
+├── index.html
+├── styles.css
+├── quant_engine.js
+├── ui_controller.js
+├── pipeline.py
+├── backtest.py
+├── dashboard_data.json
+├── backtest_data.json
+├── backtest_summary.json
+└── data/
+    ├── metadata_master.csv
+    ├── price_history.json
+    ├── backtest_results.csv
+    └── csv_store/

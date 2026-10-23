@@ -347,6 +347,26 @@
     </div>
 
     <div id="btContentWrapper" style="display: none;">
+      <div id="btDualMethodCard" style="background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 14px; padding: 18px; margin-bottom: 20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
+        <div>
+          <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 Institutional Win Rate & Capital Expectancy Models</h3>
+          <span style="font-size:0.75rem; color:var(--muted);">Empirical backtest analysis based on Peak MFE expansion vs. ATR structural risk clamps</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="tactical-btn active" id="btnMethod3" onclick="switchBacktestWinMethod(3)">
+            ⚡ Method 3: 50:50 Staggered Entry (Recommended)
+          </button>
+          <button class="tactical-btn" id="btnMethod2" onclick="switchBacktestWinMethod(2)">
+            🛡️ Method 2: Stress-Tested vs Max ATR
+          </button>
+        </div>
+      </div>
+
+      <div id="btMethodDisplayContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+        <!-- Populated dynamically by ui_controller.js -->
+      </div>
+    </div>
       <div class="bt-summary-grid">
         <div class="bt-stat-card">
           <div class="bt-stat-label">Point-in-Time Signal Date</div>

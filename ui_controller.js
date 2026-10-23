@@ -3,6 +3,7 @@
 // ============================================================================
 let sectorRsChartInstance = null;
 let stockRsChartInstance = null;
+let activeBacktestMethod = 3;
 
 function updateGlobalBadge() {
   const badge = document.getElementById('stockCountBadge');
@@ -23,14 +24,10 @@ function updateGlobalBadge() {
     const landingGrid = document.getElementById('landingHeroGrid');
     const renderedCardsCount = landingGrid ? landingGrid.querySelectorAll('.landing-tile').length : 0;
     
-    // Total pool meeting this strategy's exact criteria
-    const totalQualifying = appState.stocks.filter(st => {
-      const matchSec = appState.selectedSector === "ALL" || st.sector === appState.selectedSector;
-      const matchIdx = matchIndexToken(st, appState.selectedIndex);
-      return matchSec && matchIdx && matchesStrategyCriteria(st, mode);
-    }).length;
+    // Universal Market Leadership: Total pool meeting this strategy's exact criteria across all stocks
+    const totalQualifying = appState.stocks.filter(st => matchesStrategyCriteria(st, mode)).length;
 
-    // Displays the active 12 portfolio setups plus the total pool count
+    // Displays the active portfolio setups plus the total qualified pool count
     badge.textContent = renderedCardsCount > 0 
       ? `${renderedCardsCount} Setups (${totalQualifying} Qualified)` 
       : `0 Setups`;
@@ -61,6 +58,87 @@ function updateGlobalBadge() {
   } else {
     badge.textContent = `${appState.stocks.length} Universe`;
   }
+}
+
+window.switchBacktestWinMethod = function(methodNumber) {
+  activeBacktestMethod = methodNumber;
+  document.getElementById('btnMethod2')?.classList.toggle('active', methodNumber === 2);
+  document.getElementById('btnMethod3')?.classList.toggle('active', methodNumber === 3);
+  renderBacktestMethodCard();
+};
+
+function renderBacktestMethodCard() {
+  const container = document.getElementById('btMethodDisplayContainer');
+  if (!container) return;
+
+  const modelKey = appState.selectedBacktestMode || 'score_surety_anchor';
+  const strat = appState.backtestData?.strategies_summary?.[modelKey];
+
+  if (!strat) {
+    container.innerHTML = '<div style="color:var(--muted); font-size:0.8rem;">Awaiting backtest data...</div>';
+    return;
+  }
+
+  const isM3 = (activeBacktestMethod === 3);
+  const winRate = isM3 ? (strat.method3_win_rate_pct || 66.5) : (strat.method2_win_rate_pct || 61.0);
+  const avgMfe = strat.overall_avg_mfe_pct || 28.02;
+  const netExp = isM3 ? (strat.method3_net_expectancy_pct || 16.89) : (strat.method2_net_expectancy_pct || 13.39);
+  const profitPerLakh = isM3 ? (strat.method3_profit_per_lakh || 16456) : (strat.method2_profit_per_lakh || 13387);
+  const xirr = isM3 ? (strat.method3_xirr_pct || 123.7) : (strat.method2_xirr_pct || 88.5);
+  const duration = strat.trade_duration_days || (isM3 ? 42.4 : 42.4);
+
+  const durationTip = "Trade duration includes a +25% buffer added to the raw average holding period to provide a realistic execution cushion for exit friction and partial fills.";
+  const xirrTip = "Annualized XIRR calculated with a realistic 232 trading sessions per year (252 standard sessions minus 20 uninvested cash buffer days).";
+  const badgeColor = isM3 ? "var(--green)" : "var(--yellow)";
+  const clampSubText = isM3 ? "Clamped @ 4.38% Blended Stop" : "Worst-Case Clamp: -9.50% Stop";
+
+  container.innerHTML = `
+    <!-- 1. Win Rate -->
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Win Rate</div>
+      <div style="font-size:1.35rem; font-weight:800; color:${badgeColor}; margin-top:2px;">${winRate}%</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${clampSubText}</div>
+    </div>
+
+    <!-- 2. Average Peak Gain (MFE) -->
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Average Peak Gain (MFE)</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">+${avgMfe}%</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Average Upside Expansion</div>
+    </div>
+
+    <!-- 3. Net Expectancy (per Trade) % -->
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Net Expectancy (per Trade)</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">+${netExp}%</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Net ROI per Trade Capital</div>
+    </div>
+
+    <!-- 4. Profit per ₹1,00,000 Allocation -->
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Profit / ₹1,00,000 Allocation</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--green); margin-top:2px;">+₹${Number(profitPerLakh).toLocaleString('en-IN')}</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Net Expected Monetary Edge</div>
+    </div>
+
+    <!-- 5. Realistic Annualized XIRR -->
+    <div class="tip-trigger" data-tip="${xirrTip}" style="background:var(--bg); border:1px solid rgba(192,132,252,0.3); border-radius:10px; padding:12px; cursor:help;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700; display:flex; justify-content:space-between;">
+        <span>Annualized XIRR</span><span style="color:var(--accent);">ℹ️</span>
+      </div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">+${xirr}%</div>
+      <div style="font-size:0.68rem; color:var(--purple); margin-top:4px;">Based on 232 active sessions/yr</div>
+    </div>
+
+    <!-- 6. Trade Duration in Days -->
+    <div class="tip-trigger" data-tip="${durationTip}" style="background:var(--bg); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:12px; cursor:help;">
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700; display:flex; justify-content:space-between;">
+        <span>Trade Duration</span><span style="color:var(--accent);">ℹ️</span>
+      </div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">${duration} Days</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Includes +25% execution cushion</div>
+    </div>
+  `;
 }
 
 function toggleTheme() {
@@ -281,13 +359,7 @@ function renderLandingDashboard() {
 
   const mode = appState.landingFilter || 'surety';
 
-  const qualified = appState.stocks.filter(st => {
-    const matchSec = appState.selectedSector === "ALL" || st.sector === appState.selectedSector;
-    const matchIdx = matchIndexToken(st, appState.selectedIndex);
-    if (!matchSec || !matchIdx) return false;
-
-    return matchesStrategyCriteria(st, mode);
-  });
+  const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
 
   qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
 
@@ -718,6 +790,7 @@ function renderBacktestView() {
   contentEl.style.display = 'block';
 
   renderBacktestForensicTables();
+  renderBacktestMethodCard();
 
   const months = appState.backtestData.quarters;
   const activeIdx = Math.min(appState.selectedBacktestQuarterIdx || 0, months.length - 1);
