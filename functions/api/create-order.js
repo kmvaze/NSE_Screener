@@ -1,7 +1,7 @@
 export async function onRequestPost() {
   // Hardcode for testing - remove before final production
-  const keyId = "rzp_test_TrPlayU2sCwVm1".trim(); // Paste your actual Key ID here
-  const keySecret = "1cnvRJDuVQ9DzA2hqQ4Lk8F2".trim(); // Paste your actual Secret here
+  const keyId = "rzp_live_Trdtyh6l3mOHtP".trim(); // Paste your actual Key ID here
+  const keySecret = "3mLzpP3p0HG3lQN1bdtlstmd".trim(); // Paste your actual Secret here
   
   const auth = btoa(`${keyId}:${keySecret}`);
   
