@@ -559,33 +559,54 @@ function evaluateAccess() {
   }
 }
 
-function payWithRazorpay() {
+async function payWithRazorpay() {
+  if (!currentUser) {
+    showToast("Please log in first.");
+    return;
+  }
+
+  // Fetch the secure order ID from Cloudflare Pages
+  const orderReq = await fetch('/api/create-order', { method: 'POST' });
+  const orderData = await orderReq.json();
+
+  if (!orderData.id) {
+    showToast("Failed to initiate payment. Please try again.");
+    return;
+  }
+
   const options = {
-    "key": "rzp_test_TpfjUTD4P3yYtu", 
-    "amount": 149900,
-    "currency": "INR",
+    "key": "rzp_test_TpfjUTD4P3yYtu", // Replace with your live key in production
+    "amount": orderData.amount,
+    "currency": orderData.currency,
     "name": "NSE Alpha Pro",
     "description": "1 Year Institutional Access",
-    "handler": async function (response){
-      const paymentId = response.razorpay_payment_id;
-      const oneYearFromNow = new Date();
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+    "order_id": orderData.id, // Pass the server-generated order ID
+    "handler": async function (response) {
+      showToast("Verifying payment securely...");
+      
+      // Send keys to Cloudflare for secure backend verification
+      const verifyReq = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+          user_id: currentUser.id
+        })
+      });
 
-      const { error } = await sb.from('profiles').update({
-        is_pro: true,
-        pro_expires_at: oneYearFromNow.toISOString(),
-        razorpay_payment_id: paymentId
-      }).eq('id', currentUser.id);
+      const verifyData = await verifyReq.json();
 
-      if (!error) {
-        showToast("Payment successful! Pro access granted for 1 year 🎉");
-        location.reload();
+      if (verifyData.success) {
+        showToast("Payment verified! Pro access granted for 1 year 🎉");
+        setTimeout(() => location.reload(), 1500);
       } else {
-        showToast("Error updating subscription status. Contact support.");
+        showToast("Payment verification failed. Contact support.");
       }
     },
     "prefill": {
-      "email": currentUser ? currentUser.email : ""
+      "email": currentUser.email
     },
     "theme": {
       "color": "#38bdf8"
