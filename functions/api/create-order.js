@@ -1,6 +1,9 @@
 export async function onRequestPost({ env }) {
-  // Use the env variables if you updated them, or hardcode them to test
-  const auth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_API_SECRET}`);
+  // Forcefully remove invisible spaces and newlines from the dashboard variables
+  const keyId = env.RAZORPAY_KEY_ID.trim();
+  const keySecret = env.RAZORPAY_API_SECRET.trim();
+  
+  const auth = btoa(`${keyId}:${keySecret}`);
   
   const response = await fetch("https://api.razorpay.com/v1/orders", {
     method: "POST",
@@ -13,7 +16,6 @@ export async function onRequestPost({ env }) {
   
   const data = await response.json();
   
-  // If Razorpay rejects it, return the exact error message with a 500 status
   if (!response.ok) {
     return new Response(JSON.stringify({ razorpay_rejection: data }), { 
       status: 500,
