@@ -70,8 +70,9 @@
         <p style="font-size: 0.8rem; color: var(--muted); margin: 0;">Institutional high-conviction setups evaluated strictly on raw Bhavcopy feeds with verified volatility compression and delivery flow.</p>
       </div>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <span style="font-size: 0.74rem; font-weight: 800; color: var(--accent); text-transform: uppercase;">4 Strategies:</span>
-        <button class="tactical-btn active" id="btnLandingSurety" onclick="setLandingFilter('surety')">🛡️ 1. Surety Anchor</button>
+        <span id="landingGridRegimeLabel" style="font-size: 0.74rem; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-right: 4px;">Dynamic Mix</span>
+        <button class="tactical-btn active" id="btnLandingDynamic" onclick="setLandingFilter('dynamic')">⚡ Dynamic Mix</button>
+        <button class="tactical-btn" id="btnLandingSurety" onclick="setLandingFilter('surety')">🛡️ 1. Surety Anchor</button>
         <button class="tactical-btn" id="btnLandingMomentum" onclick="setLandingFilter('momentum')">🚀 2. Momentum</button>
         <button class="tactical-btn" id="btnLandingRotation" onclick="setLandingFilter('rotation')">🔄 3. Rotation</button>
         <button class="tactical-btn" id="btnLandingPullback" onclick="setLandingFilter('pullback')">📉 4. Pullback</button>
@@ -315,11 +316,13 @@
       <div class="toolbar-group" id="btModeGroup">
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase;">Strategy Model:</span>
         <select id="btModelSelect" onchange="setBacktestModel(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
-          <option value="score_surety_anchor" selected>🛡️ Strategy 1: High-Surety Institutional Anchor</option>
+          <option value="dynamic_regime_portfolio" selected disabled hidden>-- Blended Portfolio Active (Select to Filter) --</option>
+          <option value="score_surety_anchor">🛡️ Strategy 1: High-Surety Institutional Anchor</option>
           <option value="score_momentum_frontrunner">🚀 Strategy 2: Momentum Frontrunner</option>
           <option value="score_early_sector_rotation">🔄 Strategy 3: Early Sector Rotation</option>
           <option value="score_high_rs_pullback">📉 Strategy 4: High-RS Pullback Structure</option>
         </select>
+        <button class="reset-btn" onclick="setBacktestModel('dynamic_regime_portfolio'); document.getElementById('btModelSelect').value='dynamic_regime_portfolio';" style="margin-left: 6px;">Clear Filter</button>
 
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Portfolio Size:</span>
         <select id="btPortfolioSizeSelect" onchange="setBacktestPortfolioSize(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
@@ -327,6 +330,7 @@
           <option value="5">⚡ Top 5 Concentrated Focus</option>
           <option value="20">🌐 Full 20 Universe List</option>
         </select>
+        <button class="reset-btn" onclick="setBacktestModel('dynamic_regime_portfolio'); document.getElementById('btModelSelect').value='dynamic_regime_portfolio';" style="margin-left: 6px;">Clear Filter</button>
 
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Market-Cap Tier:</span>
         <select id="btMcapSelect" onchange="setBacktestMcap(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">

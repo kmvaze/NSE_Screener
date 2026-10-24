@@ -71,7 +71,7 @@ function renderBacktestMethodCard() {
   const container = document.getElementById('btMethodDisplayContainer');
   if (!container) return;
 
-  const modelKey = appState.selectedBacktestMode || 'score_surety_anchor';
+  const modelKey = appState.selectedBacktestMode || 'dynamic_regime_portfolio';
   const strat = appState.backtestData?.strategies_summary?.[modelKey];
 
   if (!strat) {
@@ -267,14 +267,17 @@ function setStrategyMode(mode) {
 
 function setLandingFilter(filterCode) {
   appState.landingFilter = filterCode;
-  ['btnLandingSurety', 'btnLandingMomentum', 'btnLandingRotation', 'btnLandingPullback'].forEach(id => {
+  ['btnLandingDynamic', 'btnLandingSurety', 'btnLandingMomentum', 'btnLandingRotation', 'btnLandingPullback'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
+  
+  if (filterCode === 'dynamic') document.getElementById('btnLandingDynamic')?.classList.add('active');
   if (filterCode === 'surety') document.getElementById('btnLandingSurety')?.classList.add('active');
   if (filterCode === 'momentum') document.getElementById('btnLandingMomentum')?.classList.add('active');
   if (filterCode === 'rotation') document.getElementById('btnLandingRotation')?.classList.add('active');
   if (filterCode === 'pullback') document.getElementById('btnLandingPullback')?.classList.add('active');
+  
   renderLandingDashboard();
   updateGlobalBadge();
 }
@@ -357,36 +360,94 @@ function renderLandingDashboard() {
   const grid = document.getElementById('landingHeroGrid');
   if (!grid) return;
 
-  const mode = appState.landingFilter || 'surety';
+  const mode = appState.landingFilter || 'dynamic';
+  let topTiles = [];
+  const selectedSymbols = new Set();
+  const sectorCount = {};
 
-  const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
+  if (mode === 'dynamic') {
+    const total = appState.stocks.length || 1;
+    const breadth50Pct = (appState.stocks.filter(s => Number(s.close) >= Number(s.sma_50)).length / total) * 100;
+    const meanMrs = appState.stocks.reduce((acc, s) => acc + Number(s.mrs_score || 0), 0) / total;
 
-  qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
+    const activeRotSectors = appState.sectors.filter(sec =>
+      sec.stock_count >= 3 && String(sec.sector_lifecycle).match(/Rotation|Prime|Leadership/)
+    ).length;
 
-  const seenSectors = {};
-  const topTiles = [];
-  for (const st of qualified) {
-    const sec = st.sector || "Other";
-    seenSectors[sec] = (seenSectors[sec] || 0);
-    if (seenSectors[sec] < 2) {
-      topTiles.push(st);
-      seenSectors[sec]++;
+    let quotas = { surety: 3, momentum: 3, rotation: 3, pullback: 3 };
+    let regimeLabel = "";
+
+    if (breadth50Pct >= 50.0 && meanMrs <= 3.0) {
+      regimeLabel = `🟢 Expansion Regime (${breadth50Pct.toFixed(1)}% >50SMA)`;
+      const rotQ = activeRotSectors > 0 ? 3 : 0;
+      quotas = { momentum: 5, rotation: rotQ, pullback: 3 + (3 - rotQ), surety: 1 };
+    } else if (breadth50Pct >= 50.0 && meanMrs > 3.0) {
+      regimeLabel = `⚠️ Overheated Tape (MRS +${meanMrs.toFixed(1)}%)`;
+      const rotQ = activeRotSectors > 0 ? 2 : 0;
+      quotas = { pullback: 5 + (2 - rotQ), surety: 4, rotation: rotQ, momentum: 1 };
+    } else if (breadth50Pct < 35.0) {
+      regimeLabel = `🛡️ Bearish Defense (${breadth50Pct.toFixed(1)}% >50SMA)`;
+      quotas = { surety: 5, pullback: 5, momentum: 2, rotation: 0 };
+    } else {
+      regimeLabel = `🔄 Early Recovery Thrust (${breadth50Pct.toFixed(1)}% >50SMA)`;
+      const rotQ = activeRotSectors > 0 ? 4 : 0;
+      quotas = { rotation: rotQ, pullback: 4 + (4 - rotQ), momentum: 2, surety: 2 };
     }
-    if (topTiles.length >= 12) break;
+
+    const pools = {
+      momentum: appState.stocks.filter(s => matchesStrategyCriteria(s, 'momentum')).sort((a, b) => (b.score_momentum_frontrunner || 0) - (a.score_momentum_frontrunner || 0)),
+      rotation: appState.stocks.filter(s => matchesStrategyCriteria(s, 'rotation') && String(s.sector_lifecycle).match(/Rotation|Prime|Leadership/)).sort((a, b) => (b.score_early_sector_rotation || 0) - (a.score_early_sector_rotation || 0)),
+      pullback: appState.stocks.filter(s => matchesStrategyCriteria(s, 'pullback')).sort((a, b) => (b.score_high_rs_pullback || 0) - (a.score_high_rs_pullback || 0)),
+      surety:   appState.stocks.filter(s => matchesStrategyCriteria(s, 'surety') && !(s.mcap_tier || "").includes("Tier 1")).sort((a, b) => (b.score_surety_anchor || 0) - (a.score_surety_anchor || 0))
+    };
+
+    for (const [strategy, targetCount] of Object.entries(quotas)) {
+      let added = 0;
+      for (const stock of pools[strategy]) {
+        if (added >= targetCount) break;
+        if (selectedSymbols.has(stock.symbol)) continue;
+        const sec = stock.sector || 'Other';
+        if ((sectorCount[sec] || 0) < 2) {
+          topTiles.push({ ...stock, active_strategy: strategy });
+          selectedSymbols.add(stock.symbol);
+          sectorCount[sec] = (sectorCount[sec] || 0) + 1;
+          added++;
+        }
+      }
+    }
+
+    const rl = document.getElementById('landingGridRegimeLabel');
+    if (rl) rl.textContent = regimeLabel;
+
+  } else {
+    const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
+    qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
+    for (const st of qualified) {
+      const sec = st.sector || "Other";
+      if ((sectorCount[sec] || 0) < 2 && !selectedSymbols.has(st.symbol)) {
+        topTiles.push({ ...st, active_strategy: mode });
+        selectedSymbols.add(st.symbol);
+        sectorCount[sec] = (sectorCount[sec] || 0) + 1;
+      }
+      if (topTiles.length >= 12) break;
+    }
+    const rl = document.getElementById('landingGridRegimeLabel');
+    if (rl) rl.textContent = `${mode.toUpperCase()} UNIVERSE`;
   }
 
   if (topTiles.length < 12) {
-    const usedSyms = new Set(topTiles.map(s => s.symbol));
-    for (const st of qualified) {
-      if (!usedSyms.has(st.symbol)) {
-        topTiles.push(st);
+    const backupPool = appState.stocks.filter(st => matchesStrategyCriteria(st, 'surety') && !(st.mcap_tier || "").includes("Tier 1")).sort((a, b) => (b.score_surety_anchor || 0) - (a.score_surety_anchor || 0));
+    for (const st of backupPool) {
+      if (!selectedSymbols.has(st.symbol)) {
+        topTiles.push({ ...st, active_strategy: 'surety' });
+        selectedSymbols.add(st.symbol);
         if (topTiles.length >= 12) break;
       }
     }
   }
 
   if (topTiles.length === 0) {
-    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">No candidates currently qualify for ${mode.toUpperCase()} under current market conditions.</div>`;
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">No candidates currently qualify.</div>`;
     return;
   }
 
@@ -399,13 +460,14 @@ function renderLandingDashboard() {
     const rotScore = Number(st.score_early_sector_rotation ?? 0).toFixed(1);
     const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
 
+    const activeStrat = st.active_strategy || 'surety';
     let activeBadgeLabel = `Surety: ${suretyScore}`;
-    if (mode === 'momentum') activeBadgeLabel = `Momentum: ${momScore}`;
-    if (mode === 'rotation') activeBadgeLabel = `Rotation: ${rotScore}`;
-    if (mode === 'pullback') activeBadgeLabel = `Pullback: ${pullScore}`;
+    if (activeStrat === 'momentum') activeBadgeLabel = `Mom: ${momScore}`;
+    if (activeStrat === 'rotation') activeBadgeLabel = `Rot: ${rotScore}`;
+    if (activeStrat === 'pullback') activeBadgeLabel = `Pull: ${pullScore}`;
 
     return `
-      <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st)})'>
+      <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="pill" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">Rank #${idx + 1}</span>
@@ -451,20 +513,16 @@ function renderLandingDashboard() {
             <span style="font-weight: 600; font-variant-numeric: tabular-nums;">₹${st.sma_20} (${dist20 > 0 ? '+' : ''}${dist20}%) | ₹${st.sma_50} (${dist50 > 0 ? '+' : ''}${dist50}%)</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">Pattern &amp; VCP Ratio:</span>
-            <span style="font-weight: 700; color: var(--purple);">${st.chart_pattern_signal || st.multi_timeframe_confluence || 'Stage 2 Base'} (${st.vcp_ratio ?? '--'})</span>
+            <span style="color: var(--muted);">Pattern &amp; Flow:</span>
+            <span style="font-weight: 700; color: var(--purple);">${st.chart_pattern_signal || 'Base'} (IASIS: ${st.iasis_score ?? '--'})</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
             <span style="color: var(--muted);">50/50 Split Entry &amp; SL:</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">Blended: <b>₹${st.blended_entry_price ?? st.close}</b> | <span style="color: var(--red);">SL: ₹${st.cushioned_sl_price ?? st.atr_stop_loss}</span></span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">50D Up/Down Vol &amp; Flow:</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">U/D: <b>${st.up_down_vol_ratio ?? '--'}x</b> | IASIS: <b>${st.iasis_score ?? '--'}</b></span>
+            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">Blend: <b>₹${st.blended_entry_price ?? st.close}</b> | <span style="color: var(--red);">SL: ₹${st.cushioned_sl_price ?? st.atr_stop_loss}</span></span>
           </div>
           <div style="display: flex; justify-content: space-between;">
             <span style="color: var(--muted);">Sector Lifecycle:</span>
-            <span style="font-weight: 700; color: var(--green);">${st.sector_lifecycle || st.sector_rs_status || 'Leading'}</span>
+            <span style="font-weight: 700; color: var(--green);">${st.sector_lifecycle || 'Leading'}</span>
           </div>
         </div>
 
@@ -478,9 +536,9 @@ function renderLandingDashboard() {
       </div>
     `;
   }).join('');
+  
   updateGlobalBadge();
 }
-
 function renderTablePage() {
   const tbody = document.getElementById('stocksTableBody');
   if (!tbody) return;
@@ -796,8 +854,9 @@ function renderBacktestView() {
   const activeIdx = Math.min(appState.selectedBacktestQuarterIdx || 0, months.length - 1);
   const rawEntry = months[activeIdx];
 
-  let requestedModel = appState.selectedBacktestMode || 'score_surety_anchor';
+  let requestedModel = appState.selectedBacktestMode || 'dynamic_regime_portfolio';
   const legacyKeyMap = {
+    'dynamic_regime_portfolio': ['dynamic_regime_portfolio'],
     'score_surety_anchor': ['score_surety_anchor', 'surety_anchor', 'kinetic_launchpad'],
     'score_momentum_frontrunner': ['score_momentum_frontrunner', 'momentum_frontrunner', 'quant_confluence'],
     'score_early_sector_rotation': ['score_early_sector_rotation', 'early_sector_rotation', 'institutional_stealth'],
@@ -855,6 +914,8 @@ function renderBacktestView() {
 
   const elDate = document.getElementById('btStatSignalDate');
   if (elDate) elDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
+  const elActiveLabel = document.getElementById('btStatActiveModelLabel');
+  if (elActiveLabel) elActiveLabel.textContent = qData.regime_detected || qData.model_name || '--';
   const elSecDate = document.getElementById('btSectorHeaderDate');
   if (elSecDate) elSecDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
   const elPeak = document.getElementById('btStatAvgPeak');

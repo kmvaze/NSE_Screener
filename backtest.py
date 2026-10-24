@@ -679,7 +679,128 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         return top_label
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
-    return sector_summary, ranked
+
+    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
+    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
+    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
+
+    return sector_summary, ranked, market_breadth_pct, bm_mrs
+
+
+def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataFrame, breadth: float, bm_mrs: float):
+    active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
+    
+    if breadth >= 50.0 and bm_mrs <= 3.0:
+        regime = f"🟢 Expansion ({breadth:.1f}%)"
+        q = {"score_momentum_frontrunner": 5, "score_early_sector_rotation": 3 if active_rot > 0 else 0, "score_high_rs_pullback": 3 + (3 if active_rot == 0 else 0), "score_surety_anchor": 1}
+    elif breadth >= 50.0 and bm_mrs > 3.0:
+        regime = f"⚠️ Overheated (+{bm_mrs:.1f}%)"
+        q = {"score_high_rs_pullback": 5 + (2 if active_rot == 0 else 0), "score_surety_anchor": 4, "score_early_sector_rotation": 2 if active_rot > 0 else 0, "score_momentum_frontrunner": 1}
+    elif breadth < 35.0:
+        regime = f"🛡️ Defense ({breadth:.1f}%)"
+        q = {"score_surety_anchor": 5, "score_high_rs_pullback": 5, "score_momentum_frontrunner": 2, "score_early_sector_rotation": 0}
+    else:
+        regime = f"🔄 Early Thrust ({breadth:.1f}%)"
+        q = {"score_early_sector_rotation": 4 if active_rot > 0 else 0, "score_high_rs_pullback": 4 + (4 if active_rot == 0 else 0), "score_momentum_frontrunner": 2, "score_surety_anchor": 2}
+
+    picks, seen_sec, seen_sym = [], {}, set()
+    
+    for k, limit in q.items():
+        if limit <= 0: continue
+        sub = ranked_at_q.copy()
+        if k == "score_surety_anchor": sub = sub[~sub["mcap_tier"].str.contains("Tier 1", na=False)]
+        elif k == "score_early_sector_rotation": sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
+            
+        if k == "score_surety_anchor": mask = (sub["close"]>=sub["sma_200"]) & (sub["close"]>=sub["sma_50"]*0.97) & (sub["mrs_score"]>=-5.0) & (sub["mrs_score"]<=6.0)
+        elif k == "score_momentum_frontrunner": mask = (sub["close"]>=sub["sma_200"]) & (sub["close"]>=sub["sma_50"]) & (sub["mrs_score"]>=-2.0) & (sub["mrs_score"]<=10.0)
+        elif k == "score_early_sector_rotation": mask = (sub["close"]>=sub["sma_200"]) & (~sub["sector_rs_status"].str.contains("Lagging") | ~sub["sector_lifecycle"].str.contains("Lagging") | (sub["beta_neutral_mrs"]>=1.5))
+        elif k == "score_high_rs_pullback": mask = (sub["close"]>=sub["sma_200"]) & (sub["mrs_score"]>=-7.0) & (sub["mrs_score"]<=2.5) & (sub["stoch_k"]<=75)
+        else: mask = sub["close"] > 0
+        
+        qual = sub[mask].sort_values(by=[k, "iasis_score"], ascending=False)
+        added = 0
+        for _, r in qual.iterrows():
+            if added >= limit: break
+            sym, sec = r["symbol"], r["sector"]
+            if sym in seen_sym: continue
+            if seen_sec.get(sec, 0) < 2:
+                r_copy = r.copy()
+                r_copy["assigned_strategy"] = k
+                picks.append(r_copy)
+                seen_sym.add(sym)
+                seen_sec[sec] = seen_sec.get(sec, 0) + 1
+                added += 1
+                
+    df_picks = pd.DataFrame(picks).head(12)
+    top3 = sector_summary.sort_values("sector_composite_score", ascending=False).head(3).to_dict(orient="records")
+    top5 = sector_summary.sort_values("sector_composite_score", ascending=False).head(5).to_dict(orient="records")
+    return top3, top5, df_picks, regime
+
+
+def select_top_stocks_for_model(
+    model_name: str,
+    ranked_at_q: pd.DataFrame,
+    sector_summary: pd.DataFrame,
+    target_count: int = 20,
+) -> tuple:
+    valid_secs = sector_summary[
+        (sector_summary["stock_count"] >= 3)
+        & (sector_summary["sector"] != "General Equities")
+    ].copy()
+
+    top_sectors_df = valid_secs.sort_values(by=["sector_composite_score", "rs_ratio"], ascending=False).head(5)
+    top_3_sectors = top_sectors_df.head(3).to_dict(orient="records")
+    top_5_sectors = top_sectors_df.head(5).to_dict(orient="records")
+
+    pool = ranked_at_q.copy()
+    close_s = pool["close"]
+    s50_s = pool["sma_50"]
+    s200_s = pool["sma_200"]
+    mrs_s = pool["mrs_score"]
+    stoch_s = pool["stoch_k"]
+
+    if model_name == "score_surety_anchor":
+        mask = (close_s >= s200_s) & (close_s >= s50_s * 0.97) & (mrs_s >= -5.0) & (mrs_s <= 6.0)
+        qualified = pool[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
+
+    elif model_name == "score_momentum_frontrunner":
+        mask = (close_s >= s200_s) & (close_s >= s50_s) & (mrs_s >= -2.0) & (mrs_s <= 10.0)
+        qualified = pool[mask].sort_values(by=["score_momentum_frontrunner", "frontrunner_score"], ascending=False)
+
+    elif model_name == "score_early_sector_rotation":
+        s_life_s = pool["sector_lifecycle"].astype(str)
+        s_rs_s = pool["sector_rs_status"].astype(str)
+        mask = (close_s >= s200_s) & (~s_rs_s.str.contains("Lagging") | ~s_life_s.str.contains("Lagging") | (pool["beta_neutral_mrs"] >= 1.5))
+        qualified = pool[mask].sort_values(by=["score_early_sector_rotation", "iasis_score"], ascending=False)
+
+    elif model_name == "score_high_rs_pullback":
+        mask = (close_s >= s200_s) & (mrs_s >= -7.0) & (mrs_s <= 2.5) & (stoch_s <= 75)
+        qualified = pool[mask].sort_values(by=["score_high_rs_pullback", "frontrunner_score"], ascending=False)
+
+    else:
+        qualified = pool.sort_values(by=["score_surety_anchor"], ascending=False)
+
+    seen_sectors = {}
+    capped_picks = []
+
+    for _, row in qualified.iterrows():
+        sec = row["sector"]
+        cnt = seen_sectors.get(sec, 0)
+        if cnt < 2:
+            capped_picks.append(row)
+            seen_sectors[sec] = cnt + 1
+        if len(capped_picks) >= target_count:
+            break
+
+    if len(capped_picks) < target_count:
+        remaining_needed = target_count - len(capped_picks)
+        used_syms = {r["symbol"] for r in capped_picks}
+        extras = qualified[~qualified["symbol"].isin(used_syms)].head(remaining_needed)
+        selected = pd.concat([pd.DataFrame(capped_picks), extras], ignore_index=True).head(target_count)
+    else:
+        selected = pd.DataFrame(capped_picks).head(target_count)
+
+    return top_3_sectors, top_5_sectors, selected
 
 
 def lookup_real_close_on_or_after(symbol_df: pd.DataFrame, target_date: str):
@@ -749,10 +870,6 @@ def simulate_structural_trailing_exit(
     sma50_series: np.ndarray,
     sma20_series: np.ndarray,
 ) -> tuple:
-    """
-    Simulates dynamic structural trend following exit.
-    Returns (exit_return_pct, days_to_exit).
-    """
     if fut_slice.empty or len(fut_slice) < 2:
         return 0.0, 1
 
@@ -793,72 +910,6 @@ def simulate_structural_trailing_exit(
 
     final_close = float(closes[-1])
     return round(((final_close - entry_price) / entry_price) * 100.0, 2), len(fut_slice) - 1
-
-
-def select_top_stocks_for_model(
-    model_name: str,
-    ranked_at_q: pd.DataFrame,
-    sector_summary: pd.DataFrame,
-    target_count: int = 20,
-) -> tuple:
-    valid_secs = sector_summary[
-        (sector_summary["stock_count"] >= 3)
-        & (sector_summary["sector"] != "General Equities")
-    ].copy()
-
-    top_sectors_df = valid_secs.sort_values(by=["sector_composite_score", "rs_ratio"], ascending=False).head(5)
-    top_3_sectors = top_sectors_df.head(3).to_dict(orient="records")
-    top_5_sectors = top_sectors_df.head(5).to_dict(orient="records")
-
-    pool = ranked_at_q.copy()
-    close_s = pool["close"]
-    s50_s = pool["sma_50"]
-    s200_s = pool["sma_200"]
-    mrs_s = pool["mrs_score"]
-    stoch_s = pool["stoch_k"]
-
-    if model_name == "score_surety_anchor":
-        mask = (close_s >= s200_s) & (close_s >= s50_s * 0.97) & (mrs_s >= -5.0) & (mrs_s <= 6.0)
-        qualified = pool[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
-
-    elif model_name == "score_momentum_frontrunner":
-        mask = (close_s >= s200_s) & (close_s >= s50_s) & (mrs_s >= -2.0) & (mrs_s <= 10.0)
-        qualified = pool[mask].sort_values(by=["score_momentum_frontrunner", "frontrunner_score"], ascending=False)
-
-    elif model_name == "score_early_sector_rotation":
-        s_life_s = pool["sector_lifecycle"].astype(str)
-        s_rs_s = pool["sector_rs_status"].astype(str)
-        mask = (close_s >= s200_s) & (~s_rs_s.str.contains("Lagging") | ~s_life_s.str.contains("Lagging") | (pool["beta_neutral_mrs"] >= 1.5))
-        qualified = pool[mask].sort_values(by=["score_early_sector_rotation", "iasis_score"], ascending=False)
-
-    elif model_name == "score_high_rs_pullback":
-        mask = (close_s >= s200_s) & (mrs_s >= -7.0) & (mrs_s <= 2.5) & (stoch_s <= 75)
-        qualified = pool[mask].sort_values(by=["score_high_rs_pullback", "frontrunner_score"], ascending=False)
-
-    else:
-        qualified = pool.sort_values(by=["score_surety_anchor"], ascending=False)
-
-    seen_sectors = {}
-    capped_picks = []
-
-    for _, row in qualified.iterrows():
-        sec = row["sector"]
-        cnt = seen_sectors.get(sec, 0)
-        if cnt < 2:
-            capped_picks.append(row)
-            seen_sectors[sec] = cnt + 1
-        if len(capped_picks) >= target_count:
-            break
-
-    if len(capped_picks) < target_count:
-        remaining_needed = target_count - len(capped_picks)
-        used_syms = {r["symbol"] for r in capped_picks}
-        extras = qualified[~qualified["symbol"].isin(used_syms)].head(remaining_needed)
-        selected = pd.concat([pd.DataFrame(capped_picks), extras], ignore_index=True).head(target_count)
-    else:
-        selected = pd.DataFrame(capped_picks).head(target_count)
-
-    return top_3_sectors, top_5_sectors, selected
 
 
 def run_intramonth_timing_audit(symbol_groups: dict, all_dates: list, latest_date_overall: str) -> list:
@@ -971,8 +1022,9 @@ def run_quarterly_backtest():
         g["is_pocket_or_coil"] = (g["close"] > g["open"]) & (g["volume"] >= g["vol20_roll"] * 1.1)
         symbol_groups[sym] = g
 
-    # EXACT 4 ACTIVE STRATEGIES
+    # EXACT 4 ACTIVE STRATEGIES + DYNAMIC REGIME PORTFOLIO
     MODELS = [
+        ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (Top 12)"),
         ("score_surety_anchor", "🛡️ Strategy 1: High-Surety Institutional Anchor"),
         ("score_momentum_frontrunner", "🚀 Strategy 2: Momentum Frontrunner"),
         ("score_early_sector_rotation", "🔄 Strategy 3: Early Sector Rotation Leader"),
@@ -984,26 +1036,12 @@ def run_quarterly_backtest():
 
     model_stats_accumulator = {
         m_key: {
-            "trades": 0,
-            "wins": 0,
-            "total_return": 0.0,
-            "total_trail_return": 0.0,
-            "total_mfe": 0.0,
-            "total_mfe_30d": 0.0,
-            "total_mfe_60d": 0.0,
-            "hits_15": 0,
-            "hits_20": 0,
-            "low_mae_count": 0,
-            "total_mae": 0.0,
-            "total_zone_persist": 0.0,
-            "total_trend_persist": 0.0,
-            "total_days_to_peak": 0.0,
-            "total_days_to_exit": 0.0,
-            # Dual Quantitative Win Rate & PnL Accumulators
-            "m2_wins": 0,  # Method 2: Peak MFE >= Highest ATR Stop (9.50%)
-            "m3_wins": 0,  # Method 3: Peak MFE >= Blended Order Block Stop (4.38%)
-            "m3_total_profit_inr": 0.0,
-            "m3_total_employed_cap": 0.0,
+            "trades": 0, "wins": 0, "total_return": 0.0, "total_trail_return": 0.0,
+            "total_mfe": 0.0, "total_mfe_30d": 0.0, "total_mfe_60d": 0.0,
+            "hits_15": 0, "hits_20": 0, "low_mae_count": 0, "total_mae": 0.0,
+            "total_zone_persist": 0.0, "total_trend_persist": 0.0,
+            "total_days_to_peak": 0.0, "total_days_to_exit": 0.0,
+            "m2_wins": 0, "m3_wins": 0, "m3_total_profit_inr": 0.0, "m3_total_employed_cap": 0.0,
         }
         for m_key, _ in MODELS
     }
@@ -1030,7 +1068,7 @@ def run_quarterly_backtest():
     }
 
     print("\n" + "=" * 156)
-    print("RUNNING 10-MONTH QUANTITATIVE AUDIT: 4 CORE STRATEGIES (WITH ADJUSTED HOLDING DURATION & 232-SESSION XIRR)")
+    print("RUNNING 10-MONTH QUANTITATIVE AUDIT: DYNAMIC REGIME ENGINE VS 4 STATIC STRATEGIES")
     print(f"100% Real Bhavcopy Data | Evaluated Point-in-Time Forward to: {latest_date_overall}")
     print("=" * 156)
 
@@ -1039,7 +1077,7 @@ def run_quarterly_backtest():
         m_start_date = m_info["date"]
         print(f"[*] Auditing Month: {m_label} (Signal Date: {m_start_date})...")
 
-        sector_summary, ranked_at_m = evaluate_point_in_time(df_all, m_start_date)
+        sector_summary, ranked_at_m, market_breadth_pct, bm_mrs = evaluate_point_in_time(df_all, m_start_date)
 
         u_start = df_all[df_all["date"] == m_start_date]["close"].mean()
         u_end = df_all[df_all["date"] == latest_date_overall]["close"].mean()
@@ -1126,9 +1164,15 @@ def run_quarterly_backtest():
         month_modes_output = {}
 
         for m_key, m_desc in MODELS:
-            top_3_sectors, top_5_sectors, top_stocks = select_top_stocks_for_model(
-                m_key, ranked_at_m, sector_summary, target_count=20
-            )
+            if m_key == "dynamic_regime_portfolio":
+                top_3_sectors, top_5_sectors, top_stocks, regime_desc = select_dynamic_portfolio(
+                    ranked_at_m, sector_summary, market_breadth_pct, bm_mrs
+                )
+            else:
+                top_3_sectors, top_5_sectors, top_stocks = select_top_stocks_for_model(
+                    m_key, ranked_at_m, sector_summary, target_count=20
+                )
+                regime_desc = "Fixed Strategy Evaluation"
 
             stock_records = []
             for rank_idx, (_, stk_row) in enumerate(top_stocks.iterrows(), start=1):
@@ -1180,19 +1224,14 @@ def run_quarterly_backtest():
 
                     persist_sim = simulate_signal_persistence(fut_slice, entry_price, atr_20_val)
                     
-                    # 50:50 Staggered Order Block Simulation
                     tranche2_filled = bool(float(fut_slice["low"].min()) <= tranche2_limit)
                     if tranche2_filled:
-                        effective_cost = blended_entry
-                        effective_cap_deployed = 100000.0  # Full position
+                        effective_cap_deployed = 100000.0
                         effective_mfe_pct = round(((peak_high - blended_entry) / blended_entry) * 100.0, 2)
-                        effective_mae_pct = round(((min_low - blended_entry) / blended_entry) * 100.0, 2)
                         effective_sl_pct = round(((cushioned_sl - blended_entry) / blended_entry) * 100.0, 2)
                     else:
-                        effective_cost = entry_price
-                        effective_cap_deployed = 50000.0   # Half position only
+                        effective_cap_deployed = 50000.0
                         effective_mfe_pct = peak_gain_pct
-                        effective_mae_pct = max_drawdown_mae_pct
                         effective_sl_pct = round(((atr_stop - entry_price) / entry_price) * 100.0, 2)
 
                 else:
@@ -1207,10 +1246,8 @@ def run_quarterly_backtest():
                         "active_10d": True,
                     }
                     tranche2_filled = False
-                    effective_cost = entry_price
                     effective_cap_deployed = 50000.0
                     effective_mfe_pct = 0.0
-                    effective_mae_pct = 0.0
                     effective_sl_pct = -6.50
 
                 total_return_pct = (
@@ -1221,10 +1258,7 @@ def run_quarterly_backtest():
 
                 base_pattern = str(stk_row.get("chart_pattern_signal", ""))
 
-                # Method 2 Win Condition (Stress-Tested vs Highest ATR Stop 9.50%)
                 is_m2_win = bool(peak_gain_pct >= 9.50)
-
-                # Method 3 Win Condition (50:50 Staggered Order Block vs Blended Stop ~4.38%)
                 is_m3_win = bool(effective_mfe_pct >= abs(effective_sl_pct))
 
                 if is_m3_win:
@@ -1232,7 +1266,6 @@ def run_quarterly_backtest():
                 else:
                     trade_pnl_inr = (effective_cap_deployed * (effective_sl_pct / 100.0))
 
-                # Individual realistic adjusted holding duration (+25% buffer)
                 adj_days_to_exit = round(float(days_to_exit) * 1.25, 1)
 
                 stock_record = {
@@ -1394,7 +1427,7 @@ def run_quarterly_backtest():
             month_modes_output[m_key] = {
                 "model_key": m_key,
                 "model_name": m_desc,
-                "evaluation_date": latest_date_overall,
+                "regime_detected": regime_desc,
                 "picks_count": len(stock_records),
                 "portfolio_avg_return_pct": avg_ret,
                 "trailing_exit_avg_return_pct": avg_trail_ret,
@@ -1420,10 +1453,11 @@ def run_quarterly_backtest():
                 "picks_9": stock_records[:20],
             }
 
-        # Primary default view is Strategy 1: High-Surety Institutional Anchor
-        primary_view = dict(month_modes_output["score_surety_anchor"])
+        # Set the Dynamic Regime Portfolio as the primary default view
+        primary_view = dict(month_modes_output["dynamic_regime_portfolio"])
         primary_view["quarter_label"] = m_label
         primary_view["start_date"] = m_start_date
+        primary_view["universe_benchmark_ret_pct"] = universe_ret
         primary_view["modes"] = month_modes_output
 
         months_payload.append(primary_view)
@@ -1431,7 +1465,6 @@ def run_quarterly_backtest():
     print("[*] Running Intra-Month Setup Timing Audit across 2026 sessions...")
     intramonth_audit = run_intramonth_timing_audit(symbol_groups, all_dates, latest_date_overall)
 
-    # Market-Cap Tier Risk Summary
     mcap_summary_list = []
     for tier_label in sorted(mcap_stats_accumulator.keys()):
         t_items = mcap_stats_accumulator[tier_label]
@@ -1439,8 +1472,7 @@ def run_quarterly_backtest():
         maes_t = np.array([x["mae"] for x in t_items])
         rets_t = np.array([x["ret"] for x in t_items])
         mcap_summary_list.append({
-            "mcap_tier": tier_label,
-            "count": len(t_items),
+            "mcap_tier": tier_label, "count": len(t_items),
             "avg_mfe_pct": round(float(np.mean(mfes_t)), 2),
             "hit_15pct_rate": round(float((mfes_t >= 15.0).mean() * 100.0), 1),
             "low_mae_surety_rate": round(float((maes_t >= -6.0).mean() * 100.0), 1),
@@ -1448,7 +1480,6 @@ def run_quarterly_backtest():
             "avg_hold_ret_pct": round(float(np.mean(rets_t)), 2),
         })
 
-    # Sector Climax Audit
     sector_climax_audit_list = []
     for life_key in sorted(sector_lifecycle_accumulator.keys()):
         l_items = sector_lifecycle_accumulator[life_key]
@@ -1456,8 +1487,7 @@ def run_quarterly_backtest():
         maes_l = np.array([x[1] for x in l_items])
         rets_l = np.array([x[2] for x in l_items])
         sector_climax_audit_list.append({
-            "sector_stage": life_key,
-            "sample_size": len(l_items),
+            "sector_stage": life_key, "sample_size": len(l_items),
             "avg_mfe_pct": round(float(np.mean(mfes_l)), 2),
             "hit_15pct_rate": round(float((mfes_l >= 15.0).mean() * 100.0), 1),
             "severe_trap_rate_mae_gt_15": round(float((maes_l <= -15.0).mean() * 100.0), 1),
@@ -1465,48 +1495,30 @@ def run_quarterly_backtest():
             "avg_period_ret_pct": round(float(np.mean(rets_l)), 2),
         })
 
-    # Pattern & Advanced Confluence Audit
     pattern_audit_summary = []
     for cohort_label, records in pattern_confluence_accumulator.items():
-        if not records:
-            continue
-        p_mfes = np.array([x[0] for x in records])
-        p_maes = np.array([x[1] for x in records])
-        p_rets = np.array([x[2] for x in records])
+        if not records: continue
+        p_mfes, p_maes, p_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
         pattern_audit_summary.append({
-            "cohort": cohort_label,
-            "sample_size": len(records),
-            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2),
-            "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((p_maes >= -6.0).mean() * 100.0), 1),
-            "avg_mae_pct": round(float(np.mean(p_maes)), 2),
-            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2),
-            "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_maes)))), 2),
+            "cohort": cohort_label, "sample_size": len(records),
+            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2), "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((p_maes >= -6.0).mean() * 100.0), 1), "avg_mae_pct": round(float(np.mean(p_maes)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2), "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_maes)))), 2),
         })
 
     advanced_factors_summary = []
     for factor_label, records in advanced_factors_accumulator.items():
-        if not records:
-            continue
-        f_mfes = np.array([x[0] for x in records])
-        f_maes = np.array([x[1] for x in records])
-        f_rets = np.array([x[2] for x in records])
+        if not records: continue
+        f_mfes, f_maes, f_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
         advanced_factors_summary.append({
-            "factor": factor_label,
-            "sample_size": len(records),
-            "avg_peak_mfe_pct": round(float(np.mean(f_mfes)), 2),
-            "hit_15pct_rate": round(float((f_mfes >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((f_maes >= -6.0).mean() * 100.0), 1),
-            "avg_mae_pct": round(float(np.mean(f_maes)), 2),
-            "avg_hold_ret_pct": round(float(np.mean(f_rets)), 2),
-            "asymmetry_ratio": round(float(np.mean(f_mfes) / max(1.0, abs(np.mean(f_maes)))), 2),
+            "factor": factor_label, "sample_size": len(records),
+            "avg_peak_mfe_pct": round(float(np.mean(f_mfes)), 2), "hit_15pct_rate": round(float((f_mfes >= 15.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((f_maes >= -6.0).mean() * 100.0), 1), "avg_mae_pct": round(float(np.mean(f_maes)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(f_rets)), 2), "asymmetry_ratio": round(float(np.mean(f_mfes) / max(1.0, abs(np.mean(f_maes)))), 2),
         })
 
-    # Save detailed trade-by-trade CSV
     pd.DataFrame(all_csv_rows).to_csv(BACKTEST_CSV, index=False)
 
-    # Strategy Macro Summary with Dual Method Win Rates & Realistic XIRR
-    # (Adjusted Holding Days = Raw Days * 1.25 buffer | XIRR using 232 active business sessions / yr)
     strategy_macro_summary = {}
     for m_key, m_desc in MODELS:
         acc = model_stats_accumulator[m_key]
@@ -1514,23 +1526,19 @@ def run_quarterly_backtest():
         
         m2_wr = round((acc["m2_wins"] / n_tr) * 100.0, 1)
         m3_wr = round((acc["m3_wins"] / n_tr) * 100.0, 1)
-        
         m3_total_pnl = acc["m3_total_profit_inr"]
         m3_total_cap = max(1.0, acc["m3_total_employed_cap"])
         m3_net_roi = round((m3_total_pnl / m3_total_cap) * 100.0, 2)
         m3_pnl_per_trade = round(m3_total_pnl / n_tr, 2)
 
-        # Expected Value per 1 Lakh allocation under Method 2 Stress Test (Worst-case 9.5% stop loss)
         avg_mfe_val = acc["total_mfe"] / n_tr
         m2_expectancy = round(((m2_wr / 100.0) * avg_mfe_val - ((100.0 - m2_wr) / 100.0) * 9.50) * 1000.0, 2)
         m2_net_roi = round(m2_expectancy / 1000.0, 2)
 
-        # 1. Holding Duration with +25% Execution Cushion
         raw_hold_days = float(acc["total_days_to_exit"] / n_tr) if acc["total_days_to_exit"] > 0 else float(acc["total_trend_persist"] / n_tr)
         adj_hold_days = round(raw_hold_days * 1.25, 1)
         avg_pk_days = round(acc["total_days_to_peak"] / n_tr, 1)
-
-        # 2. XIRR calculation with 232 active trading sessions (252 - 20 no-business/cash buffer days)
+        
         active_sessions = 232.0
         cycles_per_year = active_sessions / max(1.0, adj_hold_days)
 
@@ -1541,36 +1549,19 @@ def run_quarterly_backtest():
         m2_xirr = round(((1.0 + m2_roi_dec) ** cycles_per_year - 1.0) * 100.0, 1) if (adj_hold_days > 0 and m2_roi_dec > -1.0) else 0.0
 
         strategy_macro_summary[m_key] = {
-            "strategy_key": m_key,
-            "strategy_name": m_desc,
-            "total_signals_tracked": acc["trades"],
-            "overall_avg_mfe_pct": round(avg_mfe_val, 2),
-            "overall_avg_mae_pct": round(acc["total_mae"] / n_tr, 2),
-            "overall_hold_return_pct": round(acc["total_return"] / n_tr, 2),
-            "overall_trail_return_pct": round(acc["total_trail_return"] / n_tr, 2),
-            "overall_hold_win_rate_pct": round((acc["wins"] / n_tr) * 100.0, 1),
-            "hit_15pct_rate": round((acc["hits_15"] / n_tr) * 100.0, 1),
-            "hit_20pct_rate": round((acc["hits_20"] / n_tr) * 100.0, 1),
-            "low_mae_surety_rate": round((acc["low_mae_count"] / n_tr) * 100.0, 1),
-            "avg_days_to_peak": avg_pk_days,
-            "raw_trade_duration_days": round(raw_hold_days, 1),
-            "trade_duration_days": adj_hold_days,
-            "annualized_turnover_velocity": round(cycles_per_year, 1),
-            "active_business_sessions_per_year": int(active_sessions),
-            
-            # --- METHOD 2: STRESS-TESTED VS WORST-CASE ATR STOP (9.50%) ---
-            "method2_win_rate_pct": m2_wr,
-            "method2_net_expectancy_pct": m2_net_roi,
-            "method2_profit_per_lakh": m2_expectancy,
-            "method2_xirr_pct": m2_xirr,
-            "method2_risk_clamp_pct": -9.50,
-            "method2_desc": "Stress-Tested vs Worst-Case ATR Stop (9.50%)",
-
-            # --- METHOD 3: 50:50 ORDER BLOCK VS BLENDED STOP (~4.38%) ---
-            "method3_win_rate_pct": m3_wr,
-            "method3_net_expectancy_pct": m3_net_roi,
-            "method3_profit_per_lakh": m3_pnl_per_trade,
-            "method3_xirr_pct": m3_xirr,
+            "strategy_key": m_key, "strategy_name": m_desc,
+            "total_signals_tracked": acc["trades"], "overall_avg_mfe_pct": round(avg_mfe_val, 2),
+            "overall_avg_mae_pct": round(acc["total_mae"] / n_tr, 2), "overall_hold_return_pct": round(acc["total_return"] / n_tr, 2),
+            "overall_trail_return_pct": round(acc["total_trail_return"] / n_tr, 2), "overall_hold_win_rate_pct": round((acc["wins"] / n_tr) * 100.0, 1),
+            "hit_15pct_rate": round((acc["hits_15"] / n_tr) * 100.0, 1), "hit_20pct_rate": round((acc["hits_20"] / n_tr) * 100.0, 1),
+            "low_mae_surety_rate": round((acc["low_mae_count"] / n_tr) * 100.0, 1), "avg_days_to_peak": avg_pk_days,
+            "raw_trade_duration_days": round(raw_hold_days, 1), "trade_duration_days": adj_hold_days,
+            "annualized_turnover_velocity": round(cycles_per_year, 1), "active_business_sessions_per_year": int(active_sessions),
+            "method2_win_rate_pct": m2_wr, "method2_net_expectancy_pct": m2_net_roi,
+            "method2_profit_per_lakh": m2_expectancy, "method2_xirr_pct": m2_xirr,
+            "method2_risk_clamp_pct": -9.50, "method2_desc": "Stress-Tested vs Worst-Case ATR Stop (9.50%)",
+            "method3_win_rate_pct": m3_wr, "method3_net_expectancy_pct": m3_net_roi,
+            "method3_profit_per_lakh": m3_pnl_per_trade, "method3_xirr_pct": m3_xirr,
             "method3_desc": "50:50 Staggered Order Block vs Blended Stop (4.38%)",
         }
 
@@ -1583,49 +1574,35 @@ def run_quarterly_backtest():
     n_all = max(1, total_trades_all)
 
     global_macro_stats = {
-        "total_audited_windows": len(monthly_checkpoints),
-        "total_signals_tracked": total_trades_all,
-        "overall_avg_mfe_pct": round(total_mfe_all / n_all, 2),
-        "overall_hold_win_rate_pct": round((total_wins_all / n_all) * 100.0, 1),
-        "method2_win_rate_pct": round((total_m2_wins_all / n_all) * 100.0, 1),
-        "method3_win_rate_pct": round((total_m3_wins_all / n_all) * 100.0, 1),
-        "hit_15pct_rate": round((total_hits15_all / n_all) * 100.0, 1),
-        "active_business_sessions_per_year": 232,
-        "duration_cushion_buffer_pct": 25.0,
+        "total_audited_windows": len(monthly_checkpoints), "total_signals_tracked": total_trades_all,
+        "overall_avg_mfe_pct": round(total_mfe_all / n_all, 2), "overall_hold_win_rate_pct": round((total_wins_all / n_all) * 100.0, 1),
+        "method2_win_rate_pct": round((total_m2_wins_all / n_all) * 100.0, 1), "method3_win_rate_pct": round((total_m3_wins_all / n_all) * 100.0, 1),
+        "hit_15pct_rate": round((total_hits15_all / n_all) * 100.0, 1), "active_business_sessions_per_year": 232, "duration_cushion_buffer_pct": 25.0,
     }
 
     final_json = {
-        "generated_at_eod": latest_date_overall,
-        "corporate_actions_normalized_count": len(corp_action_events),
-        "quarter_checkpoints": monthly_checkpoints,
-        "global_macro_summary": global_macro_stats,
-        "strategies_summary": strategy_macro_summary,
-        "mcap_tier_summary": mcap_summary_list,
-        "sector_climax_audit": sector_climax_audit_list,
-        "intramonth_timing_audit": intramonth_audit,
-        "pattern_confluence_audit": pattern_audit_summary,
-        "advanced_factors_audit": advanced_factors_summary,
+        "generated_at_eod": latest_date_overall, "corporate_actions_normalized_count": len(corp_action_events),
+        "quarter_checkpoints": monthly_checkpoints, "global_macro_summary": global_macro_stats,
+        "strategies_summary": strategy_macro_summary, "mcap_tier_summary": mcap_summary_list,
+        "sector_climax_audit": sector_climax_audit_list, "intramonth_timing_audit": intramonth_audit,
+        "pattern_confluence_audit": pattern_audit_summary, "advanced_factors_audit": advanced_factors_summary,
         "quarters": months_payload,
     }
+    
     with open(BACKTEST_JSON, "w") as f:
         json.dump(final_json, f, indent=2)
 
     compact_summary = {
-        "generated_at_eod": latest_date_overall,
-        "corporate_actions_normalized_count": len(corp_action_events),
-        "total_audited_windows": len(monthly_checkpoints),
-        "global_macro_summary": global_macro_stats,
-        "strategies_summary": strategy_macro_summary,
-        "mcap_tier_summary": mcap_summary_list,
-        "sector_climax_audit": sector_climax_audit_list,
-        "intramonth_timing_audit": intramonth_audit,
-        "pattern_confluence_audit": pattern_audit_summary,
-        "advanced_factors_audit": advanced_factors_summary,
+        "generated_at_eod": latest_date_overall, "corporate_actions_normalized_count": len(corp_action_events),
+        "total_audited_windows": len(monthly_checkpoints), "global_macro_summary": global_macro_stats,
+        "strategies_summary": strategy_macro_summary, "mcap_tier_summary": mcap_summary_list,
+        "sector_climax_audit": sector_climax_audit_list, "intramonth_timing_audit": intramonth_audit,
+        "pattern_confluence_audit": pattern_audit_summary, "advanced_factors_audit": advanced_factors_summary,
     }
+    
     with open(BACKTEST_SUMMARY_JSON, "w") as f:
         json.dump(compact_summary, f, indent=2)
 
-    # Console Diagnostic Output
     print("\n" + "=" * 168)
     print("10-MONTH QUANTITATIVE STRATEGY LEADERBOARD (REALISTIC 232-DAY XIRR & +25% BUFFERED DURATION)")
     print("=" * 168)
@@ -1638,7 +1615,7 @@ def run_quarterly_backtest():
     for m_key, m_desc in MODELS:
         sm = strategy_macro_summary[m_key]
         print(
-            f"{m_desc:<42} | {sm['total_signals_tracked']:<7} | +{sm['overall_avg_mfe_pct']:>5.2f}%   | "
+            f"{m_desc[:40]:<42} | {sm['total_signals_tracked']:<7} | +{sm['overall_avg_mfe_pct']:>5.2f}%   | "
             f"{sm['trade_duration_days']:>4.1f} days  | {sm['method2_win_rate_pct']:>5.1f}%  | +{sm['method2_xirr_pct']:>6.1f}%   || "
             f"{sm['method3_win_rate_pct']:>5.1f}%  | +{sm['method3_net_expectancy_pct']:>5.2f}%   | +₹{sm['method3_profit_per_lakh']:>9,.2f} | +{sm['method3_xirr_pct']:>6.1f}%"
         )
@@ -1648,7 +1625,6 @@ def run_quarterly_backtest():
     print(f"[✓] Saved macro-summary data to:    {BACKTEST_SUMMARY_JSON}")
     print(f"[✓] Saved raw trade log CSV to:     {BACKTEST_CSV}")
     print("=" * 168)
-
 
 if __name__ == "__main__":
     run_quarterly_backtest()

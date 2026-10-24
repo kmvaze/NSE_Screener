@@ -34,7 +34,7 @@ let appState = {
   priceHistory: {},
   backtestData: null,
   selectedBacktestQuarterIdx: 0,
-  selectedBacktestMode: "score_surety_anchor",
+  selectedBacktestMode: "dynamic_regime_portfolio",
   selectedBacktestPortfolioSize: "10",
   selectedBacktestMcap: "ALL",
   landingFilter: "surety",
