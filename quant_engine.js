@@ -575,7 +575,7 @@ async function payWithRazorpay() {
   }
 
   const options = {
-    "key": "rzp_test_TpfjUTD4P3yYtu", // Replace with your live key in production
+    "key": "rzp_test_TrcdIe5ODis67i", // Replace with your live key in production
     "amount": orderData.amount,
     "currency": orderData.currency,
     "name": "NSE Alpha Pro",
