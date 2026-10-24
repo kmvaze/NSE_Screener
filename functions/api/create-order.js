@@ -1,7 +1,7 @@
 export async function onRequestPost() {
   // Hardcode for testing - remove before final production
-  const keyId = "rzp_test_TrcdIe5ODis67i".trim(); // Paste your actual Key ID here
-  const keySecret = "YFBBNuagKKRHIo79hUbRrcSP".trim(); // Paste your actual Secret here
+  const keyId = "rzp_test_TrdUTrl7bIoFy5".trim(); // Paste your actual Key ID here
+  const keySecret = "1cnvRJDuVQ9DzA2hqQ4Lk8F2".trim(); // Paste your actual Secret here
   
   const auth = btoa(`${keyId}:${keySecret}`);
   
@@ -14,7 +14,6 @@ export async function onRequestPost() {
       },
       body: JSON.stringify({ amount: 149900, currency: "INR", receipt: `rcpt_${Date.now()}` })
     });
-    
     const data = await response.json();
     
     if (!response.ok) {
