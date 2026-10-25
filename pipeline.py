@@ -945,46 +945,14 @@ def run_screener_engine():
 
     # Exact Backtest-Synchronized Institutional Setup Classifier
     def get_signal(r):
-        c_pattern = str(r["chart_pattern_signal"])
-        s_life = str(r["sector_lifecycle"])
-        mrs = float(r["mrs_score"])
-        close = float(r["close"])
-        sma50 = float(r["sma_50"])
-        sma200 = float(r["sma_200"])
-        stoch = float(r["stoch_k"])
-        s_anchor = float(r["score_surety_anchor"])
-        s_mom = float(r["score_momentum_frontrunner"])
-        s_rot = float(r["score_early_sector_rotation"])
-        s_pull = float(r["score_high_rs_pullback"])
-
-        if mrs > 8.0 or float(r["dist_from_50_pct"]) > 14.0 or float(r["prior_63d_pct"]) > 38.0:
-            return "⚠️ Extended (Wait for Dip)"
-        if not bool(r["above_200sma"]):
-            return "🔴 Below 200-SMA (Overhead Supply)"
-
         scores = [
-            (s_anchor, "🛡️ High-Surety Anchor"),
-            (s_mom, "🚀 Momentum Frontrunner"),
-            (s_rot, "🔄 Early Sector Rotation Leader"),
-            (s_pull, "📉 High-RS Pullback"),
+            (float(r.get("score_surety_anchor", 0)), "🛡️ 1. Surety Anchor"),
+            (float(r.get("score_momentum_frontrunner", 0)), "🚀 2. Momentum"),
+            (float(r.get("score_early_sector_rotation", 0)), "🔄 3. Rotation"),
+            (float(r.get("score_high_rs_pullback", 0)), "📉 4. Pullback"),
         ]
         scores.sort(key=lambda x: x[0], reverse=True)
-        top_score, top_label = scores[0]
-
-        if top_label == "📉 High-RS Pullback" and (mrs <= 1.0 or stoch < 45.0) and close >= sma50 * 0.98:
-            return "📉 High-RS Pullback"
-        if top_label == "🔄 Early Sector Rotation Leader" and ("Rotation" in s_life or "Prime" in s_life or "Leading" in s_life):
-            return "🔄 Early Sector Rotation Leader"
-        if top_label == "🚀 Momentum Frontrunner" and float(r["frontrunner_score"]) >= 70.0 and close >= sma50:
-            return "🚀 Momentum Frontrunner"
-        if c_pattern == "🎯 VCP Coiled Spring" and mrs <= 3.0:
-            return "🎯 VCP Coiled Spring"
-        if bool(r["is_pocket_pivot_5d"]) and (bool(r["is_squeezed"]) or bool(r["is_ma_pinched"])) and mrs <= 3.5:
-            return "⚡ Pocket Pivot Ignition"
-        if s_anchor >= 45.0 and close >= sma50 * 0.98:
-            return "🛡️ High-Surety Anchor"
-
-        return top_label
+        return scores[0][1]
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
     ranked = ranked.sort_values(by=["score_surety_anchor", "score_momentum_frontrunner", "iasis_score"], ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
