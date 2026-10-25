@@ -1086,9 +1086,15 @@ def run_screener_engine():
             "reasons_to_avoid": clean(r.get("reasons_to_avoid", ""), True),
         })
 
+    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
+    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
+    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
+
     payload = {
         "as_of_date": str(latest_date),
         "corporate_actions_normalized_count": len(corp_events),
+        "market_breadth_pct": round(market_breadth_pct, 2),
+        "benchmark_mrs_pct": round(bm_mrs, 2),
         "page_size": 50,
         "total_stocks": len(output_stocks),
         "total_pages": (len(output_stocks) + 49) // 50,
@@ -1132,7 +1138,3 @@ def upload_dashboard_to_supabase(json_path: str):
 
 if __name__ == "__main__":
     run_screener_engine()
-
-        
-
-        
