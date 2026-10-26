@@ -339,24 +339,43 @@ async function fetchSecureScreenerData() {
   }
 
   try {
-    // 1. Fetch from Edge Function
-    const { data: authData, error: authError } = await sb.functions.invoke('dynamic-endpoint', {
-      method: 'GET'
+    // 1. Native fetch completely bypasses sb.functions.invoke obscuring the error
+    const functionUrl = `${SUPABASE_URL}/functions/v1/dynamic-endpoint`;
+    const funcRes = await fetch(functionUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      }
     });
 
-    if (authError || !authData) {
-      console.warn("[Functions Error]", authError);
+    // 2. Extract the exact raw text before assuming it is JSON
+    const rawText = await funcRes.text();
+    let authData;
+    
+    try {
+      authData = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.error("[Backend Error] Response was not JSON:", rawText);
       enforcePaywallDisplay('TRIAL_EXPIRED');
       return null;
     }
 
-    // BACKWARD COMPATIBILITY: If the old Edge Function returns the full data directly
+    // 3. Catch actual backend rejection statuses (401, 403, 500)
+    if (!funcRes.ok) {
+      console.warn(`[Backend Rejected ${funcRes.status}]`, authData);
+      enforcePaywallDisplay('TRIAL_EXPIRED');
+      return null;
+    }
+
+    // 4. BACKWARD COMPATIBILITY: If the old Edge Function returns the full data directly
     if (authData.as_of_date && authData.stocks) {
       enforcePaywallDisplay('ACTIVE');
       return authData;
     }
 
-    // NEW ARCHITECTURE: If the new Edge Function returns a Signed URL
+    // 5. NEW ARCHITECTURE: If the new Edge Function returns a Signed URL
     if (authData.signed_url) {
       const jsonResponse = await fetch(authData.signed_url);
       if (!jsonResponse.ok) throw new Error("Failed to download payload from signed URL.");
@@ -366,12 +385,15 @@ async function fetchSecureScreenerData() {
       return payload;
     }
 
-    // Fallback if neither matches
+    // Fallback if payload matches neither expected format
+    console.error("Unrecognized payload format from Edge Function:", authData);
     enforcePaywallDisplay('TRIAL_EXPIRED');
     return null;
 
   } catch (err) {
-    console.error("Failed to load secure screener data:", err);
+    // This will now properly catch and display true network/CORS failures
+    console.error("Failed to load secure screener data:", err.message || err);
+    enforcePaywallDisplay('TRIAL_EXPIRED');
     return null;
   }
 }
