@@ -339,24 +339,36 @@ async function fetchSecureScreenerData() {
   }
 
   try {
-    // 1. Fetch Signed URL from Edge Function (Fast Permission Check)
+    // 1. Fetch from Edge Function
     const { data: authData, error: authError } = await sb.functions.invoke('dynamic-endpoint', {
       method: 'GET'
     });
 
-    if (authError || !authData || !authData.signed_url) {
+    if (authError || !authData) {
       console.warn("[Functions Error]", authError);
       enforcePaywallDisplay('TRIAL_EXPIRED');
       return null;
     }
 
-    // 2. Fetch Dashboard Payload Directly from CDN using Signed URL
-    const jsonResponse = await fetch(authData.signed_url);
-    if (!jsonResponse.ok) throw new Error("Failed to download payload from signed URL.");
+    // BACKWARD COMPATIBILITY: If the old Edge Function returns the full data directly
+    if (authData.as_of_date && authData.stocks) {
+      enforcePaywallDisplay('ACTIVE');
+      return authData;
+    }
 
-    const payload = await jsonResponse.json();
-    enforcePaywallDisplay('ACTIVE');
-    return payload;
+    // NEW ARCHITECTURE: If the new Edge Function returns a Signed URL
+    if (authData.signed_url) {
+      const jsonResponse = await fetch(authData.signed_url);
+      if (!jsonResponse.ok) throw new Error("Failed to download payload from signed URL.");
+
+      const payload = await jsonResponse.json();
+      enforcePaywallDisplay('ACTIVE');
+      return payload;
+    }
+
+    // Fallback if neither matches
+    enforcePaywallDisplay('TRIAL_EXPIRED');
+    return null;
 
   } catch (err) {
     console.error("Failed to load secure screener data:", err);
