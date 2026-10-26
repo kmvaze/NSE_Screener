@@ -378,10 +378,11 @@ function hideLoader() {
 // Update your init() function
 async function init() {
   try {
+    // 1. Auth check runs first (invisible to user, updates UI headers instantly)
     const hasAccess = await enforceAccessControl();
     if (!hasAccess) {
       document.getElementById('asOfBadge').textContent = "Access Locked - Login Required";
-      return;
+      return; 
     }
 
     if (!isAuthListenerAttached) {
@@ -400,16 +401,16 @@ async function init() {
       });
     }
 
-    // 🔥 SHOW LOADER BEFORE FETCHING DATA
+    // 🔥 SHOW LOADER HERE: Site shell is visible, now we fetch data
     showLoader();
 
+    // A. Fetch ONLY the critical dashboard file
     const data = await fetchSecureScreenerData();
 
     if (!data) {
-      hideLoader(); // Hide if access is restricted
       document.getElementById('asOfBadge').textContent = "Access Restricted";
       document.getElementById('stockCountBadge').textContent = "0 Stocks";
-      return;
+      return; 
     }
 
     enforcePaywallDisplay('ACTIVE');
@@ -427,33 +428,42 @@ async function init() {
     });
 
     appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
-    document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
     
-    populateSectorDropdowns();
-    renderSectorChips();
-    renderSectorTiles();
-    renderSectorRsChart();
-    applyFilterAndSort();
-    renderLandingDashboard();
-    renderPatternsTable();
-    updateWatchlistBadge();
-    updateGlobalBadge();
-    updateAuthUI();
+    const asOfBadge = document.getElementById('asOfBadge');
+    if (asOfBadge) asOfBadge.textContent = `EOD: ${appState.asOfDate}`;
+    
+    // 1. CRITICAL RENDER PATH
+    if (typeof renderLandingDashboard === 'function') renderLandingDashboard();
+    if (typeof updateWatchlistBadge === 'function') updateWatchlistBadge();
+    if (typeof updateGlobalBadge === 'function') updateGlobalBadge();
+    if (typeof updateAuthUI === 'function') updateAuthUI();
 
-    // 🔥 HIDE LOADER EXACTLY WHEN UI IS RENDERED
-    hideLoader();
+    // 2. DEFERRED UI RENDERING
+    setTimeout(() => {
+      if (typeof populateSectorDropdowns === 'function') populateSectorDropdowns();
+      if (typeof applyFilterAndSort === 'function') applyFilterAndSort();     
+      if (typeof renderSectorChips === 'function') renderSectorChips();      
+      if (typeof renderSectorTiles === 'function') renderSectorTiles();      
+      if (typeof renderSectorRsChart === 'function') renderSectorRsChart();    
+      if (typeof renderPatternsTable === 'function') renderPatternsTable();    
+    }, 10);
 
     if (!localStorage.getItem('nse_alpha_tour_completed')) {
-      setTimeout(() => startProductTour(), 800);
+      setTimeout(() => {
+        if (typeof startProductTour === 'function') startProductTour();
+      }, 800);
     }
     
-    // Background execution of heavy auxiliary files continues silently
-    loadAuxiliaryData();
+    // 3. BACKGROUND DATA FETCH 
+    if (typeof loadAuxiliaryData === 'function') loadAuxiliaryData();
     
   } catch (err) {
     console.error("Initialization error:", err);
-    hideLoader(); // Ensure loader hides on error
-    document.getElementById('asOfBadge').textContent = "Run pipeline first";
+    const asOfBadge = document.getElementById('asOfBadge');
+    if (asOfBadge) asOfBadge.textContent = "Run pipeline first";
+  } finally {
+    // 🔥 HIDE LOADER EXACTLY HERE: Runs no matter what
+    hideLoader();
   }
 }
 
