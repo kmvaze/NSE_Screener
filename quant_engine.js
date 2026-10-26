@@ -70,26 +70,10 @@ function getStrategyScore(st, mode) {
 }
 
 function matchesStrategyCriteria(st, mode) {
-  const close = Number(st.close || 0);
-  const sma50 = Number(st.sma_50 || 0);
-  const sma200 = Number(st.sma_200 || 0);
-  const mrs = Number(st.mrs_score || 0);
-  const stoch = Number(st.stoch_k ?? 50);
-  const secLife = String(st.sector_lifecycle || "");
-  const secRs = String(st.sector_rs_status || "");
-
-  if (mode === 'surety') {
-    return close >= sma200 && close >= sma50 * 0.97 && mrs >= -5.0 && mrs <= 6.0;
-  }
-  if (mode === 'momentum') {
-    return close >= sma200 && close >= sma50 && mrs >= -2.0 && mrs <= 10.0;
-  }
-  if (mode === 'rotation') {
-    return close >= sma200 && (!secRs.includes("Lagging") || !secLife.includes("Lagging") || (st.beta_neutral_mrs || 0) >= 1.5);
-  }
-  if (mode === 'pullback') {
-    return close >= sma200 && mrs >= -7.0 && mrs <= 2.5 && stoch <= 75;
-  }
+  if (mode === 'surety') return st.is_surety_candidate === true;
+  if (mode === 'momentum') return st.is_momentum_candidate === true;
+  if (mode === 'rotation') return st.is_rotation_candidate === true;
+  if (mode === 'pullback') return st.is_pullback_candidate === true;
   return true;
 }
 
@@ -142,41 +126,7 @@ function matchIndexToken(st, selectedIndex) {
 }
 
 function calculatePatternConfluence(st) {
-  let score = 0;
-
-  const iasis = Number(st.iasis_score || 0);
-  const delivPct = Number(st.deliv_pct || 0);
-  const upDown = Number(st.up_down_vol_ratio || 1.0);
-  if (iasis >= 60) score += 20;
-  else if (iasis >= 50) score += 12;
-
-  if (delivPct >= 50) score += 10;
-  else if (delivPct >= 35) score += 6;
-
-  if (upDown >= 1.25) score += 10;
-  else if (upDown >= 1.0) score += 6;
-
-  const poc = Number(st.volume_profile_poc || 0);
-  const close = Number(st.close || 0);
-  if (poc > 0 && close >= poc) {
-    score += 20;
-    const distPoc = ((close - poc) / poc) * 100;
-    if (distPoc <= 4.0) score += 5;
-  }
-
-  const front = Number(st.score_momentum_frontrunner || st.frontrunner_score || 0);
-  if (front >= 70) score += 15;
-  else if (front >= 55) score += 10;
-
-  const vcp = Number(st.vcp_ratio || 1.0);
-  const mrs = Number(st.mrs_score || 0);
-
-  if (vcp <= 0.65) score += 10;
-  else if (vcp <= 0.8) score += 5;
-
-  if (mrs >= -3.0 && mrs <= 4.5) score += 10;
-
-  return Math.min(100, Math.max(0, Math.round(score)));
+  return st.pattern_confluence_score || 0;
 }
 
 function deriveBacktestMcapTier(pick) {
@@ -214,11 +164,11 @@ function applyFilterAndSort() {
 
     let matchPreset = true;
     if (appState.activePreset === 'BuyZone') {
-      matchPreset = st.mrs_score >= -1.0 && st.mrs_score <= 4.0 && st.close >= st.sma_200;
+      matchPreset = st.preset_buyzone === true;
     } else if (appState.activePreset === 'Spring') {
-      matchPreset = (st.vcp_ratio && st.vcp_ratio <= 0.68) || (st.chart_pattern_signal && st.chart_pattern_signal !== "");
+      matchPreset = st.preset_spring === true;
     } else if (appState.activePreset === 'Pullback') {
-      matchPreset = st.mrs_score >= -5.0 && st.mrs_score <= 1.5 && st.close >= st.sma_200;
+      matchPreset = st.preset_pullback_active === true;
     }
 
     const matchExt = !appState.hideExtended || (st.mrs_score <= 8.0);

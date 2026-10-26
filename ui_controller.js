@@ -572,24 +572,14 @@ function renderPatternsTable() {
   const patFilter = appState.selectedPatternFilter || 'ALL';
 
   const matched = appState.stocks.map(st => {
-    const confScore = calculatePatternConfluence(st);
-    return { ...st, _confScore: confScore };
+    return { ...st, _confScore: st.pattern_confluence_score || 0 };
   }).filter(st => {
-    const hasSignal = Boolean(st.chart_pattern_signal && st.chart_pattern_signal !== "");
-    const pStr = String(st.chart_pattern_signal || "").toUpperCase();
-    const confStr = String(st.multi_timeframe_confluence || "").toUpperCase();
-    const vcpRatio = Number(st.vcp_ratio || 1.0);
-    const close = Number(st.close || 0);
-    const sma20 = Number(st.sma_20 || 0);
-    const sma50 = Number(st.sma_50 || 0);
-    const sma200 = Number(st.sma_200 || 0);
-    const mrs = Number(st.mrs_score || 0);
     const pTf = Number(st.pattern_timeframe || 21);
 
-    if (patFilter === 'FLAG' && !pStr.includes('FLAG') && !confStr.includes('FLAG')) return false;
-    if (patFilter === 'VCP' && !pStr.includes('VCP') && vcpRatio > 0.68) return false;
-    if (patFilter === 'BASE' && !pStr.includes('BASE') && !pStr.includes('CUP') && !confStr.includes('BASE')) return false;
-    if (patFilter === 'MACRO' && !pStr.includes('MACRO') && !(close >= sma50 && sma50 >= sma200)) return false;
+    if (patFilter === 'FLAG' && !st.is_flag_pattern) return false;
+    if (patFilter === 'VCP' && !st.is_vcp_pattern) return false;
+    if (patFilter === 'BASE' && !st.is_base_pattern) return false;
+    if (patFilter === 'MACRO' && !st.is_macro_pattern) return false;
 
     if (tf !== 'ALL') {
       if (parseInt(tf, 10) !== pTf) return false;
@@ -597,7 +587,7 @@ function renderPatternsTable() {
 
     if (appState.filterConfluenceOnly && st._confScore < 60) return false;
 
-    return hasSignal || vcpRatio <= 0.65;
+    return st.is_flag_pattern || st.is_vcp_pattern || st.is_base_pattern || st.is_macro_pattern || Boolean(st.chart_pattern_signal);
   });
 
   matched.sort((a, b) => b._confScore - a._confScore);

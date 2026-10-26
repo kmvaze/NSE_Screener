@@ -17,6 +17,8 @@ METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 
+
+
 os.makedirs(CSV_STORE, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -1051,6 +1053,58 @@ def run_screener_engine():
             except Exception:
                 return val
 
+        # Backend Migration of UI Logic
+        c = float(r.get("close", 0))
+        s50 = float(r.get("sma_50", 0))
+        s200 = float(r.get("sma_200", 0))
+        mrs = float(r.get("mrs_score", 0))
+        stoch = float(r.get("stoch_k", 50))
+        secLife = str(r.get("sector_lifecycle", ""))
+        secRs = str(r.get("sector_rs_status", ""))
+        bn_mrs = float(r.get("beta_neutral_mrs", 0))
+        vcp_rat = float(r.get("vcp_ratio", 1.0))
+        pat_sig = str(r.get("chart_pattern_signal", "")).upper()
+        conf_sig = str(r.get("multi_timeframe_confluence", "")).upper()
+        
+        is_surety_candidate = (c >= s200) and (c >= s50 * 0.97) and (-5.0 <= mrs <= 6.0)
+        is_momentum_candidate = (c >= s200) and (c >= s50) and (-2.0 <= mrs <= 10.0)
+        is_rotation_candidate = (c >= s200) and (("LAGGING" not in secRs.upper()) or ("LAGGING" not in secLife.upper()) or (bn_mrs >= 1.5))
+        is_pullback_candidate = (c >= s200) and (-7.0 <= mrs <= 2.5) and (stoch <= 75)
+        
+        preset_buyzone = (-1.0 <= mrs <= 4.0) and (c >= s200)
+        preset_spring = (vcp_rat <= 0.68) or (pat_sig != "")
+        preset_pullback_active = (-5.0 <= mrs <= 1.5) and (c >= s200)
+        
+        is_flag_pattern = ("FLAG" in pat_sig) or ("FLAG" in conf_sig)
+        is_vcp_pattern = ("VCP" in pat_sig) or (vcp_rat <= 0.68)
+        is_base_pattern = ("BASE" in pat_sig) or ("CUP" in pat_sig) or ("BASE" in conf_sig)
+        is_macro_pattern = ("MACRO" in pat_sig) or ((c >= s50) and (s50 >= s200))
+        
+        iasis = float(r.get("iasis_score", 0))
+        delivPct = float(r.get("smooth_deliv_pct", r.get("deliv_pct", 0)))
+        upDown = float(r.get("up_down_vol_ratio", 1.0))
+        poc = float(r.get("volume_profile_poc", 0))
+        front = float(r.get("frontrunner_score", 0))
+        
+        conf_score = 0
+        if iasis >= 60: conf_score += 20
+        elif iasis >= 50: conf_score += 12
+        if delivPct >= 50: conf_score += 10
+        elif delivPct >= 35: conf_score += 6
+        if upDown >= 1.25: conf_score += 10
+        elif upDown >= 1.0: conf_score += 6
+        if poc > 0 and c >= poc:
+            conf_score += 20
+            distPoc = ((c - poc) / poc) * 100
+            if distPoc <= 4.0: conf_score += 5
+        if front >= 70: conf_score += 15
+        elif front >= 55: conf_score += 10
+        if vcp_rat <= 0.65: conf_score += 10
+        elif vcp_rat <= 0.8: conf_score += 5
+        if -3.0 <= mrs <= 4.5: conf_score += 10
+        
+        pattern_confluence_score = min(100, max(0, int(round(conf_score))))
+
         output_stocks.append({
             "symbol": sym,
             "company_name": clean(r.get("company_name", sym), True),
@@ -1128,6 +1182,18 @@ def run_screener_engine():
             "supply_exhaustion_ratio": clean(r.get("supply_exhaustion_ratio")),
             "rs_acceleration": clean(r.get("rs_acceleration")),
             "reasons_to_avoid": clean(r.get("reasons_to_avoid", ""), True),
+            "is_surety_candidate": bool(is_surety_candidate),
+            "is_momentum_candidate": bool(is_momentum_candidate),
+            "is_rotation_candidate": bool(is_rotation_candidate),
+            "is_pullback_candidate": bool(is_pullback_candidate),
+            "preset_buyzone": bool(preset_buyzone),
+            "preset_spring": bool(preset_spring),
+            "preset_pullback_active": bool(preset_pullback_active),
+            "is_flag_pattern": bool(is_flag_pattern),
+            "is_vcp_pattern": bool(is_vcp_pattern),
+            "is_base_pattern": bool(is_base_pattern),
+            "is_macro_pattern": bool(is_macro_pattern),
+            "pattern_confluence_score": pattern_confluence_score,
         })
 
     payload = {
