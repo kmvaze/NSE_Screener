@@ -339,26 +339,27 @@ async function fetchSecureScreenerData() {
   }
 
   try {
-    const { data, error } = await sb.functions.invoke('dynamic-endpoint', {
+    // 1. Fetch Signed URL from Edge Function (Fast Permission Check)
+    const { data: authData, error: authError } = await sb.functions.invoke('dynamic-endpoint', {
       method: 'GET'
     });
 
-    if (error) {
-      console.warn("[Functions Error]", error);
-      if (error.context?.status === 403) {
-        enforcePaywallDisplay('TRIAL_EXPIRED');
-      }
+    if (authError || !authData || !authData.signed_url) {
+      console.warn("[Functions Error]", authError);
+      enforcePaywallDisplay('TRIAL_EXPIRED');
       return null;
     }
 
-    if (!data) {
-      throw new Error("No data returned from endpoint.");
-    }
+    // 2. Fetch Dashboard Payload Directly from CDN using Signed URL
+    const jsonResponse = await fetch(authData.signed_url);
+    if (!jsonResponse.ok) throw new Error("Failed to download payload from signed URL.");
 
+    const payload = await jsonResponse.json();
     enforcePaywallDisplay('ACTIVE');
-    return data;
+    return payload;
+
   } catch (err) {
-    console.error("Failed to load screener data via invoke:", err);
+    console.error("Failed to load secure screener data:", err);
     return null;
   }
 }
@@ -387,7 +388,7 @@ async function init() {
       });
     }
 
-    // 1. Fetch ONLY the critical dashboard file
+    // A. Fetch ONLY the critical dashboard file
     const data = await fetchSecureScreenerData();
 
     if (!data) {
@@ -398,11 +399,10 @@ async function init() {
 
     enforcePaywallDisplay('ACTIVE');
 
-    // 2. Immediately populate the App State with Dashboard Data
     appState.asOfDate = data.as_of_date || "";
     appState.marketRegimeLabel = data.market_regime_label || "Dynamic Mix Active";
     appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
-    appState.sectorRsHistory = data.sector_rs_history || {}; // Sector RS is already in dashboard JSON!
+    appState.sectorRsHistory = data.sector_rs_history || {};
     
     const rawStocks = data.stocks || [];
     appState.stocks = rawStocks.filter(st => {
@@ -414,11 +414,11 @@ async function init() {
     appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
     document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
     
-    // 3. Render the UI Instantly
+    // B. Render the UI Instantly
     populateSectorDropdowns();
     renderSectorChips();
     renderSectorTiles();
-    renderSectorRsChart(); // Renders instantly because Sector RS history is in the primary JSON
+    renderSectorRsChart(); 
     applyFilterAndSort();
     renderLandingDashboard();
     renderPatternsTable();
@@ -430,12 +430,38 @@ async function init() {
       setTimeout(() => startProductTour(), 800);
     }
 
-    // 4. Fire the non-blocking background loader for heavy auxiliary files
+    // C. Fire the non-blocking background loader for heavy auxiliary files
     loadAuxiliaryData();
 
   } catch (err) {
     console.error("Initialization error:", err);
     document.getElementById('asOfBadge').textContent = "Run pipeline first";
+  }
+}
+
+async function loadAuxiliaryData() {
+  try {
+    const [priceRes, btRes] = await Promise.all([
+      fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
+      fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
+    ]);
+    
+    if (priceRes.ok) {
+      appState.priceHistory = await priceRes.json();
+      if (stockRsChartInstance && appState.selectedDrilldownSector) {
+        renderStockRsChart();
+      }
+    }
+    
+    if (btRes && btRes.ok) {
+      appState.backtestData = await btRes.json();
+      const btView = document.getElementById('viewBacktest');
+      if (btView && btView.classList.contains('active')) {
+        renderBacktestView();
+      }
+    }
+  } catch(e) {
+    console.warn("Failed to silently load auxiliary data.", e);
   }
 }
 
