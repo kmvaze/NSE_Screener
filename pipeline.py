@@ -17,8 +17,6 @@ METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 
-
-
 os.makedirs(CSV_STORE, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -898,6 +896,14 @@ def run_screener_engine():
     ).clip(5.0, 99.0).round(1)
 
     # Pure Quantitative Strategy Models (Calibrated exactly to Backtest Engine)
+    
+    # Structural Penalty: If the stock is pulling back (MRS < 1.5%), aggressively slash the momentum score 
+    # so it does not outcompete Pullback in a market crash simply due to high RS percentiles.
+    mom_struct_penalty = np.where(ranked["mrs_score"] < 1.5, 0.65, 1.0)
+    
+    # Structural Penalty: If the sector is not actually rotating or leading, slash the rotation score.
+    rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.70)
+
     # 1. Strategy 1: High-Surety Institutional Anchor
     mrs_anchor_pts = 28.0 * np.exp(-((ranked["mrs_score"] - 0.8) ** 2) / 10.5)
     sma50_anchor_pts = 22.0 * np.clip(1.0 - (np.maximum(0.0, ranked["dist_from_50_pct"] - 1.5) / 10.0), 0.0, 1.0)
@@ -926,14 +932,14 @@ def run_screener_engine():
     ranked["surety_score"] = (raw_surety * mom_curve * flow_curve * sec_adj).clip(5.0, 99.0).round(1)
     ranked["score_surety_anchor"] = ranked["surety_score"]
 
-    # 2. Strategy 2: Momentum Frontrunner
+    # 2. Strategy 2: Momentum Frontrunner (Gated by mom_struct_penalty)
     ranked["score_momentum_frontrunner"] = (
-        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj
+        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj * mom_struct_penalty
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation
+    # 3. Strategy 3: Early Sector Rotation (Gated by rot_struct_penalty)
     ranked["score_early_sector_rotation"] = (
-        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership"), 1.08, 0.92)
+        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * rot_struct_penalty
     ).clip(5.0, 99.0).round(1)
 
     # 4. Strategy 4: High-RS Pullback Structure
@@ -955,6 +961,75 @@ def run_screener_engine():
         return scores[0][1]
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
+    
+    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
+    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
+    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
+
+    # -------------------------------------------------------------------------
+    # DYNAMIC REGIME & PORTFOLIO ALLOCATION ENGINE
+    # -------------------------------------------------------------------------
+    active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
+    
+    if market_breadth_pct >= 50.0 and bm_mrs <= 3.0:
+        regime_label = f"🟢 Expansion Regime ({market_breadth_pct:.1f}% >50SMA)"
+        rot_q = 3 if active_rot > 0 else 0
+        quotas = {"score_momentum_frontrunner": 5, "score_early_sector_rotation": rot_q, "score_high_rs_pullback": 3 + (3 - rot_q), "score_surety_anchor": 1}
+    elif market_breadth_pct >= 50.0 and bm_mrs > 3.0:
+        regime_label = f"⚠️ Overheated Tape (MRS +{bm_mrs:.1f}%)"
+        rot_q = 2 if active_rot > 0 else 0
+        quotas = {"score_high_rs_pullback": 5 + (2 - rot_q), "score_surety_anchor": 4, "score_early_sector_rotation": rot_q, "score_momentum_frontrunner": 1}
+    elif market_breadth_pct < 35.0:
+        regime_label = f"🛡️ Bearish Defense ({market_breadth_pct:.1f}% >50SMA)"
+        quotas = {"score_surety_anchor": 5, "score_high_rs_pullback": 5, "score_momentum_frontrunner": 2, "score_early_sector_rotation": 0}
+    else:
+        regime_label = f"🔄 Early Recovery Thrust ({market_breadth_pct:.1f}% >50SMA)"
+        rot_q = 4 if active_rot > 0 else 0
+        quotas = {"score_early_sector_rotation": rot_q, "score_high_rs_pullback": 4 + (4 - rot_q), "score_momentum_frontrunner": 2, "score_surety_anchor": 2}
+
+    dynamic_picks_map = {}
+    seen_sec = {}
+    
+    for strat_key, limit in quotas.items():
+        if limit <= 0: continue
+        
+        if strat_key == "score_surety_anchor":
+            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"] * 0.97) & (ranked["mrs_score"] >= -5.0) & (ranked["mrs_score"] <= 6.0) & (~ranked["mcap_tier"].str.contains("Tier 1", na=False))
+            strat_name = "surety"
+        elif strat_key == "score_momentum_frontrunner":
+            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"]) & (ranked["mrs_score"] >= -2.0) & (ranked["mrs_score"] <= 10.0)
+            strat_name = "momentum"
+        elif strat_key == "score_early_sector_rotation":
+            mask = (ranked["close"] >= ranked["sma_200"]) & (~ranked["sector_rs_status"].str.contains("Lagging") | ~ranked["sector_lifecycle"].str.contains("Lagging") | (ranked["beta_neutral_mrs"] >= 1.5)) & (ranked["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False))
+            strat_name = "rotation"
+        elif strat_key == "score_high_rs_pullback":
+            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["mrs_score"] >= -7.0) & (ranked["mrs_score"] <= 2.5) & (ranked["stoch_k"] <= 75)
+            strat_name = "pullback"
+        else:
+            mask = ranked["close"] > 0
+            strat_name = "surety"
+            
+        qual = ranked[mask].sort_values(by=[strat_key, "iasis_score"], ascending=False)
+        added = 0
+        for _, r in qual.iterrows():
+            if added >= limit: break
+            sym, sec = r["symbol"], r["sector"]
+            if sym in dynamic_picks_map: continue
+            if seen_sec.get(sec, 0) < 2:
+                dynamic_picks_map[sym] = strat_name
+                seen_sec[sec] = seen_sec.get(sec, 0) + 1
+                added += 1
+
+    if len(dynamic_picks_map) < 12:
+        mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"] * 0.97) & (ranked["mrs_score"] >= -5.0) & (ranked["mrs_score"] <= 6.0) & (~ranked["mcap_tier"].str.contains("Tier 1", na=False))
+        backup_pool = ranked[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
+        for _, r in backup_pool.iterrows():
+            if len(dynamic_picks_map) >= 12: break
+            sym = r["symbol"]
+            if sym not in dynamic_picks_map:
+                dynamic_picks_map[sym] = "surety"
+    # -------------------------------------------------------------------------
+
     ranked = ranked.sort_values(by=["score_surety_anchor", "score_momentum_frontrunner", "iasis_score"], ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
 
     output_stocks = []
@@ -1038,6 +1113,7 @@ def run_screener_engine():
             "mrs_score": clean(r.get("mrs_score")),
             "beta_neutral_mrs": clean(r.get("beta_neutral_mrs")),
             "inst_signal": clean(r.get("inst_signal", "Consolidation / Base"), True),
+            "dynamic_mix_strategy": dynamic_picks_map.get(sym, ""),
             "surety_score": clean(r.get("surety_score")),
             "score_high_rs_pullback": clean(r.get("score_high_rs_pullback")),
             "score_momentum_frontrunner": clean(r.get("score_momentum_frontrunner")),
@@ -1054,15 +1130,12 @@ def run_screener_engine():
             "reasons_to_avoid": clean(r.get("reasons_to_avoid", ""), True),
         })
 
-    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
-    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
-    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
-
     payload = {
         "as_of_date": str(latest_date),
         "corporate_actions_normalized_count": len(corp_events),
         "market_breadth_pct": round(market_breadth_pct, 2),
         "benchmark_mrs_pct": round(bm_mrs, 2),
+        "market_regime_label": regime_label,
         "page_size": 50,
         "total_stocks": len(output_stocks),
         "total_pages": (len(output_stocks) + 49) // 50,
@@ -1079,7 +1152,6 @@ def run_screener_engine():
     upload_dashboard_to_supabase(OUTPUT_JSON)
 
 from supabase import create_client
-
 
 def upload_dashboard_to_supabase(json_path: str):
     supabase_url = os.environ.get("SUPABASE_URL", "https://ydjzbwkaxwcfkqzfndum.supabase.co")

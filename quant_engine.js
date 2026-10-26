@@ -463,6 +463,7 @@ if (!isAuthListenerAttached) {
     try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
 
     appState.asOfDate = data.as_of_date || "";
+    appState.marketRegimeLabel = data.market_regime_label || "Dynamic Mix Active";
     appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
     appState.sectorRsHistory = data.sector_rs_history || {};
     

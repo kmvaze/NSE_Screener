@@ -366,58 +366,28 @@ function renderLandingDashboard() {
   const sectorCount = {};
 
   if (mode === 'dynamic') {
-    const total = appState.stocks.length || 1;
-    const breadth50Pct = (appState.stocks.filter(s => Number(s.close) >= Number(s.sma_50)).length / total) * 100;
-    const meanMrs = appState.stocks.reduce((acc, s) => acc + Number(s.mrs_score || 0), 0) / total;
+    const dynamicPicks = appState.stocks.filter(st => st.dynamic_mix_strategy && st.dynamic_mix_strategy !== "");
+    // Sort them exactly by their highest score to maintain ranking
+    dynamicPicks.sort((a, b) => {
+      const getActiveScore = (s) => {
+        if (s.dynamic_mix_strategy === 'momentum') return s.score_momentum_frontrunner || 0;
+        if (s.dynamic_mix_strategy === 'rotation') return s.score_early_sector_rotation || 0;
+        if (s.dynamic_mix_strategy === 'pullback') return s.score_high_rs_pullback || 0;
+        return s.score_surety_anchor || 0;
+      };
+      return getActiveScore(b) - getActiveScore(a);
+    });
 
-    const activeRotSectors = appState.sectors.filter(sec =>
-      sec.stock_count >= 3 && String(sec.sector_lifecycle).match(/Rotation|Prime|Leadership/)
-    ).length;
-
-    let quotas = { surety: 3, momentum: 3, rotation: 3, pullback: 3 };
-    let regimeLabel = "";
-
-    if (breadth50Pct >= 50.0 && meanMrs <= 3.0) {
-      regimeLabel = `🟢 Expansion Regime (${breadth50Pct.toFixed(1)}% >50SMA)`;
-      const rotQ = activeRotSectors > 0 ? 3 : 0;
-      quotas = { momentum: 5, rotation: rotQ, pullback: 3 + (3 - rotQ), surety: 1 };
-    } else if (breadth50Pct >= 50.0 && meanMrs > 3.0) {
-      regimeLabel = `⚠️ Overheated Tape (MRS +${meanMrs.toFixed(1)}%)`;
-      const rotQ = activeRotSectors > 0 ? 2 : 0;
-      quotas = { pullback: 5 + (2 - rotQ), surety: 4, rotation: rotQ, momentum: 1 };
-    } else if (breadth50Pct < 35.0) {
-      regimeLabel = `🛡️ Bearish Defense (${breadth50Pct.toFixed(1)}% >50SMA)`;
-      quotas = { surety: 5, pullback: 5, momentum: 2, rotation: 0 };
-    } else {
-      regimeLabel = `🔄 Early Recovery Thrust (${breadth50Pct.toFixed(1)}% >50SMA)`;
-      const rotQ = activeRotSectors > 0 ? 4 : 0;
-      quotas = { rotation: rotQ, pullback: 4 + (4 - rotQ), momentum: 2, surety: 2 };
-    }
-
-    const pools = {
-      momentum: appState.stocks.filter(s => matchesStrategyCriteria(s, 'momentum')).sort((a, b) => (b.score_momentum_frontrunner || 0) - (a.score_momentum_frontrunner || 0)),
-      rotation: appState.stocks.filter(s => matchesStrategyCriteria(s, 'rotation') && String(s.sector_lifecycle).match(/Rotation|Prime|Leadership/)).sort((a, b) => (b.score_early_sector_rotation || 0) - (a.score_early_sector_rotation || 0)),
-      pullback: appState.stocks.filter(s => matchesStrategyCriteria(s, 'pullback')).sort((a, b) => (b.score_high_rs_pullback || 0) - (a.score_high_rs_pullback || 0)),
-      surety:   appState.stocks.filter(s => matchesStrategyCriteria(s, 'surety') && !(s.mcap_tier || "").includes("Tier 1")).sort((a, b) => (b.score_surety_anchor || 0) - (a.score_surety_anchor || 0))
-    };
-
-    for (const [strategy, targetCount] of Object.entries(quotas)) {
-      let added = 0;
-      for (const stock of pools[strategy]) {
-        if (added >= targetCount) break;
-        if (selectedSymbols.has(stock.symbol)) continue;
-        const sec = stock.sector || 'Other';
-        if ((sectorCount[sec] || 0) < 2) {
-          topTiles.push({ ...stock, active_strategy: strategy });
-          selectedSymbols.add(stock.symbol);
-          sectorCount[sec] = (sectorCount[sec] || 0) + 1;
-          added++;
-        }
+    for (const st of dynamicPicks) {
+      if (!selectedSymbols.has(st.symbol)) {
+        topTiles.push({ ...st, active_strategy: st.dynamic_mix_strategy });
+        selectedSymbols.add(st.symbol);
       }
+      if (topTiles.length >= 12) break;
     }
 
     const rl = document.getElementById('landingGridRegimeLabel');
-    if (rl) rl.textContent = regimeLabel;
+    if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic Mix";
 
   } else {
     const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
