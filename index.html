@@ -13,9 +13,20 @@
 </head>
 <body>
   <!-- Global Loading Overlay -->
-<div id="globalLoader" class="loader-overlay">
-  <div class="spinner"></div>
-  <div style="margin-top: 15px; font-weight: 600; color: var(--text);">Authenticating & Loading Quant Data...</div>
+<!-- Bulletproof Global Loading Overlay -->
+<div id="globalLoader" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: var(--bg, #ffffff); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.4s ease-out, visibility 0.4s;">
+  
+  <div style="width: 50px; height: 50px; border: 4px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+  
+  <div style="margin-top: 15px; font-weight: 600; color: var(--text, #1e293b); font-family: inherit;">
+    Authenticating & Loading Quant Data...
+  </div>
+
+  <style>
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    #globalLoader.hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+  </style>
+
 </div>
   <div id="globalTooltip"></div>
 
