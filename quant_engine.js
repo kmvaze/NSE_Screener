@@ -364,6 +364,18 @@ async function fetchSecureScreenerData() {
   }
 }
 
+// Add these helper functions at the bottom or near init()
+function showLoader() {
+  const loader = document.getElementById('globalLoader');
+  if (loader) loader.classList.remove('hidden');
+}
+
+function hideLoader() {
+  const loader = document.getElementById('globalLoader');
+  if (loader) loader.classList.add('hidden');
+}
+
+// Update your init() function
 async function init() {
   try {
     const hasAccess = await enforceAccessControl();
@@ -388,10 +400,13 @@ async function init() {
       });
     }
 
-    // A. Fetch ONLY the critical dashboard file
+    // 🔥 SHOW LOADER BEFORE FETCHING DATA
+    showLoader();
+
     const data = await fetchSecureScreenerData();
 
     if (!data) {
+      hideLoader(); // Hide if access is restricted
       document.getElementById('asOfBadge').textContent = "Access Restricted";
       document.getElementById('stockCountBadge').textContent = "0 Stocks";
       return;
@@ -414,11 +429,10 @@ async function init() {
     appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
     document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
     
-    // B. Render the UI Instantly
     populateSectorDropdowns();
     renderSectorChips();
     renderSectorTiles();
-    renderSectorRsChart(); 
+    renderSectorRsChart();
     applyFilterAndSort();
     renderLandingDashboard();
     renderPatternsTable();
@@ -426,15 +440,19 @@ async function init() {
     updateGlobalBadge();
     updateAuthUI();
 
+    // 🔥 HIDE LOADER EXACTLY WHEN UI IS RENDERED
+    hideLoader();
+
     if (!localStorage.getItem('nse_alpha_tour_completed')) {
       setTimeout(() => startProductTour(), 800);
     }
-
-    // C. Fire the non-blocking background loader for heavy auxiliary files
+    
+    // Background execution of heavy auxiliary files continues silently
     loadAuxiliaryData();
-
+    
   } catch (err) {
     console.error("Initialization error:", err);
+    hideLoader(); // Ensure loader hides on error
     document.getElementById('asOfBadge').textContent = "Run pipeline first";
   }
 }
