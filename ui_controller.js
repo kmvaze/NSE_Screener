@@ -18,14 +18,14 @@ function updateGlobalBadge() {
   const viewId = activeView.id;
 
   if (viewId === 'viewLanding') {
-    const mode = appState.landingFilter || 'surety';
+    const mode = appState.landingFilter || 'dynamic';
     
     // Count the exact tiles shown in the landing grid
     const landingGrid = document.getElementById('landingHeroGrid');
     const renderedCardsCount = landingGrid ? landingGrid.querySelectorAll('.landing-tile').length : 0;
     
     // Universal Market Leadership: Total pool meeting this strategy's exact criteria across all stocks
-    const totalQualifying = appState.stocks.filter(st => matchesStrategyCriteria(st, mode)).length;
+    const totalQualifying = appState.stocks.filter(st => mode === 'dynamic' ? true : matchesStrategyCriteria(st, mode)).length;
 
     // Displays the active portfolio setups plus the total qualified pool count
     badge.textContent = renderedCardsCount > 0 
@@ -509,6 +509,7 @@ function renderLandingDashboard() {
   
   updateGlobalBadge();
 }
+
 function renderTablePage() {
   const tbody = document.getElementById('stocksTableBody');
   if (!tbody) return;
@@ -603,8 +604,8 @@ function renderPatternsTable() {
     const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
     const poc = Number(st.volume_profile_poc || 0);
     const close = Number(st.close || 0);
-    const isAbovePoc = poc > 0 && close >= poc;
-    const pocDiff = poc > 0 ? (((close - poc) / poc) * 100).toFixed(1) : "0.0";
+    const isAbovePoc = st.is_above_poc === true;
+    const pocDiff = st.dist_from_poc_pct !== undefined ? st.dist_from_poc_pct.toFixed(1) : "0.0";
     const patLabel = st.chart_pattern_signal || st.multi_timeframe_confluence || 'Volatility Contraction';
     const tfLabel = `${st.pattern_timeframe || 21} Sessions`;
 

@@ -17,8 +17,6 @@ METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 
-
-
 os.makedirs(CSV_STORE, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -46,7 +44,6 @@ NIFTY_NEXT_50_SYMBOLS = {
     "PFC", "PNB", "RECLTD", "SIEMENS", "SRF", "TORNTPHARM", "TVSMOTOR", "UNITDSPR", "VBL", 
     "VEDL", "ZYDUSLIFE", "ZOMATO"
 }
-
 
 def download_with_curl(url: str) -> bytes:
     cookie_file = os.path.join(DATA_DIR, "nse_cookies.txt")
@@ -1104,6 +1101,9 @@ def run_screener_engine():
         if -3.0 <= mrs <= 4.5: conf_score += 10
         
         pattern_confluence_score = min(100, max(0, int(round(conf_score))))
+        
+        dist_poc = round(((c - poc) / (poc + 1e-5)) * 100.0, 1) if poc > 0 else 0.0
+        is_above_poc = bool(poc > 0 and c >= poc)
 
         output_stocks.append({
             "symbol": sym,
@@ -1194,6 +1194,8 @@ def run_screener_engine():
             "is_base_pattern": bool(is_base_pattern),
             "is_macro_pattern": bool(is_macro_pattern),
             "pattern_confluence_score": pattern_confluence_score,
+            "dist_from_poc_pct": dist_poc,
+            "is_above_poc": is_above_poc,
         })
 
     payload = {

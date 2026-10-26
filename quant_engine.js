@@ -9,6 +9,7 @@ let currentUser = null;
 let userProfile = null;
 let isAuthListenerAttached = false;
 
+// Public Index Composition - Safe to expose in Frontend
 const NIFTY_50_SET = new Set([
   "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", 
   "BAJFINANCE", "BEL", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA", "COALINDIA", "DRREDDY", 
@@ -29,6 +30,7 @@ const NIFTY_NEXT_50_SET = new Set([
 
 let appState = {
   asOfDate: "",
+  marketRegimeLabel: "",
   sectors: [],
   sectorRsHistory: {},
   priceHistory: {},
@@ -195,7 +197,6 @@ function updateUIAfterFilter() {
     return appState.sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
   });
 
-  // --- UPDATE ARROWS ON TABLE HEADERS ---
   const arrowSpans = document.querySelectorAll('#mainStockTable thead th span[id^="sort_"]');
   arrowSpans.forEach(span => { span.textContent = ''; });
   const activeSortSpan = document.getElementById(`sort_${appState.sortCol}`);
@@ -221,8 +222,6 @@ async function enforceAccessControl() {
   }
 
   const urlParams = new URLSearchParams(window.location.search);
-  const errorDescription = urlParams.get('error_description');
-  // Only bypasses if you explicitly visit: http://localhost:8000/?dev_mode=true
   if (urlParams.get('dev_mode') === 'true' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     currentUser = { id: "local-dev-user", email: "developer@local.test" };
     userProfile = { is_pro: true, trial_ends_at: "2099-01-01" };
@@ -291,7 +290,6 @@ function enforcePaywallDisplay(state) {
     document.body.classList.add('content-locked');
     if (overlay) overlay.style.display = 'flex';
     
-    // If not logged in, provide the Google button inside the modal as well
     if (!currentUser) {
       if (loginBtn) loginBtn.style.display = 'block';
       if (desc) desc.textContent = "Please sign in with your Google account to access your active 2-day trial or upgrade to Pro.";
@@ -321,7 +319,6 @@ async function loginWithGoogle() {
 async function fetchSecureScreenerData() {
   const hostname = window.location.hostname;
   
-  // Localhost / Development Bypass: Load dashboard_data.json from the same root level
   if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || window.location.protocol === 'file:') {
     try {
       const localRes = await fetch(`./dashboard_data.json?t=${Date.now()}`);
@@ -374,7 +371,7 @@ async function init() {
       return;
     }
 
-if (!isAuthListenerAttached) {
+    if (!isAuthListenerAttached) {
       isAuthListenerAttached = true;
       sb.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session && (!currentUser || currentUser.id !== session.user.id)) {
@@ -390,20 +387,16 @@ if (!isAuthListenerAttached) {
       });
     }
 
-    // New secure flow in init():
     const data = await fetchSecureScreenerData();
 
-    // If access is locked (no login or trial expired), stop initialization immediately
     if (!data) {
       document.getElementById('asOfBadge').textContent = "Access Restricted";
       document.getElementById('stockCountBadge').textContent = "0 Stocks";
       return;
     }
 
-    // User is verified and entitled to the data!
     enforcePaywallDisplay('ACTIVE');
 
-    // Load supporting visual histories (price history and backtest caches)
     const [priceRes, btRes] = await Promise.all([
       fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
       fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
@@ -459,9 +452,8 @@ async function fetchUserProfile(userId) {
 }
 
 function evaluateAccess() {
-  // If user is not logged in, NEVER trigger the expired trial payment modal
   if (!currentUser || !userProfile) {
-    enforcePaywallDisplay('ACTIVE'); // Keeps the UI modal closed
+    enforcePaywallDisplay('ACTIVE'); 
     return;
   }
 
@@ -497,16 +489,15 @@ function evaluateAccess() {
         subBannerText.innerHTML = `⏳ <strong>Free Trial Active (${daysLeft} days left):</strong> Institutional trial active.`;
       }
     }
-    enforcePaywallDisplay('ACTIVE'); // Keep UI unblocked
+    enforcePaywallDisplay('ACTIVE');
   } else {
-    // Only lock when LOGGED IN and trial is truly finished
     if (badge) {
       badge.textContent = "❌ Trial Expired";
       badge.style.borderColor = "var(--red)";
       badge.style.color = "var(--red)";
     }
     if (subBanner) subBanner.style.display = 'none';
-    enforcePaywallDisplay('TRIAL_EXPIRED'); // Show payment modal
+    enforcePaywallDisplay('TRIAL_EXPIRED');
   }
 }
 
@@ -516,7 +507,6 @@ async function payWithRazorpay() {
     return;
   }
 
-  // Fetch the secure order ID from Cloudflare Pages
   const orderReq = await fetch('/api/create-order', { method: 'POST' });
   const orderData = await orderReq.json();
 
@@ -526,16 +516,15 @@ async function payWithRazorpay() {
   }
 
   const options = {
-    "key": "rzp_live_Trdtyh6l3mOHtP", // Replace with your live key in production
+    "key": "rzp_live_Trdtyh6l3mOHtP", 
     "amount": orderData.amount,
     "currency": orderData.currency,
     "name": "NSE Alpha Pro",
     "description": "1 Year Institutional Access",
-    "order_id": orderData.id, // Pass the server-generated order ID
+    "order_id": orderData.id, 
     "handler": async function (response) {
       showToast("Verifying payment securely...");
       
-      // Send keys to Cloudflare for secure backend verification
       const verifyReq = await fetch('/api/verify-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
