@@ -387,6 +387,7 @@ async function init() {
       });
     }
 
+    // 1. Fetch ONLY the critical dashboard file
     const data = await fetchSecureScreenerData();
 
     if (!data) {
@@ -397,18 +398,11 @@ async function init() {
 
     enforcePaywallDisplay('ACTIVE');
 
-    const [priceRes, btRes] = await Promise.all([
-      fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
-      fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
-    ]);
-    
-    try { if (priceRes.ok) appState.priceHistory = await priceRes.json(); } catch(e) { appState.priceHistory = {}; }
-    try { if (btRes && btRes.ok) appState.backtestData = await btRes.json(); } catch(e) { appState.backtestData = null; }
-
+    // 2. Immediately populate the App State with Dashboard Data
     appState.asOfDate = data.as_of_date || "";
     appState.marketRegimeLabel = data.market_regime_label || "Dynamic Mix Active";
     appState.sectors = (data.sectors || []).filter(s => s.sector !== "General Equities");
-    appState.sectorRsHistory = data.sector_rs_history || {};
+    appState.sectorRsHistory = data.sector_rs_history || {}; // Sector RS is already in dashboard JSON!
     
     const rawStocks = data.stocks || [];
     appState.stocks = rawStocks.filter(st => {
@@ -418,28 +412,56 @@ async function init() {
     });
 
     appState.selectedChartSectors = appState.sectors.slice(0, 6).map(s => s.sector);
-
     document.getElementById('asOfBadge').textContent = `EOD: ${appState.asOfDate}`;
     
+    // 3. Render the UI Instantly
     populateSectorDropdowns();
     renderSectorChips();
     renderSectorTiles();
-    renderSectorRsChart();
+    renderSectorRsChart(); // Renders instantly because Sector RS history is in the primary JSON
     applyFilterAndSort();
     renderLandingDashboard();
     renderPatternsTable();
-    renderBacktestView();
     updateWatchlistBadge();
     updateGlobalBadge();
-
     updateAuthUI();
 
     if (!localStorage.getItem('nse_alpha_tour_completed')) {
       setTimeout(() => startProductTour(), 800);
     }
+
+    // 4. Fire the non-blocking background loader for heavy auxiliary files
+    loadAuxiliaryData();
+
   } catch (err) {
     console.error("Initialization error:", err);
     document.getElementById('asOfBadge').textContent = "Run pipeline first";
+  }
+}
+
+// 5. Silently streams in the heavy files while the user is already viewing the dashboard
+async function loadAuxiliaryData() {
+  try {
+    const [priceRes, btRes] = await Promise.all([
+      fetch(`./data/price_history.json?t=${Date.now()}`).catch(() => ({ ok: false })),
+      fetch(`./backtest_data.json?t=${Date.now()}`).catch(() => ({ ok: false }))
+    ]);
+    
+    if (priceRes.ok) {
+      appState.priceHistory = await priceRes.json();
+      // If the user already clicked into a drill-down chart, refresh it seamlessly
+      if (stockRsChartInstance) renderStockRsChart();
+    }
+    
+    if (btRes.ok) {
+      appState.backtestData = await btRes.json();
+      // If the user already clicked the Backtest tab, render the data instantly
+      if (document.getElementById('viewBacktest')?.classList.contains('active')) {
+        renderBacktestView();
+      }
+    }
+  } catch(e) {
+    console.warn("Failed to silently load auxiliary data.", e);
   }
 }
 
