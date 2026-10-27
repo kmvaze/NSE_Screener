@@ -155,17 +155,17 @@
         <thead>
           <tr>
             <th style="width: 35px; text-align: center;">⭐</th>
-            <th class="tip-trigger" onclick="sortTable('symbol')" data-tip="Ticker & Company [Click to sort]">Symbol <span id="sort_symbol"></span></th>
-            <th class="tip-trigger" onclick="sortTable('sector')" data-tip="Industry Sector [Click to sort]">Sector <span id="sort_sector"></span></th>
-            <th class="tip-trigger" onclick="sortTable('close')" data-tip="Close Price (₹) [Click to sort]">Close (₹) <span id="sort_close"></span></th>
-            <th class="tip-trigger" onclick="sortTable('inst_signal')" data-tip="Algorithmic Setup Trigger">Setup &amp; Best Entry <span id="sort_inst_signal"></span></th>
-            <th class="tip-trigger" onclick="sortTable('score')" data-tip="Active Strategy Score"><span id="colScoreHeader">Surety Anchor Score</span> <span id="sort_score">▼</span></th>
-            <th class="tip-trigger" onclick="sortTable('iasis_score')" data-tip="Institutional Cash Flow & Squeeze">IASIS Flow <span id="sort_iasis_score"></span></th>
-            <th class="tip-trigger" onclick="sortTable('chart_pattern_signal')" data-tip="Genuine Chart Pattern">Pattern / Confluence <span id="sort_chart_pattern_signal"></span></th>
-            <th class="tip-trigger" onclick="sortTable('rs_line_status')" data-tip="Relative Strength vs Nifty">RS Status <span id="sort_rs_line_status"></span></th>
-            <th class="tip-trigger" onclick="sortTable('risk_reward_ratio')" data-tip="Estimated RRR">RRR <span id="sort_risk_reward_ratio"></span></th>
-            <th>Conditions &amp; Reasons</th>
-            <th>Chart</th>
+            <th class="tip-trigger" onclick="sortTable('symbol')" data-tip="Stock ticker and company name.">Symbol <span id="sort_symbol"></span></th>
+            <th class="tip-trigger" onclick="sortTable('sector')" data-tip="The industry or business category the company operates in.">Sector <span id="sort_sector"></span></th>
+            <th class="tip-trigger" onclick="sortTable('close')" data-tip="The most recent closing price on the exchange.">Close (₹) <span id="sort_close"></span></th>
+            <th class="tip-trigger" onclick="sortTable('inst_signal')" data-tip="The primary trading signal and ideal entry setup for this stock.">Setup &amp; Best Entry <span id="sort_inst_signal"></span></th>
+            <th class="tip-trigger" onclick="sortTable('score')" data-tip="Strategy rating from 0 to 100. Higher numbers mean stronger technical alignment."><span id="colScoreHeader">Surety Anchor Score</span> <span id="sort_score">▼</span></th>
+            <th class="tip-trigger" onclick="sortTable('iasis_score')" data-tip="Measures whether institutional buyers are quietly accumulating shares in a tight range.">IASIS Flow <span id="sort_iasis_score"></span></th>
+            <th class="tip-trigger" onclick="sortTable('chart_pattern_signal')" data-tip="Visual chart formation showing price tightening or accumulation.">Pattern / Confluence <span id="sort_chart_pattern_signal"></span></th>
+            <th class="tip-trigger" onclick="sortTable('rs_line_status')" data-tip="Compares the stock's strength directly against the broader market index.">RS Status <span id="sort_rs_line_status"></span></th>
+            <th class="tip-trigger" onclick="sortTable('risk_reward_ratio')" data-tip="Potential upside relative to potential downside risk. A 3:1 ratio means ₹3 potential gain for every ₹1 risked.">RRR <span id="sort_risk_reward_ratio"></span></th>
+            <th class="tip-trigger" data-tip="Structural cautions or warning signs to check before entering.">Conditions &amp; Reasons</th>
+            <th class="tip-trigger" data-tip="Direct shortcut to view live chart.">Chart</th>
           </tr>
         </thead>
         <tbody id="stocksTableBody"></tbody>
@@ -252,17 +252,17 @@
           <thead>
             <tr>
               <th style="width: 35px; text-align: center;">⭐</th>
-              <th>Symbol</th>
-              <th>Sector</th>
-              <th>Close (₹)</th>
-              <th>Setup / Signal</th>
-              <th>Score</th>
-              <th>IASIS Score</th>
-              <th>Chart Pattern</th>
-              <th>Sector RS</th>
-              <th>RS Status</th>
-              <th>RRR</th>
-              <th>Chart</th>
+              <th class="tip-trigger" data-tip="Official exchange stock ticker code.">Symbol</th>
+              <th class="tip-trigger" data-tip="The industry sector this company belongs to.">Sector</th>
+              <th class="tip-trigger" data-tip="Latest official closing market price on NSE.">Close (₹)</th>
+              <th class="tip-trigger" data-tip="Current algorithmic setup condition detected for this stock.">Setup / Signal</th>
+              <th class="tip-trigger" data-tip="Overall technical health rating from 0 to 100 based on the active strategy.">Score</th>
+              <th class="tip-trigger" data-tip="Measures whether institutional buyers are quietly accumulating shares in a tight range.">IASIS Score</th>
+              <th class="tip-trigger" data-tip="Visual chart formation showing price tightening or accumulation.">Chart Pattern</th>
+              <th class="tip-trigger" data-tip="Shows whether this stock is outperforming its peer sector group.">Sector RS</th>
+              <th class="tip-trigger" data-tip="Compares the stock's strength directly against the broader market index.">RS Status</th>
+              <th class="tip-trigger" data-tip="Reward-to-risk ratio. A 3:1 ratio means ₹3 potential reward for every ₹1 risked.">RRR</th>
+              <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
             </tr>
           </thead>
           <tbody id="sectorDrilldownTableBody"></tbody>
@@ -305,15 +305,15 @@
         <thead>
           <tr>
             <th style="width: 35px; text-align: center;">⭐</th>
-            <th>Symbol &amp; Sector</th>
-            <th>Close (₹)</th>
-            <th>Pattern &amp; Timeframe</th>
-            <th>Confluence Score</th>
-            <th>POC Floor Status</th>
-            <th>Coil &amp; Base Depth</th>
-            <th>Delivery Flow &amp; U/D</th>
-            <th>Risk &amp; ATR Stop</th>
-            <th>Chart</th>
+            <th class="tip-trigger" data-tip="Company ticker and its industry classification.">Symbol &amp; Sector</th>
+            <th class="tip-trigger" data-tip="Current price and percentage distance from its short-term 20-day trendline.">Close (₹)</th>
+            <th class="tip-trigger" data-tip="The detected consolidation formation and duration in trading sessions.">Pattern &amp; Timeframe</th>
+            <th class="tip-trigger" data-tip="Setup confidence rating reflecting how closely price, volume, and support align.">Confluence Score</th>
+            <th class="tip-trigger" data-tip="Indicates if the stock is holding above its heaviest historical trading floor (support).">POC Floor Status</th>
+            <th class="tip-trigger" data-tip="Measures how tightly price is compressing and the depth of the current base.">Coil &amp; Base Depth</th>
+            <th class="tip-trigger" data-tip="Delivery buying percentage and ratio of up-day volume versus down-day volume.">Delivery Flow &amp; U/D</th>
+            <th class="tip-trigger" data-tip="Recommended risk protection floor and estimated profit multiple.">Risk &amp; ATR Stop</th>
+            <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
           </tr>
         </thead>
         <tbody id="patternsTableBody"></tbody>
@@ -469,7 +469,15 @@
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">Market-Cap Risk Tier Matrix</div>
             <table>
               <thead>
-                <tr><th>Risk Tier</th><th>Cnt</th><th>Peak MFE</th><th>&ge;15%</th><th>Low-MAE</th><th>Avg MAE</th><th>Ret</th></tr>
+                <tr>
+                  <th class="tip-trigger" data-tip="Company size classification: Large Cap, Mid Cap, Small Cap, or Microcap.">Risk Tier</th>
+                  <th class="tip-trigger" data-tip="Number of historical trade samples audited.">Cnt</th>
+                  <th class="tip-trigger" data-tip="Average peak profit expansion reached before exit.">Peak MFE</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades that gained at least 15% from entry.">&ge;15%</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades where adverse drawdown stayed shallower than -6%.">Low-MAE</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse drawdown experienced before reversing.">Avg MAE</th>
+                  <th class="tip-trigger" data-tip="Average return across the entire audited window.">Ret</th>
+                </tr>
               </thead>
               <tbody id="btMcapAuditTableBody"></tbody>
             </table>
@@ -478,7 +486,15 @@
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--purple); border-bottom: 1px solid var(--card-border);">Sector Lifecycle Exhaustion Trap Audit</div>
             <table>
               <thead>
-                <tr><th>Sector Stage</th><th>N</th><th>Peak MFE</th><th>&ge;15%</th><th>Trap Rate</th><th>MAE</th><th>Ret</th></tr>
+                <tr>
+                  <th class="tip-trigger" data-tip="The momentum and breadth phase of the sector when signals fired.">Sector Stage</th>
+                  <th class="tip-trigger" data-tip="Total audited stock setups in this sector phase.">N</th>
+                  <th class="tip-trigger" data-tip="Average maximum profit potential reached from entry.">Peak MFE</th>
+                  <th class="tip-trigger" data-tip="Success rate reaching at least 15% upside.">&ge;15%</th>
+                  <th class="tip-trigger" data-tip="Frequency of setups that experienced severe adverse drawdowns deeper than -15%.">Trap Rate</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse drawdown experienced.">MAE</th>
+                  <th class="tip-trigger" data-tip="Average return over the audited test period.">Ret</th>
+                </tr>
               </thead>
               <tbody id="btSectorClimaxTableBody"></tbody>
             </table>
@@ -487,7 +503,15 @@
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--green); border-bottom: 1px solid var(--card-border);">Intra-Month Setup Timing Audit</div>
             <table>
               <thead>
-                <tr><th>Calendar Window</th><th>N</th><th>MFE</th><th>&ge;15%</th><th>Surety</th><th>MAE</th><th>Asymmetry</th></tr>
+                <tr>
+                  <th class="tip-trigger" data-tip="Calendar window inside the month when entry signals fired.">Calendar Window</th>
+                  <th class="tip-trigger" data-tip="Number of trade setups in this timing window.">N</th>
+                  <th class="tip-trigger" data-tip="Average maximum profit potential reached.">MFE</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades reaching 15% upside.">&ge;15%</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades holding low drawdowns (stays within -6%).">Surety</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse drop below entry price.">MAE</th>
+                  <th class="tip-trigger" data-tip="Reward-to-risk asymmetry multiple. Higher means upside vastly outweighed downside.">Asymmetry</th>
+                </tr>
               </thead>
               <tbody id="btIntramonthTableBody"></tbody>
             </table>

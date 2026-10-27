@@ -155,32 +155,51 @@ function toggleTheme() {
 window.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('quant_theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
-  document.getElementById('themeToggleBtn').textContent = savedTheme === 'light' ? '🌙 Dark Theme' : '☀️ Light Theme';
+  
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) {
+    themeBtn.textContent = savedTheme === 'light' ? '🌙 Dark Theme' : '☀️ Light Theme';
+  }
   
   try {
     const rawWl = JSON.parse(localStorage.getItem('my_quant_watchlist') || '[]');
     appState.watchlist = [...new Set(rawWl.map(s => String(s).trim().toUpperCase()))];
-  } catch(e) { appState.watchlist = []; }
+  } catch(e) { 
+    appState.watchlist = []; 
+  }
 
   init();
 });
 
 const tooltip = document.getElementById('globalTooltip');
+// Bulletproof, defensive global tooltip listener
 document.addEventListener('mouseover', (e) => {
   const trigger = e.target.closest('.tip-trigger');
-  if (trigger) {
-    const text = trigger.getAttribute('data-tip');
-    if (text) {
-      tooltip.textContent = text;
-      tooltip.style.display = 'block';
-      const rect = trigger.getBoundingClientRect();
-      tooltip.style.left = `${Math.min(rect.left, window.innerWidth - 300)}px`;
-      tooltip.style.top = `${rect.bottom + 6}px`;
-    }
-  }
+  if (!trigger) return;
+
+  const text = trigger.getAttribute('data-tip');
+  const tooltip = document.getElementById('globalTooltip');
+  if (!tooltip || !text) return;
+
+  tooltip.textContent = text;
+  tooltip.style.display = 'block';
+  
+  const rect = trigger.getBoundingClientRect();
+  const tooltipWidth = 280;
+  const leftPos = Math.max(10, Math.min(rect.left, window.innerWidth - tooltipWidth - 16));
+  const topPos = (rect.bottom + 8 + 80 > window.innerHeight) 
+    ? Math.max(10, rect.top - 40) // Flip above if near screen bottom
+    : rect.bottom + 6;
+
+  tooltip.style.left = `${leftPos}px`;
+  tooltip.style.top = `${topPos}px`;
 });
+
 document.addEventListener('mouseout', (e) => {
-  if (e.target.closest('.tip-trigger')) tooltip.style.display = 'none';
+  if (e.target.closest('.tip-trigger')) {
+    const tooltip = document.getElementById('globalTooltip');
+    if (tooltip) tooltip.style.display = 'none';
+  }
 });
 
 function showToast(message) {
@@ -942,15 +961,15 @@ function renderBacktestView() {
     thead.innerHTML = `
       <tr>
         <th style="width:35px; text-align:center;">⭐</th>
-        <th>Rank &amp; Cap Tier</th>
-        <th>Symbol</th>
-        <th>Setup &amp; Sector Stage</th>
-        <th>Reference Entry</th>
-        <th class="peak-highlight-cell">🚀 Max Potential Gain</th>
-        <th>Adverse Drawdown (MAE)</th>
-        <th>Latest Price</th>
-        <th>Period Return</th>
-        <th>Chart</th>
+        <th class="tip-trigger" data-tip="Strategy rank and company market capitalization tier.">Rank &amp; Cap Tier</th>
+        <th class="tip-trigger" data-tip="Official stock ticker and company name.">Symbol</th>
+        <th class="tip-trigger" data-tip="The setup type identified on the signal date and its sector phase.">Setup &amp; Sector Stage</th>
+        <th class="tip-trigger" data-tip="Stock closing price on the date the signal occurred.">Reference Entry</th>
+        <th class="peak-highlight-cell tip-trigger" data-tip="The highest percentage gain the stock reached after entry before exiting.">🚀 Max Potential Gain</th>
+        <th class="tip-trigger" data-tip="The maximum percentage drop experienced below entry price during the trade.">Adverse Drawdown (MAE)</th>
+        <th class="tip-trigger" data-tip="Current closing market price on the exchange.">Latest Price</th>
+        <th class="tip-trigger" data-tip="Total percentage return from the signal date to today.">Period Return</th>
+        <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
       </tr>
     `;
 
