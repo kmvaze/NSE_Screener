@@ -386,7 +386,6 @@ function renderLandingDashboard() {
 
   if (mode === 'dynamic') {
     const dynamicPicks = appState.stocks.filter(st => st.dynamic_mix_strategy && st.dynamic_mix_strategy !== "");
-    // Sort them exactly by their highest score to maintain ranking
     dynamicPicks.sort((a, b) => {
       const getActiveScore = (s) => {
         if (s.dynamic_mix_strategy === 'momentum') return s.score_momentum_frontrunner || 0;
@@ -450,75 +449,93 @@ function renderLandingDashboard() {
     const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
 
     const activeStrat = st.active_strategy || 'surety';
-    let activeBadgeLabel = `Surety: ${suretyScore}`;
-    if (activeStrat === 'momentum') activeBadgeLabel = `Mom: ${momScore}`;
-    if (activeStrat === 'rotation') activeBadgeLabel = `Rot: ${rotScore}`;
-    if (activeStrat === 'pullback') activeBadgeLabel = `Pull: ${pullScore}`;
+    let activeScoreLabel = `Surety ${suretyScore}`;
+    if (activeStrat === 'momentum') activeScoreLabel = `Mom ${momScore}`;
+    if (activeStrat === 'rotation') activeScoreLabel = `Rot ${rotScore}`;
+    if (activeStrat === 'pullback') activeScoreLabel = `Pull ${pullScore}`;
 
     return `
       <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="pill" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">Rank #${idx + 1}</span>
-            <span class="badge" style="font-size: 0.65rem; padding: 2px 8px;">${st.sector}</span>
+        <!-- Row 1: Badges, Score & Watchlist Star -->
+        <div class="card-top-bar">
+          <div class="card-top-left">
+            <span class="pill pill-rank">Rank #${idx + 1}</span>
+            <span class="badge badge-sector" title="${st.sector}">${st.sector}</span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-            <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeBadgeLabel}</span>
-            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+          <div class="card-top-right" onclick="event.stopPropagation()">
+            <span class="pill pill-score-highlight">${activeScoreLabel}</span>
+            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">
+              ${isStarred ? '⭐' : '☆'}
+            </button>
           </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
-          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
-          <span style="font-size: 1.1rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;">₹${Number(st.close).toFixed(2)}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <span style="font-size: 0.73rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;">${st.company_name || st.symbol}</span>
-          <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.index_name ? st.index_name.split(',')[0] : 'Nifty 500'}</span>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
+        <!-- Row 2: Symbol & Price Command Anchor -->
+        <div class="card-identity-row">
           <div>
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Surety</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--green);">${suretyScore}</div>
+            <div class="card-symbol">${st.symbol}</div>
+            <div class="card-company-name" title="${st.company_name || st.symbol}">${st.company_name || st.symbol}</div>
           </div>
-          <div style="border-left: 1px solid var(--card-border); border-right: 1px solid var(--card-border);">
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Mom</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--accent);">${momScore}</div>
-          </div>
-          <div>
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Rot</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--purple);">${rotScore}</div>
-          </div>
-          <div style="border-left: 1px solid var(--card-border);">
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Pull</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--teal);">${pullScore}</div>
+          <div style="text-align: right;">
+            <div class="card-price">₹${Number(st.close).toFixed(2)}</div>
+            <div class="card-index-tier">${st.index_name ? st.index_name.split(',')[0].trim() : 'Nifty 500'}</div>
           </div>
         </div>
 
-        <div style="background: var(--bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 0.74rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">MA Confluence (20/50):</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">₹${st.sma_20} (${dist20 > 0 ? '+' : ''}${dist20}%) | ₹${st.sma_50} (${dist50 > 0 ? '+' : ''}${dist50}%)</span>
+        <!-- Row 3: 4-Strategy Multi-Horizon Metric Box -->
+        <div class="card-scores-matrix">
+          <div class="matrix-cell">
+            <span class="matrix-label">Surety</span>
+            <span class="matrix-val val-surety">${suretyScore}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">Pattern &amp; Flow:</span>
-            <span style="font-weight: 700; color: var(--purple);">${st.chart_pattern_signal || 'Base'} (IASIS: ${st.iasis_score ?? '--'})</span>
+          <div class="matrix-cell border-sides">
+            <span class="matrix-label">Mom</span>
+            <span class="matrix-val val-mom">${momScore}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">50/50 Split Entry &amp; SL:</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">Blend: <b>₹${st.blended_entry_price ?? st.close}</b> | <span style="color: var(--red);">SL: ₹${st.cushioned_sl_price ?? st.atr_stop_loss}</span></span>
+          <div class="matrix-cell">
+            <span class="matrix-label">Rot</span>
+            <span class="matrix-val val-rot">${rotScore}</span>
           </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--muted);">Sector Lifecycle:</span>
-            <span style="font-weight: 700; color: var(--green);">${st.sector_lifecycle || 'Leading'}</span>
+          <div class="matrix-cell border-left">
+            <span class="matrix-label">Pull</span>
+            <span class="matrix-val val-pull">${pullScore}</span>
           </div>
         </div>
 
-        <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 10px;">
-          <span class="pill pill-buyzone">${st.inst_signal}</span>
-          <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-            <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 3.0}:1</span>
+        <!-- Row 4: Crisp Key-Value Execution Spec Table -->
+        <div class="card-tech-specs">
+          <div class="spec-row">
+            <span class="spec-label">MA Confluence (20/50)</span>
+            <span class="spec-val">
+              ₹${st.sma_20} <span class="${dist20 >= 0 ? 'text-up' : 'text-down'}">(${dist20 >= 0 ? '+' : ''}${dist20}%)</span> &bull; 
+              ₹${st.sma_50} <span class="${dist50 >= 0 ? 'text-up' : 'text-down'}">(${dist50 >= 0 ? '+' : ''}${dist50}%)</span>
+            </span>
+          </div>
+          <div class="spec-row">
+            <span class="spec-label">Pattern &amp; Flow</span>
+            <span class="spec-val text-pattern" title="${st.chart_pattern_signal || 'Base'}">
+              ${st.chart_pattern_signal || 'Consolidation'} <span class="text-flow">(IASIS: ${st.iasis_score ?? '--'})</span>
+            </span>
+          </div>
+          <div class="spec-row">
+            <span class="spec-label">50/50 Entry &amp; Stop</span>
+            <span class="spec-val">
+              Blend <b>₹${st.blended_entry_price ?? st.close}</b> <span class="spec-separator">|</span> <span class="text-sl">SL ₹${st.cushioned_sl_price ?? st.atr_stop_loss}</span>
+            </span>
+          </div>
+          <div class="spec-row">
+            <span class="spec-label">Sector Lifecycle</span>
+            <span class="spec-val text-lifecycle" title="${st.sector_lifecycle || 'Leading'}">
+              ${st.sector_lifecycle || '🟢 Prime Institutional Leadership'}
+            </span>
+          </div>
+        </div>
+
+        <!-- Row 5: Action & Asymmetry Multiple -->
+        <div class="card-footer-action">
+          <span class="pill pill-setup-anchor">${st.inst_signal}</span>
+          <div class="footer-right" onclick="event.stopPropagation()">
+            <span class="badge-rrr">RRR ${st.risk_reward_ratio || 3.0}:1</span>
             <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
           </div>
         </div>
