@@ -708,3 +708,45 @@ body.content-locked {
   color: var(--green);
   font-variant-numeric: tabular-nums;
 }
+/* ============================================================================
+   BRAND HEADER & LOGO ALIGNMENT
+   ============================================================================ */
+.brand-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.brand-logo-link:hover {
+  transform: scale(1.05);
+}
+
+.brand-logo-img {
+  width: 42px;
+  height: 42px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+
+.brand-title-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .brand-logo-img {
+    width: 36px;
+    height: 36px;
+  }
+}
