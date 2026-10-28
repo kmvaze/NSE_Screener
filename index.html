@@ -36,13 +36,13 @@
   <div id="globalTooltip"></div>
 
 <header>
-    <!-- Leftmost Branding Unit: Logo and Text on the Same Line -->
+    <!-- Leftmost Branding Unit: Inline Flex Container keeping Logo & Title on the same line -->
     <div class="brand-container">
       <a href="#" onclick="switchTab('landing')" class="brand-logo-link">
-        <img src="./logo.png?v=3" alt="Alpha Stocks Logo" class="brand-logo-img" />
+        <img src="./logo.png?v=3" height=32px width=36px alt="Alpha Stocks Logo" class="brand-logo-img" />
       </a>
       <div class="brand-text-block">
-        <h1>Alpha Stocks | Institutional Quant Terminal</h1>
+        <h1 class="brand-title">NSE Alpha Pro <span class="brand-tag">| Institutional Terminal</span></h1>
         <span class="brand-subtitle">Advanced Technical &amp; Quantitative Screening</span>
       </div>
     </div>
@@ -50,12 +50,14 @@
     <!-- Right Controls -->
     <div class="header-meta">
       <div class="badge" id="trialBadge" style="display:none; background: rgba(251, 191, 36, 0.15); color: var(--yellow);">Checking Status...</div>
+      
       <button class="tactical-btn" onclick="startProductTour()" style="border-color: var(--accent); color: var(--accent);">🎯 Take a Tour</button>
       <button class="tactical-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Dark Theme</button>
       <button class="cmd-trigger" onclick="openCmdPalette()"><span>Search Ticker / Setup</span><kbd>⌘K</kbd></button>
       <div class="badge" id="stockCountBadge">0 Stocks</div>
       <div class="badge" id="asOfBadge">Loading...</div>
 
+      <!-- Google Login / User Profile Positioned Rightmost -->
       <div id="authContainer" style="margin-left: auto;">
         <button class="tactical-btn" onclick="loginWithGoogle()" style="background:#fff; color:#030712; font-weight:700; border-color:#cbd5e1;">🌐 Continue with Google</button>
       </div>

@@ -714,10 +714,14 @@ body.content-locked {
 /* ============================================================================
    BRAND HEADER & LOGO SIZING
    ============================================================================ */
+/* ============================================================================
+   BRAND HEADER & INLINE LOGO SIZING
+   ============================================================================ */
 .brand-container {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .brand-logo-link {
@@ -729,10 +733,10 @@ body.content-locked {
 }
 
 .brand-logo-img {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 9px;
   display: block;
 }
 
@@ -742,8 +746,26 @@ body.content-locked {
   justify-content: center;
 }
 
+.brand-title {
+  font-size: 1.22rem;
+  margin: 0;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.brand-tag {
+  font-size: 0.88rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
 .brand-subtitle {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--muted);
   line-height: 1.2;
   margin-top: 2px;
@@ -753,5 +775,8 @@ body.content-locked {
   .brand-logo-img {
     width: 36px;
     height: 36px;
+  }
+  .brand-title {
+    font-size: 1.05rem;
   }
 }
