@@ -711,37 +711,42 @@ body.content-locked {
 /* ============================================================================
    BRAND HEADER & LOGO ALIGNMENT
    ============================================================================ */
-.brand-header-left {
+/* ============================================================================
+   BRAND HEADER & LOGO SIZING
+   ============================================================================ */
+.brand-container {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .brand-logo-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
   flex-shrink: 0;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.brand-logo-link:hover {
-  transform: scale(1.05);
 }
 
 .brand-logo-img {
-  width: 42px;
-  height: 42px;
-  display: block;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
-  filter: drop-shadow(0 0 10px var(--accent-glow));
+  border-radius: 10px;
+  display: block;
 }
 
-.brand-title-wrap {
+.brand-text-block {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+.brand-subtitle {
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.2;
+  margin-top: 2px;
 }
 
 @media (max-width: 768px) {
