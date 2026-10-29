@@ -218,6 +218,7 @@ async function enforceAccessControl() {
     currentUser = { id: "local-dev-user", email: "developer@local.test" };
     userProfile = { is_pro: true, trial_ends_at: "2099-01-01" };
     updateAuthUI();
+    enforcePaywallDisplay('ACTIVE');
     return true; 
   }
 
@@ -226,6 +227,7 @@ async function enforceAccessControl() {
     currentUser = { id: "local-dev-user", email: "developer@local.test" };
     userProfile = { is_pro: true, trial_ends_at: "2099-01-01" };
     updateAuthUI();
+    enforcePaywallDisplay('ACTIVE');
     return true;
   }
 
@@ -246,6 +248,8 @@ async function enforceAccessControl() {
     currentUser = null;
     userProfile = null;
     updateAuthUI();
+    // Engage central paywall modal in unauthenticated state
+    enforcePaywallDisplay('TRIAL_EXPIRED');
     return false;
   }
 
