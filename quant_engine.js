@@ -128,7 +128,43 @@ function matchIndexToken(st, selectedIndex) {
 }
 
 function calculatePatternConfluence(st) {
-  return st.pattern_confluence_score || 0;
+  if (st.pattern_confluence_score != null) {
+    return Number(st.pattern_confluence_score);
+  }
+  let score = 0;
+  const iasis = Number(st.iasis_score || 0);
+  const deliv = Number(st.deliv_pct || 0);
+  const upDown = Number(st.up_down_vol_ratio || 1.0);
+  const close = Number(st.close || 0);
+  const poc = Number(st.volume_profile_poc || 0);
+  const front = Number(st.score_momentum_frontrunner || st.frontrunner_score || 0);
+  const vcp = Number(st.vcp_ratio || 1.0);
+  const mrs = Number(st.mrs_score || 0);
+
+  if (iasis >= 60) score += 20;
+  else if (iasis >= 50) score += 12;
+
+  if (deliv >= 50) score += 10;
+  else if (deliv >= 35) score += 6;
+
+  if (upDown >= 1.25) score += 10;
+  else if (upDown >= 1.0) score += 6;
+
+  if (poc > 0 && close >= poc) {
+    score += 20;
+    const distPoc = ((close - poc) / poc) * 100;
+    if (distPoc <= 4.0) score += 5;
+  }
+
+  if (front >= 70) score += 15;
+  else if (front >= 55) score += 10;
+
+  if (vcp <= 0.65) score += 10;
+  else if (vcp <= 0.80) score += 5;
+
+  if (mrs >= -3.0 && mrs <= 4.5) score += 10;
+
+  return Math.min(100, Math.max(0, Math.round(score)));
 }
 
 function deriveBacktestMcapTier(pick) {

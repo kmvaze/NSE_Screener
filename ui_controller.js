@@ -601,22 +601,49 @@ function renderTablePage() {
   document.getElementById('nextBtn').disabled = appState.currentPage >= totalPages;
 }
 
+// ============================================================================
+// FIX: HARDENED & BULLETPROOF CHART PATTERNS SCANNER TABLE
+// ============================================================================
+window.openStockModalBySymbol = function(symbol) {
+  if (!symbol) return;
+  const st = appState.stocks.find(s => String(s.symbol).toUpperCase() === String(symbol).toUpperCase());
+  if (st) openStockModal(st);
+};
+
 function renderPatternsTable() {
   const tbody = document.getElementById('patternsTableBody');
   const countBadge = document.getElementById('patternCountBadge');
   if (!tbody) return;
+
   const tf = document.getElementById('patternTimeframeSelect')?.value || 'ALL';
   const patFilter = appState.selectedPatternFilter || 'ALL';
 
   const matched = appState.stocks.map(st => {
-    return { ...st, _confScore: st.pattern_confluence_score || 0 };
+    // Robust fallback calculation for pattern confluence score
+    let conf = st.pattern_confluence_score;
+    if (conf === undefined || conf === null) {
+      conf = typeof calculatePatternConfluence === 'function' ? calculatePatternConfluence(st) : 50;
+    }
+    return { ...st, _confScore: Number(conf) || 0 };
   }).filter(st => {
     const pTf = Number(st.pattern_timeframe || 21);
+    const patSig = String(st.chart_pattern_signal || "").toUpperCase();
+    const confSig = String(st.multi_timeframe_confluence || "").toUpperCase();
+    const vcpRat = Number(st.vcp_ratio ?? 1.0);
+    const c = Number(st.close || 0);
+    const s50 = Number(st.sma_50 || 0);
+    const s200 = Number(st.sma_200 || 0);
 
-    if (patFilter === 'FLAG' && !st.is_flag_pattern) return false;
-    if (patFilter === 'VCP' && !st.is_vcp_pattern) return false;
-    if (patFilter === 'BASE' && !st.is_base_pattern) return false;
-    if (patFilter === 'MACRO' && !st.is_macro_pattern) return false;
+    // Resilient pattern detection handling both backend booleans and raw indicator signals
+    const isFlag = (st.is_flag_pattern === true) || patSig.includes("FLAG") || confSig.includes("FLAG");
+    const isVcp = (st.is_vcp_pattern === true) || patSig.includes("VCP") || (vcpRat <= 0.68 && vcpRat > 0);
+    const isBase = (st.is_base_pattern === true) || patSig.includes("BASE") || patSig.includes("CUP") || confSig.includes("BASE");
+    const isMacro = (st.is_macro_pattern === true) || patSig.includes("MACRO") || (c >= s50 && s50 >= s200 && s200 > 0);
+
+    if (patFilter === 'FLAG' && !isFlag) return false;
+    if (patFilter === 'VCP' && !isVcp) return false;
+    if (patFilter === 'BASE' && !isBase) return false;
+    if (patFilter === 'MACRO' && !isMacro) return false;
 
     if (tf !== 'ALL') {
       if (parseInt(tf, 10) !== pTf) return false;
@@ -624,12 +651,15 @@ function renderPatternsTable() {
 
     if (appState.filterConfluenceOnly && st._confScore < 60) return false;
 
-    return st.is_flag_pattern || st.is_vcp_pattern || st.is_base_pattern || st.is_macro_pattern || Boolean(st.chart_pattern_signal);
+    return isFlag || isVcp || isBase || isMacro || Boolean(st.chart_pattern_signal);
   });
 
   matched.sort((a, b) => b._confScore - a._confScore);
 
-  countBadge.textContent = `${matched.length} Setups Found`;
+  if (countBadge) {
+    countBadge.textContent = `${matched.length} Setups Found`;
+  }
+
   if (matched.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--muted); padding: 30px;">No setups meet the selected pattern &amp; confluence criteria.</td></tr>`;
     updateGlobalBadge();
@@ -640,23 +670,32 @@ function renderPatternsTable() {
     const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
     const poc = Number(st.volume_profile_poc || 0);
     const close = Number(st.close || 0);
-    const isAbovePoc = st.is_above_poc === true;
-    const pocDiff = st.dist_from_poc_pct !== undefined ? st.dist_from_poc_pct.toFixed(1) : "0.0";
+    const isAbovePoc = (st.is_above_poc === true) || (poc > 0 && close >= poc);
+    
+    // SAFE NUMBER CONVERSION: Never throws on null or undefined
+    const rawPocDiff = (st.dist_from_poc_pct != null) 
+      ? Number(st.dist_from_poc_pct) 
+      : (poc > 0 ? ((close - poc) / poc) * 100.0 : 0.0);
+    const pocDiff = !isNaN(rawPocDiff) ? rawPocDiff.toFixed(1) : "0.0";
+
     const patLabel = st.chart_pattern_signal || st.multi_timeframe_confluence || 'Volatility Contraction';
     const tfLabel = `${st.pattern_timeframe || 21} Sessions`;
+    const mrsScore = Number(st.mrs_score || 0);
+    const atrStop = Number(st.cushioned_sl_price || st.atr_stop_loss || (close * 0.92));
 
+    // Uses openStockModalBySymbol to bypass all JSON stringification and quotation escaping issues
     return `
-      <tr class="stock-row" onclick='openStockModal(${JSON.stringify(st)})'>
+      <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
         <td style="text-align: center;" onclick="event.stopPropagation()">
           <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
         </td>
         <td>
           <strong>${st.symbol}</strong><br>
-          <span style="font-size:0.7rem; color:var(--muted);">${st.sector}</span>
+          <span style="font-size:0.7rem; color:var(--muted);">${st.sector || 'Equities'}</span>
         </td>
         <td>
           <b>₹${close.toFixed(2)}</b><br>
-          <span style="font-size:0.68rem; color:${st.mrs_score >= 0 ? 'var(--green)' : 'var(--red)'};">${st.mrs_score >= 0 ? '+' : ''}${Number(st.mrs_score || 0).toFixed(1)}% vs 20MA</span>
+          <span style="font-size:0.68rem; color:${mrsScore >= 0 ? 'var(--green)' : 'var(--red)'};">${mrsScore >= 0 ? '+' : ''}${mrsScore.toFixed(1)}% vs 20MA</span>
         </td>
         <td>
           <span style="color:var(--purple); font-weight:700;">${patLabel}</span><br>
@@ -664,26 +703,26 @@ function renderPatternsTable() {
         </td>
         <td>
           <div class="score-bar">
-            <div class="meter"><div class="meter-fill" style="width:${st._confScore}%; background:${st._confScore >= 75 ? 'var(--green)' : (st._confScore >= 60 ? 'var(--accent)' : 'var(--yellow)')};"></div></div>
+            <div class="meter"><div class="meter-fill" style="width:${Math.min(100, Math.max(0, st._confScore))}%; background:${st._confScore >= 75 ? 'var(--green)' : (st._confScore >= 60 ? 'var(--accent)' : 'var(--yellow)')};"></div></div>
             <span style="color:${st._confScore >= 75 ? 'var(--green)' : 'var(--text)'};"><b>${st._confScore}%</b></span>
           </div>
         </td>
         <td>
           <span class="pill ${isAbovePoc ? 'pill-buyzone' : 'pill-extended'}">
-            ${isAbovePoc ? '🟢 Floor Support (+'+pocDiff+'%)' : '🔴 Overhead Supply (-'+Math.abs(pocDiff)+'%)'}
+            ${isAbovePoc ? '🟢 Floor Support (+'+pocDiff+'%)' : '🔴 Overhead Supply (-'+Math.abs(Number(pocDiff)).toFixed(1)+'%)'}
           </span><br>
           <span style="font-size:0.68rem; color:var(--muted);">POC: ₹${poc.toFixed(2)}</span>
         </td>
         <td>
-          <b>Coil: ${st.vcp_ratio ?? '--'}</b><br>
+          <b>Coil: ${st.vcp_ratio != null ? Number(st.vcp_ratio).toFixed(2) : '--'}</b><br>
           <span style="font-size:0.68rem; color:var(--muted);">Surety: ${st.score_surety_anchor ?? st.surety_score ?? '--'}</span>
         </td>
         <td>
-          <span style="font-size:0.75rem;">Deliv: <b>${st.deliv_pct ?? '--'}%</b></span><br>
-          <span style="font-size:0.68rem; color:var(--teal);">U/D: <b>${st.up_down_vol_ratio ?? '--'}x</b></span>
+          <span style="font-size:0.75rem;">Deliv: <b>${st.deliv_pct != null ? Number(st.deliv_pct).toFixed(1) : '--'}%</b></span><br>
+          <span style="font-size:0.68rem; color:var(--teal);">U/D: <b>${st.up_down_vol_ratio != null ? Number(st.up_down_vol_ratio).toFixed(2) : '--'}x</b></span>
         </td>
         <td>
-          <span style="color:var(--red); font-weight:600; font-size:0.74rem;">SL: ₹${Number(st.atr_stop_loss || 0).toFixed(2)}</span><br>
+          <span style="color:var(--red); font-weight:600; font-size:0.74rem;">SL: ₹${atrStop.toFixed(2)}</span><br>
           <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 3.0}:1</span>
         </td>
         <td onclick="event.stopPropagation()">
