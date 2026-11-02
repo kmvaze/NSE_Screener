@@ -706,8 +706,15 @@ async function payWithRazorpay() {
 }
 
 async function handleLogout() {
-  await sb.auth.signOut();
-  location.reload();
+  try {
+    await sb.auth.signOut({ scope: 'local' });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    // Clear local storage fallbacks just in case
+    localStorage.removeItem('my_quant_watchlist');
+    location.reload();
+  }
 }
 
 function updateAuthUI() {
