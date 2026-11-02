@@ -698,6 +698,7 @@ async function payWithRazorpay() {
       "name": "NSE Alpha Pro",
       "description": "1 Year Institutional Access",
       "order_id": orderData.id, 
+      "image":"",
       "handler": async function (response) {
         try {
           showToast("Verifying payment securely...");
