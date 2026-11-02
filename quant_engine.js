@@ -699,7 +699,32 @@ async function payWithRazorpay() {
       "description": "1 Year Institutional Access",
       "order_id": orderData.id, 
       "handler": async function (response) {
-        // Payment success handler...
+        try {
+          showToast("Verifying payment securely...");
+          
+          const verifyReq = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              user_id: currentUser.id
+            })
+          });
+
+          const verifyData = await verifyReq.json();
+
+          if (verifyData.success) {
+            showToast("Payment verified! Pro access granted for 1 year 🎉");
+            setTimeout(() => location.reload(), 1500);
+          } else {
+            showToast("Payment verification failed. Contact support.");
+          }
+        } catch (err) {
+          console.error("Verification error:", err);
+          showToast("Network error during payment verification.");
+        }
       },
       "modal": {
         "ondismiss": function() {
