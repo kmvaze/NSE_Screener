@@ -316,6 +316,21 @@ async function enforceAccessControl() {
   }
 
   userProfile = profile;
+  
+  // =========================================================================
+  // ACCESS VALIDATION CHECK: Stop here if trial ended and user is not Pro
+  // =========================================================================
+  const now = new Date();
+  const trialEnd = new Date(userProfile.trial_ends_at);
+  const isTrialActive = now < trialEnd;
+  const isPro = userProfile.is_pro === true;
+
+  if (!isPro && !isTrialActive) {
+    evaluateAccess();
+    enforcePaywallDisplay('TRIAL_EXPIRED');
+    return false; // Prevents calling dynamic-endpoint and throwing 403
+  }
+
   evaluateAccess();
   await loadCloudWatchlist();
   return true;
