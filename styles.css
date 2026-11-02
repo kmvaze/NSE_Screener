@@ -868,3 +868,8 @@ body.content-locked > :not(#paywallOverlay):not(#globalTooltip):not(#toastContai
 body.content-locked {
   overflow: hidden !important;
 }
+/* Force Razorpay checkout frame and container above all application elements */
+iframe.razorpay-checkout-frame,
+.razorpay-container {
+  z-index: 2147483647 !important;
+}

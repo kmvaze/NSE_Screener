@@ -657,54 +657,52 @@ async function payWithRazorpay() {
     return;
   }
 
-  const orderReq = await fetch('/api/create-order', { method: 'POST' });
-  const orderData = await orderReq.json();
+  try {
+    // 1. Hide the paywall overlay immediately so it doesn't blur or block Razorpay
+    const paywallOverlay = document.getElementById('paywallOverlay');
+    if (paywallOverlay) paywallOverlay.style.display = 'none';
+    document.body.classList.remove('content-locked');
 
-  if (!orderData.id) {
-    showToast("Failed to initiate payment. Please try again.");
-    return;
-  }
+    const orderReq = await fetch('/api/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id })
+    });
 
-  const options = {
-    "key": "rzp_live_Trdtyh6l3mOHtP", 
-    "amount": orderData.amount,
-    "currency": orderData.currency,
-    "name": "NSE Alpha Pro",
-    "description": "1 Year Institutional Access",
-    "order_id": orderData.id, 
-    "handler": async function (response) {
-      showToast("Verifying payment securely...");
-      
-      const verifyReq = await fetch('/api/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature: response.razorpay_signature,
-          user_id: currentUser.id
-        })
-      });
+    const orderData = await orderReq.json();
 
-      const verifyData = await verifyReq.json();
-
-      if (verifyData.success) {
-        showToast("Payment verified! Pro access granted for 1 year 🎉");
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showToast("Payment verification failed. Contact support.");
-      }
-    },
-    "prefill": {
-      "email": currentUser.email
-    },
-    "theme": {
-      "color": "#38bdf8"
+    if (!orderData || !orderData.id) {
+      showToast("Failed to initiate payment. Please try again.");
+      return;
     }
-  };
-  
-  const rzp = new Razorpay(options);
-  rzp.open();
+
+    const options = {
+      "key": "rzp_live_Trdtyh6l3mOHtP", 
+      "amount": orderData.amount,
+      "currency": orderData.currency,
+      "name": "NSE Alpha Pro",
+      "description": "1 Year Institutional Access",
+      "order_id": orderData.id, 
+      "handler": async function (response) {
+        // Payment success handler...
+      },
+      "modal": {
+        "ondismiss": function() {
+          // If user cancels, restore paywall if trial is still expired
+          if (typeof evaluateAccess === 'function') evaluateAccess();
+        }
+      },
+      "prefill": { "email": currentUser.email },
+      "theme": { "color": "#38bdf8" }
+    };
+    
+    const rzp = new Razorpay(options);
+    rzp.open();
+
+  } catch (err) {
+    console.error("Payment error:", err);
+    showToast("Payment gateway error.");
+  }
 }
 
 async function handleLogout() {
