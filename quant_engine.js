@@ -39,7 +39,7 @@ let appState = {
   selectedBacktestMode: "dynamic_regime_portfolio",
   selectedBacktestPortfolioSize: "10",
   selectedBacktestMcap: "ALL",
-  landingFilter: "surety",
+  landingFilter: "dynamic",
   stocks: [],
   selectedSector: "ALL",
   selectedIndex: "Nifty 500",

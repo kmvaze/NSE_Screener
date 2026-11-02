@@ -993,7 +993,14 @@ def run_screener_engine():
         if limit <= 0: continue
         
         if strat_key == "score_surety_anchor":
-            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"] * 0.97) & (ranked["mrs_score"] >= -5.0) & (ranked["mrs_score"] <= 6.0) & (~ranked["mcap_tier"].str.contains("Tier 1", na=False))
+            mask = (
+                (ranked["close"] >= ranked["sma_200"]) & 
+                (ranked["close"] >= ranked["sma_50"] * 0.97) & 
+                (ranked["mrs_score"] >= -5.0) & 
+                (ranked["mrs_score"] <= 6.0) & 
+                (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
+                (ranked["score_surety_anchor"] >= ranked["score_momentum_frontrunner"] * 0.92) # Prevents stealing 99.0 momentum setups
+            )
             strat_name = "surety"
         elif strat_key == "score_momentum_frontrunner":
             mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"]) & (ranked["mrs_score"] >= -2.0) & (ranked["mrs_score"] <= 10.0)
@@ -1020,7 +1027,14 @@ def run_screener_engine():
                 added += 1
 
     if len(dynamic_picks_map) < 12:
-        mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"] * 0.97) & (ranked["mrs_score"] >= -5.0) & (ranked["mrs_score"] <= 6.0) & (~ranked["mcap_tier"].str.contains("Tier 1", na=False))
+        mask = (
+            (ranked["close"] >= ranked["sma_200"]) & 
+            (ranked["close"] >= ranked["sma_50"] * 0.97) & 
+            (ranked["mrs_score"] >= -5.0) & 
+            (ranked["mrs_score"] <= 6.0) & 
+            (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
+            (ranked["score_surety_anchor"] >= ranked["score_momentum_frontrunner"] * 0.92)
+        )
         backup_pool = ranked[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
         for _, r in backup_pool.iterrows():
             if len(dynamic_picks_map) >= 12: break
