@@ -1225,12 +1225,14 @@ def run_screener_engine():
         "sector_rs_history": sector_rs_history,
         "stocks": output_stocks,
     }
+    
+    # Keep local original JSON with pretty-print indentation as it is
     with open(OUTPUT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
     print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with 4 Finalized Strategies & 50/50 ATR Split Entries.")
 
-    # Upload the newly created file to Supabase secure-quant bucket
+    # Upload the compressed/minified copy to Supabase secure-quant bucket
     upload_dashboard_to_supabase(OUTPUT_JSON)
 
 from supabase import create_client
@@ -1247,14 +1249,20 @@ def upload_dashboard_to_supabase(json_path: str):
     try:
         supabase = create_client(supabase_url, service_role_key)
 
-        with open(json_path, "rb") as f:
-            # Overwrites dashboard_data.json in your storage bucket
-            supabase.storage.from_("secure-quant").upload(
-                path="dashboard_data.json",
-                file=f,
-                file_options={"cache-control": "300", "upsert": "true"},
-            )
-        print("[✓] Successfully uploaded latest dashboard_data.json to Supabase Storage.")
+        # Read original JSON and compress/minify it in-memory (stripping whitespace & indentations)
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        compressed_json_str = json.dumps(data, separators=(',', ':'))
+        compressed_bytes = compressed_json_str.encode('utf-8')
+
+        # Overwrites dashboard_data.json in your storage bucket with the compressed version
+        supabase.storage.from_("secure-quant").upload(
+            path="dashboard_data.json",
+            file=compressed_bytes,
+            file_options={"cache-control": "300", "upsert": "true", "content-type": "application/json"},
+        )
+        print("[✓] Successfully uploaded compressed dashboard_data.json to Supabase Storage.")
     except Exception as e:
         print(f"[!] Failed to upload to Supabase Storage: {e}")
 
