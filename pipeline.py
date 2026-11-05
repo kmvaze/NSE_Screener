@@ -827,10 +827,6 @@ def run_screener_engine():
     above_sma50_map = ranked.groupby("sector")["above_sma50"].mean().mul(100.0).round(2).to_dict()
     sector_summary["above_sma_pct"] = sector_summary["sector"].map(lambda s: above_sma50_map.get(s, 50.0))
 
-    rs_63_pct = sector_summary["perf_63d"].rank(pct=True) * 100.0
-    breadth_pct = sector_summary["above_sma_pct"]
-    rs_20_pct = sector_summary["perf_20d"].rank(pct=True) * 100.0
-
     sector_summary["rs_ratio"] = (100.0 + sector_summary["perf_20d"] * 0.35).round(2)
     sector_summary["rs_momentum"] = (100.0 + (sector_summary["advance_pct"] - 50.0) * 0.1).round(2)
     sector_summary["quadrant"] = sector_summary.apply(
@@ -844,9 +840,14 @@ def run_screener_engine():
     sector_summary["sector_lifecycle"] = [r[0] for r in lifecycle_res]
     sector_summary["sector_climax_mult"] = [r[1] for r in lifecycle_res]
 
-    raw_sec_comp = (0.40 * rs_63_pct) + (0.35 * breadth_pct) + (0.25 * rs_20_pct)
+    # BACKTEST'S SECTOR COMPOSITE SCORE FORMULA
+    raw_sec_comp = (
+        0.45 * sector_summary["rs_ratio"]
+        + 0.35 * (100.0 + (sector_summary["above_sma_pct"] - 50.0) * 0.15)
+        + 0.20 * sector_summary["rs_momentum"]
+    )
     sector_summary["sector_composite_score"] = (
-        raw_sec_comp - np.where(sector_summary["sector_climax_mult"] < 0.88, (1.0 - sector_summary["sector_climax_mult"]) * 15.0, 0.0)
+        raw_sec_comp - np.where(sector_summary["sector_climax_mult"] < 0.88, (1.0 - sector_summary["sector_climax_mult"]) * 12.0, 0.0)
     ).round(2)
 
     sector_perf_map = dict(zip(sector_summary["sector"], sector_summary["perf_20d"]))
@@ -894,13 +895,8 @@ def run_screener_engine():
         + 0.15 * up_down_pct
     ).clip(5.0, 99.0).round(1)
 
-    # Pure Quantitative Strategy Models (Calibrated exactly to Backtest Engine)
-    
-    # Structural Penalty: If the stock is pulling back (MRS < 1.5%), aggressively slash the momentum score 
-    # so it does not outcompete Pullback in a market crash simply due to high RS percentiles.
+    # Strategy Score Models (Retaining Pipeline's Strategy 2 & Strategy 3 Structural Guardrails/Penalties)
     mom_struct_penalty = np.where(ranked["mrs_score"] < 1.5, 0.65, 1.0)
-    
-    # Structural Penalty: If the sector is not actually rotating or leading, slash the rotation score.
     rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.70)
 
     # 1. Strategy 1: High-Surety Institutional Anchor
@@ -931,12 +927,12 @@ def run_screener_engine():
     ranked["surety_score"] = (raw_surety * mom_curve * flow_curve * sec_adj).clip(5.0, 99.0).round(1)
     ranked["score_surety_anchor"] = ranked["surety_score"]
 
-    # 2. Strategy 2: Momentum Frontrunner (Gated by mom_struct_penalty)
+    # 2. Strategy 2: Momentum Frontrunner (Pipeline Guardrail)
     ranked["score_momentum_frontrunner"] = (
         (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj * mom_struct_penalty
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation (Gated by rot_struct_penalty)
+    # 3. Strategy 3: Early Sector Rotation (Pipeline Guardrail)
     ranked["score_early_sector_rotation"] = (
         (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * rot_struct_penalty
     ).clip(5.0, 99.0).round(1)
@@ -948,16 +944,47 @@ def run_screener_engine():
         (pullback_depth_pts + stoch_oversold_pts + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"]) * sec_adj
     ).clip(5.0, 99.0).round(1)
 
-    # Exact Backtest-Synchronized Institutional Setup Classifier
+    # BACKTEST'S SIGNAL CLASSIFICATION & TIE-BREAKER LOGIC (inst_signal)
     def get_signal(r):
+        c_pattern = str(r.get("chart_pattern_signal", ""))
+        s_life = str(r.get("sector_lifecycle", ""))
+        mrs = float(r.get("mrs_score", 0.0))
+        close_val = float(r["close"])
+        sma50_val = float(r["sma_50"])
+        stoch_val = float(r.get("stoch_k", 50.0))
+        s_anchor = float(r["score_surety_anchor"])
+        s_mom = float(r["score_momentum_frontrunner"])
+        s_rot = float(r["score_early_sector_rotation"])
+        s_pull = float(r["score_high_rs_pullback"])
+
+        if mrs > 8.0 or float(r.get("dist_from_50_pct", 0.0)) > 14.0 or float(r.get("prior_63d_pct", 0.0)) > 38.0:
+            return "⚠️ Extended (Wait for Dip)"
+        if not bool(r["above_200sma"]):
+            return "🔴 Below 200-SMA (Overhead Supply)"
+
         scores = [
-            (float(r.get("score_surety_anchor", 0)), "🛡️ 1. Surety Anchor"),
-            (float(r.get("score_momentum_frontrunner", 0)), "🚀 2. Momentum"),
-            (float(r.get("score_early_sector_rotation", 0)), "🔄 3. Rotation"),
-            (float(r.get("score_high_rs_pullback", 0)), "📉 4. Pullback"),
+            (s_anchor, "🛡️ High-Surety Anchor"),
+            (s_mom, "🚀 Momentum Frontrunner"),
+            (s_rot, "🔄 Early Sector Rotation Leader"),
+            (s_pull, "📉 High-RS Pullback"),
         ]
         scores.sort(key=lambda x: x[0], reverse=True)
-        return scores[0][1]
+        top_label = scores[0][1]
+
+        if top_label == "📉 High-RS Pullback" and (mrs <= 1.0 or stoch_val < 45.0) and close_val >= sma50_val * 0.98:
+            return "📉 High-RS Pullback"
+        if top_label == "🔄 Early Sector Rotation Leader" and ("Rotation" in s_life or "Prime" in s_life or "Leading" in s_life):
+            return "🔄 Early Sector Rotation Leader"
+        if top_label == "🚀 Momentum Frontrunner" and float(r["frontrunner_score"]) >= 70.0 and close_val >= sma50_val:
+            return "🚀 Momentum Frontrunner"
+        if c_pattern == "🎯 VCP Coiled Spring" and mrs <= 3.0:
+            return "🎯 VCP Coiled Spring"
+        if bool(r.get("is_pocket_pivot_5d", False)) and (bool(r.get("is_squeezed", False)) or bool(r.get("is_ma_pinched", False))) and mrs <= 3.5:
+            return "⚡ Pocket Pivot Ignition"
+        if s_anchor >= 45.0 and close_val >= sma50_val * 0.98:
+            return "🛡️ High-Surety Anchor"
+
+        return top_label
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
     
@@ -966,63 +993,63 @@ def run_screener_engine():
     bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
 
     # -------------------------------------------------------------------------
-    # DYNAMIC REGIME & PORTFOLIO ALLOCATION ENGINE
+    # BACKTEST'S PORTFOLIO CONSTRUCTION & DIVERSITY QUOTAS (select_dynamic_portfolio)
     # -------------------------------------------------------------------------
     active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
     
     if market_breadth_pct >= 50.0 and bm_mrs <= 3.0:
         regime_label = f"🟢 Expansion Regime ({market_breadth_pct:.1f}% >50SMA)"
-        rot_q = 3 if active_rot > 0 else 0
-        quotas = {"score_momentum_frontrunner": 5, "score_early_sector_rotation": rot_q, "score_high_rs_pullback": 3 + (3 - rot_q), "score_surety_anchor": 1}
+        quotas = {"score_momentum_frontrunner": 5, "score_early_sector_rotation": 3 if active_rot > 0 else 0, "score_high_rs_pullback": 3 + (3 if active_rot == 0 else 0), "score_surety_anchor": 1}
     elif market_breadth_pct >= 50.0 and bm_mrs > 3.0:
         regime_label = f"⚠️ Overheated Tape (MRS +{bm_mrs:.1f}%)"
-        rot_q = 2 if active_rot > 0 else 0
-        quotas = {"score_high_rs_pullback": 5 + (2 - rot_q), "score_surety_anchor": 4, "score_early_sector_rotation": rot_q, "score_momentum_frontrunner": 1}
+        quotas = {"score_high_rs_pullback": 5 + (2 if active_rot == 0 else 0), "score_surety_anchor": 4, "score_early_sector_rotation": 2 if active_rot > 0 else 0, "score_momentum_frontrunner": 1}
     elif market_breadth_pct < 35.0:
         regime_label = f"🛡️ Bearish Defense ({market_breadth_pct:.1f}% >50SMA)"
         quotas = {"score_surety_anchor": 5, "score_high_rs_pullback": 5, "score_momentum_frontrunner": 2, "score_early_sector_rotation": 0}
     else:
         regime_label = f"🔄 Early Recovery Thrust ({market_breadth_pct:.1f}% >50SMA)"
-        rot_q = 4 if active_rot > 0 else 0
-        quotas = {"score_early_sector_rotation": rot_q, "score_high_rs_pullback": 4 + (4 - rot_q), "score_momentum_frontrunner": 2, "score_surety_anchor": 2}
+        quotas = {"score_early_sector_rotation": 4 if active_rot > 0 else 0, "score_high_rs_pullback": 4 + (4 if active_rot == 0 else 0), "score_momentum_frontrunner": 2, "score_surety_anchor": 2}
 
     dynamic_picks_map = {}
     seen_sec = {}
+    seen_sym = set()
     
     for strat_key, limit in quotas.items():
         if limit <= 0: continue
-        
-        if strat_key == "score_surety_anchor":
-            mask = (
-                (ranked["close"] >= ranked["sma_200"]) & 
-                (ranked["close"] >= ranked["sma_50"] * 0.97) & 
-                (ranked["mrs_score"] >= -5.0) & 
-                (ranked["mrs_score"] <= 6.0) & 
-                (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
-                (ranked["score_surety_anchor"] >= ranked["score_momentum_frontrunner"] * 0.92) # Prevents stealing 99.0 momentum setups
-            )
+        sub = ranked.copy()
+        if strat_key == "score_surety_anchor": 
+            sub = sub[~sub["mcap_tier"].str.contains("Tier 1", na=False)]
             strat_name = "surety"
         elif strat_key == "score_momentum_frontrunner":
-            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["close"] >= ranked["sma_50"]) & (ranked["mrs_score"] >= -2.0) & (ranked["mrs_score"] <= 10.0)
             strat_name = "momentum"
-        elif strat_key == "score_early_sector_rotation":
-            mask = (ranked["close"] >= ranked["sma_200"]) & (~ranked["sector_rs_status"].str.contains("Lagging") | ~ranked["sector_lifecycle"].str.contains("Lagging") | (ranked["beta_neutral_mrs"] >= 1.5)) & (ranked["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False))
+        elif strat_key == "score_early_sector_rotation": 
+            sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
             strat_name = "rotation"
         elif strat_key == "score_high_rs_pullback":
-            mask = (ranked["close"] >= ranked["sma_200"]) & (ranked["mrs_score"] >= -7.0) & (ranked["mrs_score"] <= 2.5) & (ranked["stoch_k"] <= 75)
             strat_name = "pullback"
         else:
-            mask = ranked["close"] > 0
             strat_name = "surety"
             
-        qual = ranked[mask].sort_values(by=[strat_key, "iasis_score"], ascending=False)
+        if strat_key == "score_surety_anchor": 
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"] * 0.97) & (sub["mrs_score"] >= -5.0) & (sub["mrs_score"] <= 6.0)
+        elif strat_key == "score_momentum_frontrunner": 
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"]) & (sub["mrs_score"] >= -2.0) & (sub["mrs_score"] <= 10.0)
+        elif strat_key == "score_early_sector_rotation": 
+            mask = (sub["close"] >= sub["sma_200"]) & (~sub["sector_rs_status"].str.contains("Lagging") | ~sub["sector_lifecycle"].str.contains("Lagging") | (sub["beta_neutral_mrs"] >= 1.5))
+        elif strat_key == "score_high_rs_pullback": 
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["mrs_score"] >= -7.0) & (sub["mrs_score"] <= 2.5) & (sub["stoch_k"] <= 75)
+        else: 
+            mask = sub["close"] > 0
+            
+        qual = sub[mask].sort_values(by=[strat_key, "iasis_score"], ascending=False)
         added = 0
         for _, r in qual.iterrows():
             if added >= limit: break
             sym, sec = r["symbol"], r["sector"]
-            if sym in dynamic_picks_map: continue
+            if sym in seen_sym: continue
             if seen_sec.get(sec, 0) < 2:
                 dynamic_picks_map[sym] = strat_name
+                seen_sym.add(sym)
                 seen_sec[sec] = seen_sec.get(sec, 0) + 1
                 added += 1
 
@@ -1041,6 +1068,7 @@ def run_screener_engine():
             sym = r["symbol"]
             if sym not in dynamic_picks_map:
                 dynamic_picks_map[sym] = "surety"
+                seen_sym.add(sym)
     # -------------------------------------------------------------------------
 
     ranked = ranked.sort_values(by=["score_surety_anchor", "score_momentum_frontrunner", "iasis_score"], ascending=False).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
@@ -1064,7 +1092,6 @@ def run_screener_engine():
             except Exception:
                 return val
 
-        # Backend Migration of UI Logic
         c = float(r.get("close", 0))
         s50 = float(r.get("sma_50", 0))
         s200 = float(r.get("sma_200", 0))
@@ -1226,20 +1253,17 @@ def run_screener_engine():
         "stocks": output_stocks,
     }
     
-    # Keep local original JSON with pretty-print indentation as it is
     with open(OUTPUT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with 4 Finalized Strategies & 50/50 ATR Split Entries.")
+    print(f"[✓] Pipeline complete. Processed {len(output_stocks)} split-normalized stocks with Backtest Alignment & 50/50 ATR Split Entries.")
 
-    # Upload the compressed/minified copy to Supabase secure-quant bucket
     upload_dashboard_to_supabase(OUTPUT_JSON)
 
 from supabase import create_client
 
 def upload_dashboard_to_supabase(json_path: str):
     supabase_url = os.environ.get("SUPABASE_URL", "https://ydjzbwkaxwcfkqzfndum.supabase.co")
-    # MUST be the service_role key, NOT the anon key, to allow server write operations
     service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
     if not service_role_key:
@@ -1249,14 +1273,12 @@ def upload_dashboard_to_supabase(json_path: str):
     try:
         supabase = create_client(supabase_url, service_role_key)
 
-        # Read original JSON and compress/minify it in-memory (stripping whitespace & indentations)
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         
         compressed_json_str = json.dumps(data, separators=(',', ':'))
         compressed_bytes = compressed_json_str.encode('utf-8')
 
-        # Overwrites dashboard_data.json in your storage bucket with the compressed version
         supabase.storage.from_("secure-quant").upload(
             path="dashboard_data.json",
             file=compressed_bytes,

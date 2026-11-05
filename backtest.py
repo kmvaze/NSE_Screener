@@ -35,7 +35,7 @@ def determine_monthly_dates(all_dates: list):
     of every month from January 2026 through October 2026.
     """
     monthly_checkpoints = []
-    for month in range(1, 11):
+    for month in range(1, 12):
         cal_date = f"2026-{month:02d}-01"
         trading_date = get_first_trading_date_on_or_after(all_dates, cal_date)
         dt = datetime.strptime(trading_date, "%Y-%m-%d")
@@ -538,6 +538,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     sector_summary["sector_lifecycle"] = [r[0] for r in lifecycle_res]
     sector_summary["sector_climax_mult"] = [r[1] for r in lifecycle_res]
 
+    # BACKTEST'S SECTOR COMPOSITE SCORE FORMULA
     raw_sec_comp = (
         0.45 * sector_summary["rs_ratio"]
         + 0.35 * (100.0 + (sector_summary["above_sma_pct"] - 50.0) * 0.15)
@@ -588,9 +589,10 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         + 0.15 * up_down_pct
     ).clip(5.0, 99.0).round(1)
 
-    # =========================================================================
-    # EXACT 4 STRATEGY MODELS FROM PIPELINE.PY
-    # =========================================================================
+    # Strategy Score Models (Retaining Pipeline's Strategy 2 & Strategy 3 Structural Guardrails/Penalties)
+    mom_struct_penalty = np.where(ranked["mrs_score"] < 1.5, 0.65, 1.0)
+    rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.70)
+
     # 1. Strategy 1: High-Surety Institutional Anchor
     mrs_anchor_pts = 28.0 * np.exp(-((ranked["mrs_score"] - 0.8) ** 2) / 10.5)
     sma50_anchor_pts = 22.0 * np.clip(1.0 - (np.maximum(0.0, ranked["dist_from_50_pct"] - 1.5) / 10.0), 0.0, 1.0)
@@ -619,14 +621,14 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     ranked["score_surety_anchor"] = (raw_surety * mom_curve * flow_curve * sec_adj).clip(5.0, 99.0).round(1)
     ranked["surety_score"] = ranked["score_surety_anchor"]
 
-    # 2. Strategy 2: Momentum Frontrunner
+    # 2. Strategy 2: Momentum Frontrunner (Pipeline Guardrail)
     ranked["score_momentum_frontrunner"] = (
-        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj
+        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj * mom_struct_penalty
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation
+    # 3. Strategy 3: Early Sector Rotation (Pipeline Guardrail)
     ranked["score_early_sector_rotation"] = (
-        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership"), 1.08, 0.92)
+        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * rot_struct_penalty
     ).clip(5.0, 99.0).round(1)
 
     # 4. Strategy 4: High-RS Pullback Structure
@@ -636,7 +638,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         (pullback_depth_pts + stoch_oversold_pts + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"]) * sec_adj
     ).clip(5.0, 99.0).round(1)
 
-    # Setup Signal Classifier
+    # BACKTEST'S SIGNAL CLASSIFICATION & TIE-BREAKER LOGIC (inst_signal)
     def get_signal(r):
         c_pattern = str(r.get("chart_pattern_signal", ""))
         s_life = str(r.get("sector_lifecycle", ""))
