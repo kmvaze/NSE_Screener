@@ -379,16 +379,19 @@ function renderLandingDashboard() {
   const grid = document.getElementById('landingHeroGrid');
   if (!grid) return;
 
-  const mode = appState.landingFilter || 'dynamic';
-  let topTiles = [];
-  const selectedSymbols = new Set();
-  const sectorCount = {};
+  // GUARD: If stocks haven't loaded yet, exit safely
+  if (!appState.stocks || appState.stocks.length === 0) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">Loading market universe data...</div>`;
+    return;
+  }
 
+  const mode = appState.landingFilter || 'dynamic';
+  let rawPool = [];
+  const selectedSymbols = new Set();
+
+  // 1. BUILD BASELINE POOL FROM ACTIVE STRATEGY TAB
   if (mode === 'dynamic') {
-    // 1. Resolve candidates allocated by the Dynamic Portfolio Engine
     const dynamicPicks = appState.stocks.filter(st => st.dynamic_mix_strategy && st.dynamic_mix_strategy !== "");
-    
-    // Sort dynamically by the stock's designated regime strategy score
     dynamicPicks.sort((a, b) => {
       const getActiveScore = (s) => {
         const strat = s.dynamic_mix_strategy;
@@ -402,7 +405,6 @@ function renderLandingDashboard() {
 
     for (const st of dynamicPicks) {
       if (!selectedSymbols.has(st.symbol)) {
-        // Retain assigned dynamic mix strategy, falling back to dominant setup if absent
         let inferredStrat = st.dynamic_mix_strategy;
         const sig = String(st.inst_signal || "").toUpperCase();
         if (inferredStrat === 'surety' && sig.includes('MOMENTUM') && (st.score_momentum_frontrunner > (st.score_surety_anchor || 0))) {
@@ -410,55 +412,72 @@ function renderLandingDashboard() {
         } else if (inferredStrat === 'surety' && sig.includes('ROTATION') && (st.score_early_sector_rotation > (st.score_surety_anchor || 0))) {
           inferredStrat = 'rotation';
         }
-
-        topTiles.push({ ...st, active_strategy: inferredStrat });
+        rawPool.push({ ...st, active_strategy: inferredStrat });
         selectedSymbols.add(st.symbol);
       }
-      if (topTiles.length >= 12) break;
     }
-
     const rl = document.getElementById('landingGridRegimeLabel');
     if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic Mix";
 
   } else {
-    // 2. Single Strategy Mode Selection (Surety, Momentum, Rotation, or Pullback)
+    // Explicit Strategy Mode Tab (Surety, Momentum, Rotation, or Pullback)
     const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
     qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
     
     for (const st of qualified) {
-      const sec = st.sector || "Other";
-      if ((sectorCount[sec] || 0) < 2 && !selectedSymbols.has(st.symbol)) {
-        topTiles.push({ ...st, active_strategy: mode });
+      if (!selectedSymbols.has(st.symbol)) {
+        rawPool.push({ ...st, active_strategy: mode });
         selectedSymbols.add(st.symbol);
-        sectorCount[sec] = (sectorCount[sec] || 0) + 1;
       }
-      if (topTiles.length >= 12) break;
     }
     const rl = document.getElementById('landingGridRegimeLabel');
     if (rl) rl.textContent = `${mode.toUpperCase()} UNIVERSE`;
   }
 
-  // 3. Fallback Backfill if qualifying universe is sparse
-  if (topTiles.length < 12) {
+  // Fallback Backfill if sparse
+  if (rawPool.length < 12) {
     const backupPool = appState.stocks
       .filter(st => matchesStrategyCriteria(st, 'surety') && !(st.mcap_tier || "").includes("Tier 1"))
       .sort((a, b) => (b.score_surety_anchor || 0) - (a.score_surety_anchor || 0));
 
     for (const st of backupPool) {
       if (!selectedSymbols.has(st.symbol)) {
-        topTiles.push({ ...st, active_strategy: 'surety' });
+        rawPool.push({ ...st, active_strategy: 'surety' });
         selectedSymbols.add(st.symbol);
-        if (topTiles.length >= 12) break;
       }
     }
   }
 
+  // 2. APPLY RISK APPETITE OVERLAY FILTER DYNAMICALLY
+  let candidatePool = rawPool;
+  if (typeof selectedRiskAppetite !== 'undefined' && selectedRiskAppetite !== "ALL") {
+    candidatePool = rawPool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
+  }
+
+  // 3. ENFORCE SECTOR DIVERSIFICATION (Max 2 per sector) & CAP TO TOP 12
+  let topTiles = [];
+  const sectorCount = {};
+  for (const st of candidatePool) {
+    const sec = st.sector || "Other";
+    if ((sectorCount[sec] || 0) < 2) {
+      topTiles.push(st);
+      sectorCount[sec] = (sectorCount[sec] || 0) + 1;
+    }
+    if (topTiles.length >= 12) break;
+  }
+
+  // Fallback if sector caps blocked items under strict combinations
+  if (topTiles.length === 0 && candidatePool.length > 0) {
+    topTiles = candidatePool.slice(0, 12);
+  }
+
   if (topTiles.length === 0) {
-    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">No candidates currently qualify.</div>`;
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">No candidates currently qualify for this strategy &amp; risk profile combination.</div>`;
+    updateGlobalBadge();
     return;
   }
 
-  // 4. Render Grid Cards with Synchronized Strategy Badges
+  // 4. RENDER GRID CARDS
   grid.innerHTML = topTiles.map((st, idx) => {
     const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
     const dist50 = st.sma_50 ? (((st.close - st.sma_50) / st.sma_50) * 100).toFixed(1) : "0.0";
@@ -469,7 +488,6 @@ function renderLandingDashboard() {
     const rotScore = Number(st.score_early_sector_rotation ?? 0).toFixed(1);
     const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
 
-    // Strategy Badge Synchronization: Displays the active strategy score corresponding to the setup
     const activeStrat = st.active_strategy || 'surety';
     const sigUpper = String(st.inst_signal || "").toUpperCase();
 
@@ -486,7 +504,6 @@ function renderLandingDashboard() {
 
     return `
       <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
-        <!-- Row 1: Badges, Score & Watchlist Star -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="pill" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">Rank #${idx + 1}</span>
@@ -500,7 +517,6 @@ function renderLandingDashboard() {
           </div>
         </div>
 
-        <!-- Row 2: Symbol & Price Command Anchor -->
         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
           <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
           <span style="font-size: 1.1rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;">₹${Number(st.close).toFixed(2)}</span>
@@ -510,7 +526,6 @@ function renderLandingDashboard() {
           <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.index_name ? st.index_name.split(',')[0].trim() : 'Nifty 500'}</span>
         </div>
 
-        <!-- Row 3: 4-Strategy Multi-Horizon Metric Box -->
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
           <div>
             <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Surety</div>
@@ -530,7 +545,6 @@ function renderLandingDashboard() {
           </div>
         </div>
 
-        <!-- Row 4: Crisp Key-Value Execution Spec Table -->
         <div style="background: var(--bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 0.74rem;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
             <span style="color: var(--muted);">MA Confluence (20/50):</span>
@@ -559,7 +573,6 @@ function renderLandingDashboard() {
           </div>
         </div>
 
-        <!-- Row 5: Action & Asymmetry Multiple -->
         <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 10px;">
           <span class="pill pill-buyzone">${st.inst_signal}</span>
           <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
@@ -1660,4 +1673,32 @@ function endProductTour() {
   document.getElementById('tourPopover').style.display = 'none';
   localStorage.setItem('nse_alpha_tour_completed', 'true');
   switchTab('landing');
+}
+
+// Add this to ui_controller.js to handle risk profile switches
+let selectedRiskAppetite = "ALL";
+
+function setLandingRiskFilter(riskLevel) {
+  selectedRiskAppetite = riskLevel;
+  renderLandingDashboard();
+  updateGlobalBadge();
+}
+
+// Inside renderLandingDashboard(), filter your topTiles array by risk:
+if (selectedRiskAppetite !== "ALL") {
+  topTiles = topTiles.filter(st => (st.risk_suitability || "Medium") === selectedRiskAppetite);
+}
+
+function getStockRiskSuitability(st) {
+  const raw = String(st.risk_suitability || '').toLowerCase();
+  if (raw.includes('low') || raw.includes('conservative')) return 'Low';
+  if (raw.includes('medium') || raw.includes('balanced')) return 'Medium';
+  if (raw.includes('high') || raw.includes('aggressive')) return 'High';
+
+  // Fallback heuristic based on volatility & cap tier if tag is absent
+  const atr = Number(st.atr_pct || 3.0);
+  const mcap = String(st.mcap_tier || '');
+  if (atr <= 2.5 && (mcap.includes('Tier 1') || mcap.includes('Tier 2'))) return 'Low';
+  if (atr >= 4.5 || mcap.includes('Tier 4')) return 'High';
+  return 'Medium';
 }

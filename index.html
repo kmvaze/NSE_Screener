@@ -17,8 +17,6 @@
 </head>
 <body>
   <!-- Global Loading Overlay -->
-<!-- Bulletproof Global Loading Overlay -->
-<!-- Bulletproof Global Loading Overlay (Glassmorphism) -->
 <div id="globalLoader" class="hidden" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.3s ease, visibility 0.3s;">
   
   <div style="width: 50px; height: 50px; border: 4px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
@@ -88,20 +86,35 @@
   </div>
 
   <!-- TAB 0: LANDING DASHBOARD -->
-  <div class="tab-view active" id="viewLanding">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+<div class="tab-view active" id="viewLanding">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
       <div>
         <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin: 0 0 4px 0;">Market Leadership Command Grid</h2>
         <p style="font-size: 0.8rem; color: var(--muted); margin: 0;">Institutional high-conviction setups evaluated strictly on raw Bhavcopy feeds with verified volatility compression and delivery flow.</p>
       </div>
+      
+      <!-- Right Action Toolbar: Strategy Buttons & Risk Dropdown -->
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <span id="landingGridRegimeLabel" style="font-size: 0.74rem; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-right: 4px;">Dynamic Mix</span>
         <button class="tactical-btn active" id="btnLandingDynamic" onclick="setLandingFilter('dynamic')">⚡ Dynamic Mix</button>
         <button class="tactical-btn" id="btnLandingSurety" onclick="setLandingFilter('surety')">🛡️ 1. Surety Anchor</button>
         <button class="tactical-btn" id="btnLandingMomentum" onclick="setLandingFilter('momentum')">🚀 2. Momentum</button>
         <button class="tactical-btn" id="btnLandingRotation" onclick="setLandingFilter('rotation')">🔄 3. Rotation</button>
         <button class="tactical-btn" id="btnLandingPullback" onclick="setLandingFilter('pullback')">📉 4. Pullback</button>
+        
+        <!-- Risk Appetite Filter Selector -->
+        <select id="landingRiskFilterSelect" onchange="setLandingRiskFilter(this.value)" style="padding: 6px 10px; font-size: 0.76rem; font-weight: 700; background: var(--card-bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 8px;">
+          <option value="ALL" selected>🛡️ Risk Appetite: All</option>
+          <option value="Low">🟢 Conservative (Low Risk)</option>
+          <option value="Medium">🟡 Balanced (Medium Risk)</option>
+          <option value="High">🚀 Aggressive (High Risk)</option>
+        </select>
       </div>
+    </div>
+
+    <!-- Sub-Header Status Row: Market Regime Label cleanly separated to prevent layout shifting -->
+    <div style="display: flex; align-items: center; margin-bottom: 12px; padding: 6px 12px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; width: fit-content;">
+      <span style="font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 700; margin-right: 6px;">Active Regime / Universe:</span>
+      <span id="landingGridRegimeLabel" style="font-size: 0.74rem; font-weight: 800; color: var(--accent); text-transform: uppercase;">Dynamic Mix</span>
     </div>
 
     <!-- High Conviction Card & Tile Grid -->
@@ -362,7 +375,7 @@
           <option value="ALL" selected>🌐 All Market Caps</option>
           <option value="MID_SMALL">⚖️ Tier 2/3: Mid &amp; Small Cap</option>
           <option value="MICRO">🔥 Tier 4: Microcap</option>
-          <option value="LARGE">🛡️ Tier 1: Large Cap</option>
+          <option value="LARGE">🛡️ Tier 1: Large Cap (Nifty 100)</option>
         </select>
       </div>
 
@@ -576,7 +589,6 @@
   </div>
 
   <!-- TAB 6: QUANT PLAYBOOK -->
-  <!-- TAB 6: QUANT PLAYBOOK -->
   <div class="tab-view" id="viewPlaybook">
     <div class="playbook-container">
       <h2>📖 Institutional Quant Playbook &amp; Strategy Masterclass</h2>
@@ -611,7 +623,7 @@
       <div style="background: rgba(56, 189, 248, 0.08); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
         <strong style="color: var(--accent);">Why the "Top 12" Are Bound to Outperform Most Stocks:</strong>
         <p style="margin: 6px 0 0 0; font-size: 0.85rem; color: var(--text);">
-          The 12 featured stocks on your dashboard are not random screen results. They undergo strict diversification constraints: <strong>no single sector can occupy more than 2 slots</strong>. This eliminates portfolio concentration risk while ensuring that every chosen company has cleared elite filters for price tightness, institutional delivery absorption, and structural support.
+          The 12 featured stocks on your dashboard are not random screen results. They undergo strict diversification constraints: <strong>no single sector can occupy more than 2 slots</strong>. This eliminates portfolio concentration risk while ensuring that every selected company has cleared elite filters for price tightness, institutional delivery absorption, and structural support.
         </p>
       </div>
       <p>
@@ -891,7 +903,7 @@
     <div class="auth-gate-icon">🔐</div>
     <h2 class="auth-gate-title">Institutional Quant Terminal</h2>
     <p class="auth-gate-desc">
-      Sign in with Google to access real-time National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 50/50 Staggered Limit setups[cite: 11, 13].
+      Sign in with Google to access real-time National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 50/50 Staggered Limit setups.
     </p>
     <button class="auth-google-btn" onclick="loginWithGoogle()">
       <svg width="18" height="18" viewBox="0 0 24 24">

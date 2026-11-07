@@ -182,10 +182,6 @@ def classify_sector_lifecycle(row: pd.Series) -> tuple:
 
 
 def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
-    """
-    Evaluates indicators and scores strictly on Bhavcopy data <= cutoff_date (Zero Lookahead).
-    Uses the exact 4-strategy mathematical models matching pipeline.py.
-    """
     df_past = df_all[df_all["date"] <= cutoff_date].copy()
     dates = sorted(df_past["date"].unique())
     if len(dates) < 25:
@@ -267,12 +263,12 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         atr_20 = float(np.mean(tr_arr))
         atr_pct = round(float((atr_20 / (close + 1e-5)) * 100.0), 2)
 
-        # Volume Profile POC
         poc_bars = min(50, n_bars)
         hist, bins = np.histogram(prices[-poc_bars:], bins=10, weights=volumes[-poc_bars:])
         poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist) + 1]) / 2.0), 2)
 
-        # Institutional Flow / Squeeze Indicators
+        cr = float((close - lows[-1]) / (highs[-1] - lows[-1] + 1e-5))
+
         vol_20_avg = float(np.mean(volumes[-min(20, n_bars):])) + 1e-5
         session_rvol = round(float(volumes[-1] / vol_20_avg), 2)
         is_rvol_expanded = session_rvol >= 2.5
@@ -482,6 +478,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             "bb_kc_ratio": bb_kc_ratio,
             "ma_spread_pct": round(ma_spread_pct, 2),
             "vol_dryup_ratio": round(vol_dryup_ratio, 2),
+            "closing_range": round(cr, 3),
             "chart_pattern_signal": pattern,
             "pattern_timeframe": pattern_tf,
             "sector_rs_status": sector_rs_status,
@@ -500,7 +497,12 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             "base_depth_pct": round(base_depth_pct, 2),
         })
 
-    ranked = pd.merge(latest_df, pd.DataFrame(stock_tech_rows), on="symbol", how="inner").drop_duplicates(subset=["symbol"])
+    tech_df = pd.DataFrame(stock_tech_rows)
+    sec_lag_cols = sec_base[["symbol", "close_20d_ago", "close_63d_ago"]].drop_duplicates(subset=["symbol"])
+    
+    ranked = pd.merge(latest_df, tech_df, on="symbol", how="inner")
+    ranked = pd.merge(ranked, sec_lag_cols, on="symbol", how="left")
+    ranked = ranked.drop_duplicates(subset=["symbol"])
     ranked = ranked[ranked["sector"] != "General Equities"].copy()
 
     ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
@@ -538,7 +540,6 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     sector_summary["sector_lifecycle"] = [r[0] for r in lifecycle_res]
     sector_summary["sector_climax_mult"] = [r[1] for r in lifecycle_res]
 
-    # BACKTEST'S SECTOR COMPOSITE SCORE FORMULA
     raw_sec_comp = (
         0.45 * sector_summary["rs_ratio"]
         + 0.35 * (100.0 + (sector_summary["above_sma_pct"] - 50.0) * 0.15)
@@ -556,7 +557,25 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     ranked["sector_climax_mult"] = ranked["sector"].map(lambda s: sec_mult_map.get(s, 1.0))
     ranked["sector_lifecycle"] = ranked["sector"].map(lambda s: sec_life_map.get(s, "Neutral"))
 
-    rs_percentile = (ranked["raw_multi_rs"].rank(pct=True) * 100.0).round(1)
+    global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
+    tier_rs_pct = ranked.groupby("mcap_tier")["raw_multi_rs"].rank(pct=True) * 100.0
+    rs_percentile = ((0.60 * global_rs_pct) + (0.40 * tier_rs_pct)).round(1)
+
+    tier_above_sma50 = ranked.groupby("mcap_tier")["above_sma50"].mean().mul(100.0).to_dict()
+    universe_20d_ret = ((ranked["close"] / (ranked["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0
+    tier_20d_ret = ranked.groupby("mcap_tier").apply(lambda g: (((g["close"] / (g["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0)).to_dict()
+
+    def get_tier_climax_mult(tier):
+        b = tier_above_sma50.get(tier, 50.0)
+        ret_diff = tier_20d_ret.get(tier, 0.0) - universe_20d_ret
+        if b < 25.0 or ret_diff < -2.5:
+            return 0.90
+        elif ret_diff > 0.0 and b >= 50.0:
+            return 1.05
+        return 1.0
+
+    ranked["tier_climax_mult"] = ranked["mcap_tier"].map(get_tier_climax_mult)
+
     peer_rs_percentile = (ranked["beta_neutral_mrs"].rank(pct=True) * 100.0).round(1)
     up_down_pct = (ranked["up_down_vol_ratio"].rank(pct=True) * 100.0).round(1)
 
@@ -589,9 +608,9 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         + 0.15 * up_down_pct
     ).clip(5.0, 99.0).round(1)
 
-    # Strategy Score Models (Retaining Pipeline's Strategy 2 & Strategy 3 Structural Guardrails/Penalties)
     mom_struct_penalty = np.where(ranked["mrs_score"] < 1.5, 0.65, 1.0)
     rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.70)
+    poc_multiplier = np.where(ranked["close"] >= ranked["volume_profile_poc"], 1.06, 0.88)
 
     # 1. Strategy 1: High-Surety Institutional Anchor
     mrs_anchor_pts = 28.0 * np.exp(-((ranked["mrs_score"] - 0.8) ** 2) / 10.5)
@@ -618,27 +637,34 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         + (0.15 * ranked["frontrunner_score"])
     )
     sec_adj = np.clip(ranked["sector_climax_mult"], 0.82, 1.08)
-    ranked["score_surety_anchor"] = (raw_surety * mom_curve * flow_curve * sec_adj).clip(5.0, 99.0).round(1)
+    ranked["score_surety_anchor"] = (raw_surety * mom_curve * flow_curve * sec_adj * poc_multiplier * ranked["tier_climax_mult"]).clip(5.0, 99.0).round(1)
     ranked["surety_score"] = ranked["score_surety_anchor"]
 
-    # 2. Strategy 2: Momentum Frontrunner (Pipeline Guardrail)
+    # 2. Strategy 2: Momentum Frontrunner
     ranked["score_momentum_frontrunner"] = (
-        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj * mom_struct_penalty
+        (0.40 * ranked["frontrunner_score"] + 0.30 * ranked["trend_score"] + 0.15 * ranked["iasis_score"] + 0.15 * ranked["surety_score"]) * sec_adj * mom_struct_penalty * ranked["tier_climax_mult"]
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation (Pipeline Guardrail)
+    # 3. Strategy 3: Early Sector Rotation
     ranked["score_early_sector_rotation"] = (
-        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * rot_struct_penalty
+        (0.35 * ranked["frontrunner_score"] + 0.25 * ranked["iasis_score"] + 0.25 * ranked["surety_score"] + 0.15 * ranked["ignition_score"]) * rot_struct_penalty * poc_multiplier * ranked["tier_climax_mult"]
     ).clip(5.0, 99.0).round(1)
 
     # 4. Strategy 4: High-RS Pullback Structure
     pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.5)) ** 2) / 8.0)
-    stoch_oversold_pts = 30.0 * np.clip(1.0 - (ranked["stoch_k"] / 60.0), 0.0, 1.0)
+    stoch_oversold_pts = 20.0 * np.clip(1.0 - (ranked["stoch_k"] / 60.0), 0.0, 1.0)
+    cr_series = ranked["closing_range"]
+    pullback_qual_bonus = np.where(
+        (ranked["vol_dryup_ratio"] <= 0.85) | (cr_series >= 0.50),
+        15.0,
+        np.clip(15.0 * (cr_series / 0.50), 0.0, 15.0)
+    )
+    pullback_penalty = np.where((ranked["session_rvol"] >= 1.5) & (cr_series < 0.30), 0.75, 1.0)
+
     ranked["score_high_rs_pullback"] = (
-        (pullback_depth_pts + stoch_oversold_pts + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"]) * sec_adj
+        (pullback_depth_pts + stoch_oversold_pts + pullback_qual_bonus + 0.20 * rs_percentile + 0.15 * ranked["iasis_score"]) * sec_adj * pullback_penalty * ranked["tier_climax_mult"]
     ).clip(5.0, 99.0).round(1)
 
-    # BACKTEST'S SIGNAL CLASSIFICATION & TIE-BREAKER LOGIC (inst_signal)
     def get_signal(r):
         c_pattern = str(r.get("chart_pattern_signal", ""))
         s_life = str(r.get("sector_lifecycle", ""))
@@ -665,7 +691,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         scores.sort(key=lambda x: x[0], reverse=True)
         top_label = scores[0][1]
 
-        if top_label == "📉 High-RS Pullback" and (mrs <= 1.0 or stoch_val < 45.0) and close_val >= sma50_val * 0.98:
+        if top_label == "📉 High-RS Pullback" and (mrs <= 1.0 or stoch_val < 45.0) and close_val >= sma50_val * 0.975:
             return "📉 High-RS Pullback"
         if top_label == "🔄 Early Sector Rotation Leader" and ("Rotation" in s_life or "Prime" in s_life or "Leading" in s_life):
             return "🔄 Early Sector Rotation Leader"
@@ -675,7 +701,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             return "🎯 VCP Coiled Spring"
         if bool(r.get("is_pocket_pivot_5d", False)) and (bool(r.get("is_squeezed", False)) or bool(r.get("is_ma_pinched", False))) and mrs <= 3.5:
             return "⚡ Pocket Pivot Ignition"
-        if s_anchor >= 45.0 and close_val >= sma50_val * 0.98:
+        if s_anchor >= 45.0 and close_val >= sma50_val * 0.975:
             return "🛡️ High-Surety Anchor"
 
         return top_label
@@ -710,14 +736,17 @@ def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataF
     for k, limit in q.items():
         if limit <= 0: continue
         sub = ranked_at_q.copy()
-        if k == "score_surety_anchor": sub = sub[~sub["mcap_tier"].str.contains("Tier 1", na=False)]
-        elif k == "score_early_sector_rotation": sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
-            
-        if k == "score_surety_anchor": mask = (sub["close"]>=sub["sma_200"]) & (sub["close"]>=sub["sma_50"]*0.97) & (sub["mrs_score"]>=-5.0) & (sub["mrs_score"]<=6.0)
-        elif k == "score_momentum_frontrunner": mask = (sub["close"]>=sub["sma_200"]) & (sub["close"]>=sub["sma_50"]) & (sub["mrs_score"]>=-2.0) & (sub["mrs_score"]<=10.0)
-        elif k == "score_early_sector_rotation": mask = (sub["close"]>=sub["sma_200"]) & (~sub["sector_rs_status"].str.contains("Lagging") | ~sub["sector_lifecycle"].str.contains("Lagging") | (sub["beta_neutral_mrs"]>=1.5))
-        elif k == "score_high_rs_pullback": mask = (sub["close"]>=sub["sma_200"]) & (sub["mrs_score"]>=-7.0) & (sub["mrs_score"]<=2.5) & (sub["stoch_k"]<=75)
-        else: mask = sub["close"] > 0
+        if k == "score_surety_anchor": 
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"] * 0.97) & (sub["mrs_score"] >= -5.0) & (sub["mrs_score"] <= 6.0)
+        elif k == "score_momentum_frontrunner":
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"]) & (sub["stage2_aligned"]) & (sub["mrs_score"] >= -2.0) & (sub["mrs_score"] <= 7.5)
+        elif k == "score_early_sector_rotation": 
+            sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
+            mask = (sub["close"] >= sub["sma_200"]) & (~sub["sector_rs_status"].str.contains("Lagging") | ~sub["sector_lifecycle"].str.contains("Lagging") | (sub["beta_neutral_mrs"] >= 1.5))
+        elif k == "score_high_rs_pullback":
+            mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"] * 0.975) & (sub["mrs_score"] >= -7.0) & (sub["mrs_score"] <= 2.5) & (sub["stoch_k"] <= 75)
+        else: 
+            mask = sub["close"] > 0
         
         qual = sub[mask].sort_values(by=[k, "iasis_score"], ascending=False)
         added = 0
@@ -732,10 +761,64 @@ def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataF
                 seen_sym.add(sym)
                 seen_sec[sec] = seen_sec.get(sec, 0) + 1
                 added += 1
+
+    if len(picks) < 12:
+        prime_sectors = set(sector_summary[sector_summary["sector_lifecycle"].str.contains("Prime Institutional Leadership", na=False)]["sector"])
+        tier_a_pool = ranked_at_q[
+            (ranked_at_q["sector"].isin(prime_sectors)) & 
+            (~ranked_at_q["symbol"].isin(seen_sym)) & 
+            (ranked_at_q["close"] >= ranked_at_q["sma_200"]) & 
+            (ranked_at_q["close"] >= ranked_at_q["sma_50"] * 0.975) & 
+            (ranked_at_q["mrs_score"] >= -5.0) & 
+            (ranked_at_q["mrs_score"] <= 7.5) &
+            (ranked_at_q["score_surety_anchor"] >= 60.0)
+        ].sort_values(by=["score_surety_anchor", "frontrunner_score"], ascending=False)
+
+        for _, r in tier_a_pool.iterrows():
+            if len(picks) >= 12: break
+            sym, sec = r["symbol"], r["sector"]
+            if sym in seen_sym: continue
+            if seen_sec.get(sec, 0) < 3:
+                r_copy = r.copy()
+                r_copy["assigned_strategy"] = "score_surety_anchor"
+                picks.append(r_copy)
+                seen_sym.add(sym)
+                seen_sec[sec] = seen_sec.get(sec, 0) + 1
+
+    if len(picks) < 12:
+        tier_b_pool = ranked_at_q[
+            (ranked_at_q["mcap_tier"].str.contains("Tier 1", na=False)) & 
+            (~ranked_at_q["symbol"].isin(seen_sym)) & 
+            (ranked_at_q["close"] >= ranked_at_q["sma_200"]) & 
+            (ranked_at_q["close"] >= ranked_at_q["sma_50"] * 0.97) & 
+            (ranked_at_q["mrs_score"] >= -5.0) & 
+            (ranked_at_q["mrs_score"] <= 6.0) & 
+            (ranked_at_q["score_surety_anchor"] >= 65.0)
+        ].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
+
+        for _, r in tier_b_pool.iterrows():
+            if len(picks) >= 12: break
+            sym, sec = r["symbol"], r["sector"]
+            if sym in seen_sym: continue
+            if seen_sec.get(sec, 0) < 2:
+                r_copy = r.copy()
+                r_copy["assigned_strategy"] = "score_surety_anchor"
+                picks.append(r_copy)
+                seen_sym.add(sym)
+                seen_sec[sec] = seen_sec.get(sec, 0) + 1
                 
     df_picks = pd.DataFrame(picks).head(12)
     top3 = sector_summary.sort_values("sector_composite_score", ascending=False).head(3).to_dict(orient="records")
     top5 = sector_summary.sort_values("sector_composite_score", ascending=False).head(5).to_dict(orient="records")
+
+    def assign_risk(strat):
+        if strat in ["score_surety_anchor", "score_high_rs_pullback"]:
+            return "Low"
+        elif strat == "score_early_sector_rotation":
+            return "Medium"
+        return "High"
+    df_picks["risk_suitability"] = df_picks["assigned_strategy"].apply(assign_risk)
+    
     return top3, top5, df_picks, regime
 
 
@@ -766,7 +849,7 @@ def select_top_stocks_for_model(
         qualified = pool[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
 
     elif model_name == "score_momentum_frontrunner":
-        mask = (close_s >= s200_s) & (close_s >= s50_s) & (mrs_s >= -2.0) & (mrs_s <= 10.0)
+        mask = (close_s >= s200_s) & (close_s >= s50_s) & (pool["stage2_aligned"]) & (mrs_s >= -2.0) & (mrs_s <= 7.5)
         qualified = pool[mask].sort_values(by=["score_momentum_frontrunner", "frontrunner_score"], ascending=False)
 
     elif model_name == "score_early_sector_rotation":
@@ -776,7 +859,7 @@ def select_top_stocks_for_model(
         qualified = pool[mask].sort_values(by=["score_early_sector_rotation", "iasis_score"], ascending=False)
 
     elif model_name == "score_high_rs_pullback":
-        mask = (close_s >= s200_s) & (mrs_s >= -7.0) & (mrs_s <= 2.5) & (stoch_s <= 75)
+        mask = (close_s >= s200_s) & (close_s >= s50_s * 0.975) & (mrs_s >= -7.0) & (mrs_s <= 2.5) & (stoch_s <= 75)
         qualified = pool[mask].sort_values(by=["score_high_rs_pullback", "frontrunner_score"], ascending=False)
 
     else:
@@ -844,7 +927,7 @@ def simulate_signal_persistence(
         s20_val = float(s20[i]) if not np.isnan(s20[i]) else c_val
         s50_val = float(s50[i]) if not np.isnan(s50[i]) else c_val
         mrs_i = ((c_val / (s20_val + 1e-5)) - 1.0) * 100.0
-        if c_val >= invalidation_level and c_val >= s50_val * 0.97 and -5.0 <= mrs_i <= 6.0:
+        if c_val >= invalidation_level and c_val >= s50_val * 0.975 and -5.0 <= mrs_i <= 6.0:
             zone_days += 1
 
     trend_days = 0
@@ -1024,7 +1107,6 @@ def run_quarterly_backtest():
         g["is_pocket_or_coil"] = (g["close"] > g["open"]) & (g["volume"] >= g["vol20_roll"] * 1.1)
         symbol_groups[sym] = g
 
-    # EXACT 4 ACTIVE STRATEGIES + DYNAMIC REGIME PORTFOLIO
     MODELS = [
         ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (Top 12)"),
         ("score_surety_anchor", "🛡️ Strategy 1: High-Surety Institutional Anchor"),
@@ -1085,7 +1167,6 @@ def run_quarterly_backtest():
         u_end = df_all[df_all["date"] == latest_date_overall]["close"].mean()
         universe_ret = round(float(((u_end - u_start) / (u_start + 1e-5)) * 100.0), 2)
 
-        # Factor Ablation on Qualified Stage-2 Setups
         for _, stk in ranked_at_m[ranked_at_m["stage2_aligned"]].iterrows():
             sym_p = str(stk["symbol"])
             s_df = symbol_groups.get(sym_p)
@@ -1132,7 +1213,6 @@ def run_quarterly_backtest():
             if pat_name and poc_floor and is_leading_sec:
                 pattern_confluence_accumulator["Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)"].append((mfe_v, mae_v, ret_v))
 
-        # Sector Climax Audit
         for _, r_row in ranked_at_m[ranked_at_m["above_200sma"] & (ranked_at_m["close"] >= ranked_at_m["sma_50"])].iterrows():
             sym_r = str(r_row["symbol"])
             s_df = symbol_groups.get(sym_r)
@@ -1277,6 +1357,7 @@ def run_quarterly_backtest():
                     "sector": str(stk_row.get("sector", "Capital Goods")),
                     "index_name": str(stk_row.get("index_name", "Nifty 500")),
                     "mcap_tier": mcap_tier,
+                    "risk_suitability": str(stk_row.get("risk_suitability", "Medium")),
                     "inst_signal_at_entry": str(stk_row.get("inst_signal", "Consolidation")),
                     "chart_pattern_at_entry": base_pattern,
                     "base_chart_pattern": base_pattern,
@@ -1453,9 +1534,11 @@ def run_quarterly_backtest():
                 "top_5_sectors": top_5_sectors,
                 "picks": stock_records,
                 "picks_9": stock_records[:20],
+                "dynamic_picks_conservative": [s for s in stock_records if s.get("risk_suitability") == "Low"],
+                "dynamic_picks_balanced": [s for s in stock_records if s.get("risk_suitability") == "Medium"],
+                "dynamic_picks_aggressive": [s for s in stock_records if s.get("risk_suitability") == "High"],
             }
 
-        # Set the Dynamic Regime Portfolio as the primary default view
         primary_view = dict(month_modes_output["dynamic_regime_portfolio"])
         primary_view["quarter_label"] = m_label
         primary_view["start_date"] = m_start_date
