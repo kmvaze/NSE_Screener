@@ -17,26 +17,21 @@
 </head>
 <body>
   <!-- Global Loading Overlay -->
-<div id="globalLoader" class="hidden" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.3s ease, visibility 0.3s;">
-  
-  <div style="width: 50px; height: 50px; border: 4px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-  
-  <div style="margin-top: 15px; font-weight: 600; color: #f8fafc; font-family: inherit; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">
-    Authenticating & Loading Quant Data...
+  <div id="globalLoader" class="hidden" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.3s ease, visibility 0.3s;">
+    <div style="width: 50px; height: 50px; border: 4px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+    <div style="margin-top: 15px; font-weight: 600; color: #f8fafc; font-family: inherit; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">
+      Authenticating & Loading Quant Data...
+    </div>
+    <style>
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      #globalLoader.hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+    </style>
   </div>
-
-  <style>
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    #globalLoader.hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
-  </style>
-
-</div>
   <div id="globalTooltip"></div>
 
-<header>
-    <!-- Leftmost Branding Unit: Inline Flex Container keeping Logo & Title on the same line -->
+  <header>
+    <!-- Leftmost Branding Unit -->
     <div class="brand-container">
-
       <div class="brand-text-block">
         <h1 class="brand-title">NSE Alpha Pro <span class="brand-tag">| Institutional Terminal</span></h1>
         <span class="brand-subtitle">Advanced Technical &amp; Quantitative Screening</span>
@@ -86,7 +81,7 @@
   </div>
 
   <!-- TAB 0: LANDING DASHBOARD -->
-<div class="tab-view active" id="viewLanding">
+  <div class="tab-view active" id="viewLanding">
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
       <div>
         <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin: 0 0 4px 0;">Market Leadership Command Grid</h2>
@@ -104,9 +99,9 @@
         <!-- Risk Appetite Filter Selector -->
         <select id="landingRiskFilterSelect" onchange="setLandingRiskFilter(this.value)" style="padding: 6px 10px; font-size: 0.76rem; font-weight: 700; background: var(--card-bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 8px;">
           <option value="ALL" selected>🛡️ Risk Appetite: All</option>
-          <option value="Low">🟢 Conservative (Low Risk)</option>
-          <option value="Medium">🟡 Balanced (Medium Risk)</option>
-          <option value="High">🚀 Aggressive (High Risk)</option>
+          <option value="Low">🟢 Conservative (Win-Rate Lock)</option>
+          <option value="Medium">🟡 Balanced (Core Alpha)</option>
+          <option value="High">🚀 Aggressive (Max Runup)</option>
         </select>
       </div>
     </div>
@@ -354,7 +349,7 @@
       <div class="toolbar-group" id="btModeGroup">
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase;">Strategy Model:</span>
         <select id="btModelSelect" onchange="setBacktestModel(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
-          <option value="dynamic_regime_portfolio" selected disabled hidden>-- Blended Portfolio Active (Select to Filter) --</option>
+          <option value="dynamic_regime_portfolio" selected>⚡ Dynamic Regime-Gated Portfolio</option>
           <option value="score_surety_anchor">🛡️ Strategy 1: High-Surety Institutional Anchor</option>
           <option value="score_momentum_frontrunner">🚀 Strategy 2: Momentum Frontrunner</option>
           <option value="score_early_sector_rotation">🔄 Strategy 3: Early Sector Rotation</option>
@@ -364,11 +359,20 @@
 
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Portfolio Size:</span>
         <select id="btPortfolioSizeSelect" onchange="setBacktestPortfolioSize(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
-          <option value="10" selected>🎯 Top 10 High-Conviction Core</option>
-          <option value="5">⚡ Top 5 Concentrated Focus</option>
-          <option value="20">🌐 Full 20 Universe List</option>
+          <option value="5">🔥 Top 5 Prime Focus</option>
+          <option value="8" selected>💎 Top 8 Optimal Core</option>
+          <option value="10">🎯 Top 10 High-Conviction</option>
+          <option value="12">⚡ Top 12 Full Grid</option>
+          <option value="20">🌐 Full 20 Strategy List</option>
         </select>
-        <button class="reset-btn" onclick="setBacktestModel('dynamic_regime_portfolio'); document.getElementById('btModelSelect').value='dynamic_regime_portfolio';" style="margin-left: 6px;">Clear Filter</button>
+
+        <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Risk Appetite:</span>
+        <select id="btRiskProfileSelect" onchange="setBacktestRiskProfile(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
+          <option value="ALL" selected>🛡️ All Risk Profiles</option>
+          <option value="Low">🟢 Conservative (Win-Rate Lock)</option>
+          <option value="Medium">🟡 Balanced (Core Alpha)</option>
+          <option value="High">🚀 Aggressive (Max Runup)</option>
+        </select>
 
         <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Market-Cap Tier:</span>
         <select id="btMcapSelect" onchange="setBacktestMcap(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
@@ -390,25 +394,26 @@
 
     <div id="btContentWrapper" style="display: none;">
       <div id="btDualMethodCard" style="background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 14px; padding: 18px; margin-bottom: 20px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
-        <div>
-          <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 Institutional Win Rate & Capital Expectancy Models</h3>
-          <span style="font-size:0.75rem; color:var(--muted);">Empirical backtest analysis based on Peak MFE expansion vs. ATR structural risk clamps</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
+          <div>
+            <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 Institutional Win Rate & Capital Expectancy Models</h3>
+            <span style="font-size:0.75rem; color:var(--muted);">Empirical backtest analysis based on Peak MFE expansion vs. ATR structural risk clamps</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="tactical-btn active" id="btnMethod3" onclick="switchBacktestWinMethod(3)">
+              ⚡ Method 3: 50:50 Staggered Entry (Recommended)
+            </button>
+            <button class="tactical-btn" id="btnMethod2" onclick="switchBacktestWinMethod(2)">
+              🛡️ Method 2: Stress-Tested vs Max ATR
+            </button>
+          </div>
         </div>
-        <div style="display:flex; gap:8px;">
-          <button class="tactical-btn active" id="btnMethod3" onclick="switchBacktestWinMethod(3)">
-            ⚡ Method 3: 50:50 Staggered Entry (Recommended)
-          </button>
-          <button class="tactical-btn" id="btnMethod2" onclick="switchBacktestWinMethod(2)">
-            🛡️ Method 2: Stress-Tested vs Max ATR
-          </button>
+
+        <div id="btMethodDisplayContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <!-- Populated dynamically by ui_controller.js -->
         </div>
       </div>
 
-      <div id="btMethodDisplayContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
-        <!-- Populated dynamically by ui_controller.js -->
-      </div>
-    </div>
       <div class="bt-summary-grid">
         <div class="bt-stat-card">
           <div class="bt-stat-label">Point-in-Time Signal Date</div>
@@ -545,7 +550,7 @@
       <div class="sector-tiles-grid" id="btTopSectorsGrid" style="margin-bottom: 20px;"></div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-        <h3 style="margin: 0; font-size: 0.98rem; color: var(--purple);">📈 High-Conviction Setups (<span id="btFilteredCountLabel">10</span> Shown)</h3>
+        <h3 style="margin: 0; font-size: 0.98rem; color: var(--purple);">📈 High-Conviction Setups (<span id="btFilteredCountLabel">8</span> Shown)</h3>
       </div>
 
       <div class="table-container">
@@ -707,13 +712,13 @@
       <!-- SECTION 5 -->
       <h3>5. ⏪ Quantitative Backtest Tab: Empirical Audit &amp; Performance Metrics</h3>
       <p>
-        The Backtest tab is your objective proof of performance. It runs point-in-time forward evaluations across 10 distinct monthly cohorts using official exchange Bhavcopy and delivery data without lookahead bias:
+        The Backtest tab is your objective proof of performance. It runs point-in-time forward evaluations across 11 distinct monthly cohorts using official exchange Bhavcopy and delivery data without lookahead bias:
       </p>
       <ul>
         <li><strong>Peak Profit Expansion (MFE):</strong> Evaluates the maximum profit potential each trade setup achieved after the buy signal before exiting. Across all strategies, average peak expansion exceeds <strong>+28%</strong>.</li>
         <li><strong>Max Adverse Drawdown (MAE):</strong> Evaluates how far a stock dipped below its entry price before moving upward, helping you verify that your stop-loss will not be hit prematurely.</li>
         <li><strong>Method 3 (50:50 Staggered Execution):</strong> By entering half a position at trigger and placing a limit order for the second half at a discount, backtest audits verify that win rates surge from <strong>63.0% to 83.6%</strong>, with capital expectancy reaching over <strong>+₹22,700 per ₹1 Lakh allocated</strong>.</li>
-        <li><strong>Month-on-Month Cohorts:</strong> Switch between monthly signal dates (from Jan 2026 to Oct 2026) to see the exact setups selected at each turn and how they performed forward in time.</li>
+        <li><strong>Month-on-Month Cohorts:</strong> Switch between monthly signal dates (from Jan 2026 to Nov 2026) to see the exact setups selected at each turn and how they performed forward in time.</li>
         <li><strong>Strategy &amp; Market-Cap Filtering:</strong> Easily toggle the backtest view strategy-wise (Surety, Momentum, Rotation, Pullback) or by company size (Large Cap, Mid/Small Cap, Microcap) to see which segments generated the highest market outperformance.</li>
       </ul>
 
@@ -868,69 +873,68 @@
     </div>
   </div>
 
-  <!-- Payment Upgrade Lock Screen (Shown when trial has expired) -->
-<div class="paywall-overlay" id="paywallOverlay">
-  <div class="paywall-card">
-    <div class="paywall-icon">⏳</div>
-    <h2 class="paywall-title">Institutional Access</h2>
-    <p class="paywall-desc" id="paywallModalDesc">
-      Your trial period has expired. Upgrade to Pro or sign out to use a different account.
-    </p>
+  <!-- Payment Upgrade Lock Screen -->
+  <div class="paywall-overlay" id="paywallOverlay">
+    <div class="paywall-card">
+      <div class="paywall-icon">⏳</div>
+      <h2 class="paywall-title">Institutional Access</h2>
+      <p class="paywall-desc" id="paywallModalDesc">
+        Your trial period has expired. Upgrade to Pro or sign out to use a different account.
+      </p>
 
-    <!-- Payment & Account Actions -->
-    <div class="paywall-actions">
-      <!-- Direct Google Login Option if user got logged out -->
-      <button class="tactical-btn" id="modalLoginBtn" style="width: 100%; padding: 12px; font-weight: 700; background: #fff; color: #030712; display: none;" onclick="loginWithGoogle()">
-        🌐 Sign In with Google
-      </button>
+      <!-- Payment & Account Actions -->
+      <div class="paywall-actions">
+        <button class="tactical-btn" id="modalLoginBtn" style="width: 100%; padding: 12px; font-weight: 700; background: #fff; color: #030712; display: none;" onclick="loginWithGoogle()">
+          🌐 Sign In with Google
+        </button>
 
-      <button class="sub-btn" id="modalRazorpayBtn" style="width: 100%; padding: 13px; font-size: 0.92rem; background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">
-        💳 Upgrade to Pro (₹1,499 / Year)
-      </button>
+        <button class="sub-btn" id="modalRazorpayBtn" style="width: 100%; padding: 13px; font-size: 0.92rem; background: linear-gradient(135deg, #10b981, #059669);" onclick="payWithRazorpay()">
+          💳 Upgrade to Pro (₹1,499 / Year)
+        </button>
 
-      <!-- NEW: Quick Logout Button inside Paywall Modal -->
-      <button class="reset-btn" style="width: 100%; padding: 10px; margin-top: 6px; background: var(--card-border); color: var(--text);" onclick="handleLogout()">
-        🚪 Sign Out / Switch Account
+        <button class="reset-btn" style="width: 100%; padding: 10px; margin-top: 6px; background: var(--card-border); color: var(--text);" onclick="handleLogout()">
+          🚪 Sign Out / Switch Account
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer"></div>
+  
+  <!-- Central Auth Prompt -->
+  <div class="auth-gate-overlay" id="authGateOverlay" style="display: none;">
+    <div class="auth-gate-card">
+      <div class="auth-gate-icon">🔐</div>
+      <h2 class="auth-gate-title">Institutional Quant Terminal</h2>
+      <p class="auth-gate-desc">
+        Sign in with Google to access real-time National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 50/50 Staggered Limit setups.
+      </p>
+      <button class="auth-google-btn" onclick="loginWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>Continue with Google</span>
       </button>
     </div>
   </div>
-</div>
 
-  <div id="toastContainer"></div>
-  <!-- Central Auth Prompt (Shown when user is not logged in) -->
-<div class="auth-gate-overlay" id="authGateOverlay" style="display: none;">
-  <div class="auth-gate-card">
-    <div class="auth-gate-icon">🔐</div>
-    <h2 class="auth-gate-title">Institutional Quant Terminal</h2>
-    <p class="auth-gate-desc">
-      Sign in with Google to access real-time National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 50/50 Staggered Limit setups.
+  <footer style="margin-top: 40px; padding: 24px 16px; border-top: 1px solid var(--card-border); background: var(--card-bg); border-radius: 14px; font-size: 0.74rem; line-height: 1.6; color: var(--muted);">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <span style="font-size: 1rem;">⚖️</span>
+      <strong style="color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">SEBI Regulatory Disclaimer &amp; Compliance Notice</strong>
+    </div>
+    <p style="margin: 0 0 8px 0;">
+      <strong>Not a SEBI Registered Entity:</strong> NSE Alpha Pro is a quantitative technology platform and is <strong>NOT</strong> registered with the Securities and Exchange Board of India (SEBI) as an Investment Adviser or Research Analyst.
     </p>
-    <button class="auth-google-btn" onclick="loginWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-      </svg>
-      <span>Continue with Google</span>
-    </button>
-  </div>
-</div>
-<!-- Insert right before </body> in index.html -->
-<footer style="margin-top: 40px; padding: 24px 16px; border-top: 1px solid var(--card-border); background: var(--card-bg); border-radius: 14px; font-size: 0.74rem; line-height: 1.6; color: var(--muted);">
-  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-    <span style="font-size: 1rem;">⚖️</span>
-    <strong style="color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">SEBI Regulatory Disclaimer &amp; Compliance Notice</strong>
-  </div>
-  <p style="margin: 0 0 8px 0;">
-    <strong>Not a SEBI Registered Entity:</strong> NSE Alpha Pro is a quantitative technology platform and is <strong>NOT</strong> registered with the Securities and Exchange Board of India (SEBI) as an Investment Adviser or Research Analyst.
-  </p>
-  <p style="margin: 0 0 8px 0;">
-    <strong>No Investment Advice or Trade Promotion:</strong> The algorithms, setup labels, volatility compression ratios, and 50/50 staggered entry levels are purely technical computations derived from historical and EOD NSE Bhavcopy data feeds. They do not constitute financial advice, trade solicitations, or recommendations to buy or sell any security.
-  </p>
-  <p style="margin: 0;">
-    Securities investments are subject to market risks. Past simulated performance or backtested win rates do not assure future returns. Always consult a certified SEBI-registered financial advisor before making financial decisions.
-  </p>
-</footer>
+    <p style="margin: 0 0 8px 0;">
+      <strong>No Investment Advice or Trade Promotion:</strong> The algorithms, setup labels, volatility compression ratios, and 50/50 staggered entry levels are purely technical computations derived from historical and EOD NSE Bhavcopy data feeds. They do not constitute financial advice, trade solicitations, or recommendations to buy or sell any security.
+    </p>
+    <p style="margin: 0;">
+      Securities investments are subject to market risks. Past simulated performance or backtested win rates do not assure future returns. Always consult a certified SEBI-registered financial advisor before making financial decisions.
+    </p>
+  </footer>
 </body>
 </html>

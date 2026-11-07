@@ -698,8 +698,15 @@ def run_screener_engine():
         else:
             iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
 
-        raw_struct_stop = min(close - (2.2 * atr_20), sma_50 * 0.975)
-        structural_stop = round(float(max(close * 0.915, raw_struct_stop)), 2)
+        # ---------------------------------------------------------------------
+        # 1. WIDEN TIER-1 STOP FLOOR (3.0x ATR vs 2.2x ATR) TO PREVENT SHAKEOUTS
+        # ---------------------------------------------------------------------
+        is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
+        atr_mult = 3.0 if is_tier1_sym else 2.2
+        max_sl_floor = 0.940 if is_tier1_sym else 0.915  # 6.0% max loss floor for Large Caps, 8.5% for others
+
+        raw_struct_stop = min(close - (atr_mult * atr_20), sma_50 * (0.965 if is_tier1_sym else 0.975))
+        structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
 
         tranche2_limit_price = round(close - (1.5 * atr_20), 2)
         blended_entry_price = round((close + tranche2_limit_price) / 2.0, 2)
@@ -866,17 +873,37 @@ def run_screener_engine():
     ranked["risk_reward_ratio"] = ranked["risk_reward_calc"]
     ranked["market_breadth_status"] = "🟢 Bullish Regime" if ((latest_df["close"] > latest_df["open"]).mean() * 100.0) >= 50.0 else "🔴 Bearish Regime"
 
-    # CAP-TIER LEADERSHIP MULTIPLIER (Regime-Aware Cap Rotation)
-    tier_breadth_map = ranked.groupby("mcap_tier")["above_sma50"].mean().to_dict()
-    tier_mult_dict = {}
-    for t_name, br in tier_breadth_map.items():
-        if br >= 0.55:
-            tier_mult_dict[t_name] = 1.05
-        elif br < 0.30:
-            tier_mult_dict[t_name] = 0.92
-        else:
-            tier_mult_dict[t_name] = 1.0
-    ranked["tier_climax_mult"] = ranked["mcap_tier"].map(lambda t: tier_mult_dict.get(t, 1.0))
+    # -------------------------------------------------------------------------
+    # 2. SELECTIVE LARGE-CAP REGIME MULTIPLIER (Boosts High-RS Leaders Only)
+    # -------------------------------------------------------------------------
+    tier_breadth_map = ranked.groupby("mcap_tier")["above_sma50"].mean().mul(100.0).to_dict()
+    sec_base_indexed = sec_base.set_index("symbol")
+    lag20_series = ranked["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else np.nan)
+    universe_20d_ret = float(((ranked["close"] / (lag20_series + 1e-5)) - 1.0).mean() * 100.0)
+
+    tier_20d_ret = ranked.groupby("mcap_tier").apply(
+        lambda g: float((((g["close"] / (g["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else g.loc[s, "close"]) + 1e-5)) - 1.0).mean() * 100.0))
+    ).to_dict()
+
+    def compute_selective_tier_mult(row):
+        tier = str(row["mcap_tier"])
+        b = tier_breadth_map.get(tier, 50.0)
+        ret_diff = tier_20d_ret.get(tier, 0.0) - universe_20d_ret
+        is_poc_supported = float(row["close"]) >= float(row["volume_profile_poc"])
+        
+        if "Tier 1" in tier:
+            # When Large Caps lead or perform in defensive alignment, reward true structural leaders
+            if ret_diff > 0.0 and is_poc_supported and float(row.get("trend_score", 0)) >= 70.0:
+                return 1.10
+            return 1.02 if is_poc_supported else 0.95
+
+        if b < 25.0 or ret_diff < -2.5:
+            return 0.90
+        elif ret_diff > 0.0 and b >= 50.0:
+            return 1.05
+        return 1.0
+
+    ranked["tier_climax_mult"] = ranked.apply(compute_selective_tier_mult, axis=1)
 
     # INTRA-TIER BLENDED RS PERCENTILE (Fixes large cap shadow-ban without favoring laggards)
     global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
@@ -1055,7 +1082,6 @@ def run_screener_engine():
         sub = ranked.copy()
         if strat_key == "score_surety_anchor": 
             strat_name = "surety"
-            # Unbanned Tier-1 Large Caps: they now compete openly on merit
             mask = (sub["close"] >= sub["sma_200"]) & (sub["close"] >= sub["sma_50"] * 0.97) & (sub["mrs_score"] >= -5.0) & (sub["mrs_score"] <= 6.0)
         elif strat_key == "score_momentum_frontrunner":
             strat_name = "momentum"
@@ -1126,7 +1152,7 @@ def run_screener_engine():
                 seen_sec[sec] = seen_sec.get(sec, 0) + 1
 
     # -------------------------------------------------------------------------
-    # MULTI-PROFILE RISK ALLOCATION ENGINES (Conservative, Balanced, Aggressive)
+    # 3. UNIFIED RISK SUITABILITY CLASSIFICATION (WIN-RATE VS RUNUP ALIGNMENT)
     # -------------------------------------------------------------------------
     conservative_picks_set = set()
     con_candidates = ranked[
@@ -1135,8 +1161,9 @@ def run_screener_engine():
         (ranked["turnover_cr"] >= 15.0) &
         (ranked["close"] >= ranked["sma_200"]) &
         (ranked["close"] >= ranked["sma_50"] * 0.98) &
-        (ranked["close"] >= ranked["volume_profile_poc"])
-    ].sort_values(by=["score_surety_anchor", "frontrunner_score"], ascending=False)
+        (ranked["close"] >= ranked["volume_profile_poc"]) &
+        ((ranked["score_surety_anchor"] >= 62.0) | (ranked["score_high_rs_pullback"] >= 62.0))
+    ].sort_values(by=["score_surety_anchor", "score_high_rs_pullback"], ascending=False)
     
     con_sec_counts = {}
     for _, r in con_candidates.iterrows():
@@ -1152,7 +1179,7 @@ def run_screener_engine():
         (ranked["close"] >= ranked["sma_200"]) &
         (ranked["mrs_score"] >= -2.0) &
         (ranked["mrs_score"] <= 7.5) &
-        (ranked["frontrunner_score"] >= 65.0)
+        ((ranked["score_momentum_frontrunner"] >= 65.0) | (ranked["frontrunner_score"] >= 75.0))
     ].sort_values(by=["score_momentum_frontrunner", "score_early_sector_rotation"], ascending=False)
     
     agg_sec_counts = {}
@@ -1239,15 +1266,30 @@ def run_screener_engine():
         dist_poc = round(((c - poc) / (poc + 1e-5)) * 100.0, 1) if poc > 0 else 0.0
         is_above_poc = bool(poc > 0 and c >= poc)
 
-        # Risk Suitability Tagging
+        # ---------------------------------------------------------------------
+        # 4. UNIFIED RISK SUITABILITY CLASSIFICATION (WIN-RATE VS RUNUP)
+        # ---------------------------------------------------------------------
         tier_str = str(r.get("mcap_tier", ""))
         atr_pct_val = float(r.get("atr_pct", 3.0))
-        if ("Tier 1" in tier_str or "Tier 2" in tier_str) and atr_pct_val <= 3.2 and c >= s200 and is_above_poc:
-            risk_suitability = "Low Risk (Capital Preservation)"
-        elif ("Tier 4" in tier_str) or (atr_pct_val >= 4.5):
-            risk_suitability = "High Risk (High Beta Momentum)"
+        s_surety = float(r.get("score_surety_anchor", 0))
+        s_pull = float(r.get("score_high_rs_pullback", 0))
+        s_mom = float(r.get("score_momentum_frontrunner", 0))
+
+        if ("Tier 1" in tier_str or "Tier 2" in tier_str) and atr_pct_val <= 3.5 and c >= s200 and is_above_poc and (s_surety >= 62.0 or s_pull >= 62.0):
+            risk_suitability = "Low Risk (High Win-Rate Compounder)"
+        elif ("Tier 4" in tier_str) or (atr_pct_val >= 4.2) or (s_mom >= 75.0 and "Tier 1" not in tier_str):
+            risk_suitability = "High Risk (Max Runup Velocity)"
         else:
-            risk_suitability = "Medium Risk (Balanced Core)"
+            risk_suitability = "Medium Risk (Balanced Core Alpha)"
+
+        # ---------------------------------------------------------------------
+        # 5. "HOLD / CONTINUE" PERSISTENCE BADGE & STAGE-1 PROFIT LOCK (+10%)
+        # ---------------------------------------------------------------------
+        is_fresh_trigger = bool(r.get("is_pocket_pivot_5d", False)) or (-1.5 <= mrs <= 2.2 and float(r.get("session_rvol", 1.0)) >= 1.3)
+        hold_status_badge = "✨ Fresh Entry Trigger" if is_fresh_trigger else "🔄 Continuing Hold (In Zone)"
+        
+        b_entry = float(r.get("blended_entry_price", c))
+        stage1_lock_price = round(b_entry * 1.10, 2)  # +10% Win-Rate Lock Threshold
 
         output_stocks.append({
             "symbol": sym,
@@ -1267,6 +1309,7 @@ def run_screener_engine():
             "tranche2_limit_price": clean(r.get("tranche2_limit_price")),
             "blended_entry_price": clean(r.get("blended_entry_price")),
             "cushioned_sl_price": clean(r.get("cushioned_sl_price")),
+            "stage1_lock_price": stage1_lock_price,
             "atr_pct": clean(r.get("atr_pct")),
             "volume_profile_poc": clean(r.get("volume_profile_poc")),
             "multi_timeframe_confluence": clean(r.get("multi_timeframe_confluence", ""), True),
@@ -1317,6 +1360,7 @@ def run_screener_engine():
             "balanced_pick": bool(sym in dynamic_picks_map),
             "aggressive_pick": bool(sym in aggressive_picks_set),
             "risk_suitability": risk_suitability,
+            "hold_status_badge": hold_status_badge,
             "surety_score": clean(r.get("surety_score")),
             "score_high_rs_pullback": clean(r.get("score_high_rs_pullback")),
             "score_momentum_frontrunner": clean(r.get("score_momentum_frontrunner")),

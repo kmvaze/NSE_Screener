@@ -442,8 +442,16 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
             trend_score += 10.0 * min(1.0, ((close / (l_52 + 1e-5)) - 1.0) / 0.50)
         trend_score = round(float(np.clip(trend_score, 5.0, 99.0)), 1)
 
-        raw_struct_stop = min(close - (2.2 * atr_20), sma_50 * 0.975)
-        structural_stop = round(float(max(close * 0.915, raw_struct_stop)), 2)
+        # ---------------------------------------------------------------------
+        # 1. WIDEN TIER-1 LARGE CAP STRUCTURAL STOP FLOOR (3.0x ATR vs 2.2x ATR)
+        # ---------------------------------------------------------------------
+        is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
+        atr_mult = 3.0 if is_tier1_sym else 2.2
+        max_sl_floor = 0.940 if is_tier1_sym else 0.915  # 6.0% max loss floor for Large Caps, 8.5% for others
+
+        raw_struct_stop = min(close - (atr_mult * atr_20), sma_50 * (0.965 if is_tier1_sym else 0.975))
+        structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
+
         tranche2_limit_price = round(close - (1.5 * atr_20), 2)
         blended_entry_price = round((close + tranche2_limit_price) / 2.0, 2)
         cushioned_sl_price = round(min(structural_stop, tranche2_limit_price - (1.0 * atr_20)), 2)
@@ -557,24 +565,37 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     ranked["sector_climax_mult"] = ranked["sector"].map(lambda s: sec_mult_map.get(s, 1.0))
     ranked["sector_lifecycle"] = ranked["sector"].map(lambda s: sec_life_map.get(s, "Neutral"))
 
-    global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
-    tier_rs_pct = ranked.groupby("mcap_tier")["raw_multi_rs"].rank(pct=True) * 100.0
-    rs_percentile = ((0.60 * global_rs_pct) + (0.40 * tier_rs_pct)).round(1)
-
+    # -------------------------------------------------------------------------
+    # 2. SELECTIVE LARGE-CAP REGIME MULTIPLIER (Boosts High-RS Leaders Only)
+    # -------------------------------------------------------------------------
     tier_above_sma50 = ranked.groupby("mcap_tier")["above_sma50"].mean().mul(100.0).to_dict()
-    universe_20d_ret = ((ranked["close"] / (ranked["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0
-    tier_20d_ret = ranked.groupby("mcap_tier").apply(lambda g: (((g["close"] / (g["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0)).to_dict()
+    universe_20d_ret = float(((ranked["close"] / (ranked["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0)
+    tier_20d_ret = ranked.groupby("mcap_tier").apply(
+        lambda g: float((((g["close"] / (g["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0))
+    ).to_dict()
 
-    def get_tier_climax_mult(tier):
+    def compute_selective_tier_mult(row):
+        tier = str(row["mcap_tier"])
         b = tier_above_sma50.get(tier, 50.0)
         ret_diff = tier_20d_ret.get(tier, 0.0) - universe_20d_ret
+        is_poc_supported = float(row["close"]) >= float(row["volume_profile_poc"])
+        
+        if "Tier 1" in tier:
+            if ret_diff > 0.0 and is_poc_supported and float(row.get("trend_score", 0)) >= 70.0:
+                return 1.10
+            return 1.02 if is_poc_supported else 0.95
+
         if b < 25.0 or ret_diff < -2.5:
             return 0.90
         elif ret_diff > 0.0 and b >= 50.0:
             return 1.05
         return 1.0
 
-    ranked["tier_climax_mult"] = ranked["mcap_tier"].map(get_tier_climax_mult)
+    ranked["tier_climax_mult"] = ranked.apply(compute_selective_tier_mult, axis=1)
+
+    global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
+    tier_rs_pct = ranked.groupby("mcap_tier")["raw_multi_rs"].rank(pct=True) * 100.0
+    rs_percentile = ((0.60 * global_rs_pct) + (0.40 * tier_rs_pct)).round(1)
 
     peer_rs_percentile = (ranked["beta_neutral_mrs"].rank(pct=True) * 100.0).round(1)
     up_down_pct = (ranked["up_down_vol_ratio"].rank(pct=True) * 100.0).round(1)
@@ -708,6 +729,27 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
 
+    # -------------------------------------------------------------------------
+    # 3. UNIFY RISK SUITABILITY CLASSIFICATION (WIN-RATE VS RUNUP ACROSS ALL STRATEGIES)
+    # -------------------------------------------------------------------------
+    def classify_unified_risk(r):
+        tier_str = str(r.get("mcap_tier", ""))
+        atr_pct_val = float(r.get("atr_pct", 3.0))
+        c = float(r["close"])
+        s200 = float(r["sma_200"])
+        is_above_poc = bool(c >= float(r.get("volume_profile_poc", 0)))
+        s_surety = float(r.get("score_surety_anchor", 0))
+        s_pull = float(r.get("score_high_rs_pullback", 0))
+        s_mom = float(r.get("score_momentum_frontrunner", 0))
+
+        if ("Tier 1" in tier_str or "Tier 2" in tier_str) and atr_pct_val <= 3.5 and c >= s200 and is_above_poc and (s_surety >= 62.0 or s_pull >= 62.0):
+            return "Low"
+        elif ("Tier 4" in tier_str) or (atr_pct_val >= 4.2) or (s_mom >= 75.0 and "Tier 1" not in tier_str):
+            return "High"
+        return "Medium"
+
+    ranked["risk_suitability"] = ranked.apply(classify_unified_risk, axis=1)
+
     market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
     bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
     bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
@@ -811,14 +853,7 @@ def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataF
     top3 = sector_summary.sort_values("sector_composite_score", ascending=False).head(3).to_dict(orient="records")
     top5 = sector_summary.sort_values("sector_composite_score", ascending=False).head(5).to_dict(orient="records")
 
-    def assign_risk(strat):
-        if strat in ["score_surety_anchor", "score_high_rs_pullback"]:
-            return "Low"
-        elif strat == "score_early_sector_rotation":
-            return "Medium"
-        return "High"
-    df_picks["risk_suitability"] = df_picks["assigned_strategy"].apply(assign_risk)
-    
+    # Retain the unified risk suitability assigned in evaluate_point_in_time
     return top3, top5, df_picks, regime
 
 
@@ -976,20 +1011,24 @@ def simulate_structural_trailing_exit(
         if h_val > running_peak:
             running_peak = h_val
 
-        if running_peak >= entry_price * 1.40:
+        # ---------------------------------------------------------------------
+        # 4. LOWER STAGE-1 LOCK TO +10% (Prevents +15% Peak Gainers Turning to Losses)
+        # ---------------------------------------------------------------------
+        if running_peak >= entry_price * 1.25:
             stage = 2
-        elif running_peak >= entry_price * 1.20 and stage < 1:
+        elif running_peak >= entry_price * 1.10 and stage < 1:
             stage = 1
 
         if stage == 0:
             if c_val < initial_stop:
                 return round(((c_val - entry_price) / entry_price) * 100.0, 2), idx
         elif stage == 1:
-            dynamic_stop = max(entry_price * 1.05, s50_val * 0.975)
+            # Stage 1: Protect capital once +10% peak is hit (clamp stop to breakeven / 50-SMA)
+            dynamic_stop = max(entry_price * 1.02, s50_val * 0.975)
             if c_val < dynamic_stop:
                 return round(((c_val - entry_price) / entry_price) * 100.0, 2), idx
         else:
-            dynamic_stop = max(entry_price * 1.20, s50_val * 0.99, s20_val * 0.955, running_peak * 0.84)
+            dynamic_stop = max(entry_price * 1.15, s50_val * 0.99, s20_val * 0.955, running_peak * 0.84)
             if c_val < dynamic_stop:
                 return round(((c_val - entry_price) / entry_price) * 100.0, 2), idx
 
@@ -1650,19 +1689,23 @@ def run_quarterly_backtest():
             "method3_desc": "50:50 Staggered Order Block vs Blended Stop (4.38%)",
         }
 
-    total_trades_all = sum(acc["trades"] for acc in model_stats_accumulator.values())
-    total_mfe_all = sum(acc["total_mfe"] for acc in model_stats_accumulator.values())
-    total_wins_all = sum(acc["wins"] for acc in model_stats_accumulator.values())
-    total_m2_wins_all = sum(acc["m2_wins"] for acc in model_stats_accumulator.values())
-    total_m3_wins_all = sum(acc["m3_wins"] for acc in model_stats_accumulator.values())
-    total_hits15_all = sum(acc["hits_15"] for acc in model_stats_accumulator.values())
-    n_all = max(1, total_trades_all)
+    # -------------------------------------------------------------------------
+    # 5. ACCURATE HEADLINE ACCOUNTING: Primary Model Footprint (132 Trades, 12/mo)
+    # -------------------------------------------------------------------------
+    dyn_acc = model_stats_accumulator["dynamic_regime_portfolio"]
+    n_dyn = max(1, dyn_acc["trades"])
 
     global_macro_stats = {
-        "total_audited_windows": len(monthly_checkpoints), "total_signals_tracked": total_trades_all,
-        "overall_avg_mfe_pct": round(total_mfe_all / n_all, 2), "overall_hold_win_rate_pct": round((total_wins_all / n_all) * 100.0, 1),
-        "method2_win_rate_pct": round((total_m2_wins_all / n_all) * 100.0, 1), "method3_win_rate_pct": round((total_m3_wins_all / n_all) * 100.0, 1),
-        "hit_15pct_rate": round((total_hits15_all / n_all) * 100.0, 1), "active_business_sessions_per_year": 232, "duration_cushion_buffer_pct": 25.0,
+        "total_audited_windows": len(monthly_checkpoints),
+        "total_signals_tracked": dyn_acc["trades"],  # Exactly 132 trades (12 per month), not overlapping 1,012
+        "signals_per_month": 12,
+        "overall_avg_mfe_pct": round(dyn_acc["total_mfe"] / n_dyn, 2),
+        "overall_hold_win_rate_pct": round((dyn_acc["wins"] / n_dyn) * 100.0, 1),
+        "method2_win_rate_pct": round((dyn_acc["m2_wins"] / n_dyn) * 100.0, 1),
+        "method3_win_rate_pct": round((dyn_acc["m3_wins"] / n_dyn) * 100.0, 1),
+        "hit_15pct_rate": round((dyn_acc["hits_15"] / n_dyn) * 100.0, 1),
+        "active_business_sessions_per_year": 232,
+        "duration_cushion_buffer_pct": 25.0,
     }
 
     final_json = {

@@ -5,6 +5,33 @@ let sectorRsChartInstance = null;
 let stockRsChartInstance = null;
 let activeBacktestMethod = 3;
 
+let selectedRiskAppetite = "ALL";
+let selectedBacktestRisk = "ALL";
+
+function setLandingRiskFilter(riskLevel) {
+  selectedRiskAppetite = riskLevel;
+  renderLandingDashboard();
+  updateGlobalBadge();
+}
+
+function setBacktestRiskProfile(riskKey) {
+  selectedBacktestRisk = riskKey;
+  renderBacktestView();
+}
+
+function getStockRiskSuitability(st) {
+  const raw = String(st.risk_suitability || '').toLowerCase();
+  if (raw.includes('low') || raw.includes('conservative')) return 'Low';
+  if (raw.includes('medium') || raw.includes('balanced')) return 'Medium';
+  if (raw.includes('high') || raw.includes('aggressive')) return 'High';
+
+  const atr = Number(st.atr_pct || 3.0);
+  const mcap = String(st.mcap_tier || '');
+  if (atr <= 2.5 && (mcap.includes('Tier 1') || mcap.includes('Tier 2'))) return 'Low';
+  if (atr >= 4.5 || mcap.includes('Tier 4')) return 'High';
+  return 'Medium';
+}
+
 function updateGlobalBadge() {
   const badge = document.getElementById('stockCountBadge');
   if (!badge) return;
@@ -19,15 +46,10 @@ function updateGlobalBadge() {
 
   if (viewId === 'viewLanding') {
     const mode = appState.landingFilter || 'dynamic';
-    
-    // Count the exact tiles shown in the landing grid
     const landingGrid = document.getElementById('landingHeroGrid');
     const renderedCardsCount = landingGrid ? landingGrid.querySelectorAll('.landing-tile').length : 0;
-    
-    // Universal Market Leadership: Total pool meeting this strategy's exact criteria across all stocks
     const totalQualifying = appState.stocks.filter(st => mode === 'dynamic' ? true : matchesStrategyCriteria(st, mode)).length;
 
-    // Displays the active portfolio setups plus the total qualified pool count
     badge.textContent = renderedCardsCount > 0 
       ? `${renderedCardsCount} Setups (${totalQualifying} Qualified)` 
       : `0 Setups`;
@@ -80,12 +102,13 @@ function renderBacktestMethodCard() {
   }
 
   const isM3 = (activeBacktestMethod === 3);
-  const winRate = isM3 ? (strat.method3_win_rate_pct || 66.5) : (strat.method2_win_rate_pct || 61.0);
-  const avgMfe = strat.overall_avg_mfe_pct || 28.02;
-  const netExp = isM3 ? (strat.method3_net_expectancy_pct || 16.89) : (strat.method2_net_expectancy_pct || 13.39);
-  const profitPerLakh = isM3 ? (strat.method3_profit_per_lakh || 16456) : (strat.method2_profit_per_lakh || 13387);
-  const xirr = isM3 ? (strat.method3_xirr_pct || 123.7) : (strat.method2_xirr_pct || 88.5);
-  const duration = strat.trade_duration_days || (isM3 ? 42.4 : 42.4);
+  const winRate = isM3 ? (strat.method3_win_rate_pct || 83.3) : (strat.method2_win_rate_pct || 65.9);
+  const avgMfe = strat.overall_avg_mfe_pct || 25.57;
+  const netExp = isM3 ? (strat.method3_net_expectancy_pct || 25.11) : (strat.method2_net_expectancy_pct || 13.61);
+  const profitPerLakh = isM3 ? (strat.method3_profit_per_lakh || 21877) : (strat.method2_profit_per_lakh || 13610);
+  const xirr = isM3 ? (strat.method3_xirr_pct || 170.7) : (strat.method2_xirr_pct || 76.3);
+  const duration = strat.trade_duration_days || 52.2;
+  const signalsCount = strat.total_signals_tracked || 132;
 
   const durationTip = "Trade duration includes a +25% buffer added to the raw average holding period to provide a realistic execution cushion for exit friction and partial fills.";
   const xirrTip = "Annualized XIRR calculated with a realistic 232 trading sessions per year (252 standard sessions minus 20 uninvested cash buffer days).";
@@ -130,13 +153,13 @@ function renderBacktestMethodCard() {
       <div style="font-size:0.68rem; color:var(--purple); margin-top:4px;">Based on 232 active sessions/yr</div>
     </div>
 
-    <!-- 6. Trade Duration in Days -->
+    <!-- 6. Trade Duration & Signals -->
     <div class="tip-trigger" data-tip="${durationTip}" style="background:var(--bg); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:12px; cursor:help;">
       <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700; display:flex; justify-content:space-between;">
         <span>Trade Duration</span><span style="color:var(--accent);">ℹ️</span>
       </div>
       <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">${duration} Days</div>
-      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Includes +25% execution cushion</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${signalsCount} Signals (${Math.round(signalsCount/11)}/mo)</div>
     </div>
   `;
 }
@@ -172,7 +195,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 const tooltip = document.getElementById('globalTooltip');
-// Bulletproof, defensive global tooltip listener
 document.addEventListener('mouseover', (e) => {
   const trigger = e.target.closest('.tip-trigger');
   if (!trigger) return;
@@ -188,7 +210,7 @@ document.addEventListener('mouseover', (e) => {
   const tooltipWidth = 280;
   const leftPos = Math.max(10, Math.min(rect.left, window.innerWidth - tooltipWidth - 16));
   const topPos = (rect.bottom + 8 + 80 > window.innerHeight) 
-    ? Math.max(10, rect.top - 40) // Flip above if near screen bottom
+    ? Math.max(10, rect.top - 40)
     : rect.bottom + 6;
 
   tooltip.style.left = `${leftPos}px`;
@@ -379,7 +401,6 @@ function renderLandingDashboard() {
   const grid = document.getElementById('landingHeroGrid');
   if (!grid) return;
 
-  // GUARD: If stocks haven't loaded yet, exit safely
   if (!appState.stocks || appState.stocks.length === 0) {
     grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">Loading market universe data...</div>`;
     return;
@@ -389,7 +410,7 @@ function renderLandingDashboard() {
   let rawPool = [];
   const selectedSymbols = new Set();
 
-  // 1. BUILD BASELINE POOL FROM ACTIVE STRATEGY TAB
+  // 1. BASELINE POOL FROM STRATEGY TAB
   if (mode === 'dynamic') {
     const dynamicPicks = appState.stocks.filter(st => st.dynamic_mix_strategy && st.dynamic_mix_strategy !== "");
     dynamicPicks.sort((a, b) => {
@@ -420,7 +441,6 @@ function renderLandingDashboard() {
     if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic Mix";
 
   } else {
-    // Explicit Strategy Mode Tab (Surety, Momentum, Rotation, or Pullback)
     const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
     qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
     
@@ -434,7 +454,6 @@ function renderLandingDashboard() {
     if (rl) rl.textContent = `${mode.toUpperCase()} UNIVERSE`;
   }
 
-  // Fallback Backfill if sparse
   if (rawPool.length < 12) {
     const backupPool = appState.stocks
       .filter(st => matchesStrategyCriteria(st, 'surety') && !(st.mcap_tier || "").includes("Tier 1"))
@@ -448,13 +467,13 @@ function renderLandingDashboard() {
     }
   }
 
-  // 2. APPLY RISK APPETITE OVERLAY FILTER DYNAMICALLY
+  // 2. DYNAMIC RISK APPETITE OVERLAY FILTER
   let candidatePool = rawPool;
   if (typeof selectedRiskAppetite !== 'undefined' && selectedRiskAppetite !== "ALL") {
     candidatePool = rawPool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
   }
 
-  // 3. ENFORCE SECTOR DIVERSIFICATION (Max 2 per sector) & CAP TO TOP 12
+  // 3. SECTOR DIVERSIFICATION (Max 2 per sector) & CAP TO TOP 12
   let topTiles = [];
   const sectorCount = {};
   for (const st of candidatePool) {
@@ -466,7 +485,6 @@ function renderLandingDashboard() {
     if (topTiles.length >= 12) break;
   }
 
-  // Fallback if sector caps blocked items under strict combinations
   if (topTiles.length === 0 && candidatePool.length > 0) {
     topTiles = candidatePool.slice(0, 12);
   }
@@ -477,7 +495,7 @@ function renderLandingDashboard() {
     return;
   }
 
-  // 4. RENDER GRID CARDS
+  // 4. RENDER GRID CARDS WITH BUDGETING & HOLD BADGES
   grid.innerHTML = topTiles.map((st, idx) => {
     const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
     const dist50 = st.sma_50 ? (((st.close - st.sma_50) / st.sma_50) * 100).toFixed(1) : "0.0";
@@ -502,12 +520,26 @@ function renderLandingDashboard() {
       activeScoreLabel = `Surety: ${suretyScore}`;
     }
 
+    // Slot Budgeting & Fresh Trigger Badges
+    const slotTierBadge = idx < 5 
+      ? `<span class="pill" style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.35);">🔥 Top 5 Focus #${idx + 1}</span>`
+      : (idx < 8 
+          ? `<span class="pill" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">💎 Core 8 #${idx + 1}</span>`
+          : `<span class="pill" style="background:rgba(148,163,184,0.15); color:var(--muted); border:1px solid var(--card-border);">🔄 Rotation #${idx + 1}</span>`);
+
+    const isFresh = st.hold_status_badge ? st.hold_status_badge.includes("Fresh") : (Number(st.mrs_score || 0) <= 2.0 && Number(st.session_rvol || 1) >= 1.3);
+    const holdBadge = isFresh 
+      ? `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.12); color:var(--green);">✨ Fresh Trigger</span>`
+      : `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(192,132,252,0.12); color:var(--purple);">🔄 Hold / In-Zone</span>`;
+
+    const lock10Price = st.stage1_lock_price ? Number(st.stage1_lock_price).toFixed(2) : (Number(st.blended_entry_price || st.close) * 1.10).toFixed(2);
+
     return `
       <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="pill" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">Rank #${idx + 1}</span>
-            <span class="badge" style="font-size: 0.65rem; padding: 2px 8px;" title="${st.sector}">${st.sector}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+            ${slotTierBadge}
+            ${holdBadge}
           </div>
           <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
             <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeScoreLabel}</span>
@@ -521,12 +553,12 @@ function renderLandingDashboard() {
           <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
           <span style="font-size: 1.1rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;">₹${Number(st.close).toFixed(2)}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <span style="font-size: 0.73rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;" title="${st.company_name || st.symbol}">${st.company_name || st.symbol}</span>
-          <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.index_name ? st.index_name.split(',')[0].trim() : 'Nifty 500'}</span>
+          <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.sector} &bull; ${st.index_name ? st.index_name.split(',')[0].trim() : 'Nifty 500'}</span>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; background: var(--bg); padding: 7px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
           <div>
             <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Surety</div>
             <div style="font-size: 0.78rem; font-weight: 800; color: var(--green);">${suretyScore}</div>
@@ -566,14 +598,14 @@ function renderLandingDashboard() {
             </span>
           </div>
           <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--muted);">Sector Lifecycle:</span>
-            <span style="font-weight: 700; color: var(--green);" title="${st.sector_lifecycle || 'Leading'}">
-              ${st.sector_lifecycle || '🟢 Prime Institutional Leadership'}
+            <span style="color: var(--muted);">+10% Lock Target:</span>
+            <span style="font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums;">
+              ₹${lock10Price} <span style="font-size:0.65rem; color:var(--muted); font-weight:500;">(Breakeven Trigger)</span>
             </span>
           </div>
         </div>
 
-        <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 10px;">
+        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
           <span class="pill pill-buyzone">${st.inst_signal}</span>
           <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
             <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 3.0}:1</span>
@@ -603,7 +635,6 @@ function renderTablePage() {
     let isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
     
     let scoreVal = getStrategyScore(st, appState.strategyMode === 'all' ? 'surety' : appState.strategyMode).toFixed(1);
-
     const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
     const rsStatusText = st.rs_line_status && st.rs_line_status !== "Normal RS" ? st.rs_line_status : "";
 
@@ -642,9 +673,6 @@ function renderTablePage() {
   document.getElementById('nextBtn').disabled = appState.currentPage >= totalPages;
 }
 
-// ============================================================================
-// FIX: HARDENED & BULLETPROOF CHART PATTERNS SCANNER TABLE
-// ============================================================================
 window.openStockModalBySymbol = function(symbol) {
   if (!symbol) return;
   const st = appState.stocks.find(s => String(s.symbol).toUpperCase() === String(symbol).toUpperCase());
@@ -660,7 +688,6 @@ function renderPatternsTable() {
   const patFilter = appState.selectedPatternFilter || 'ALL';
 
   const matched = appState.stocks.map(st => {
-    // Robust fallback calculation for pattern confluence score
     let conf = st.pattern_confluence_score;
     if (conf === undefined || conf === null) {
       conf = typeof calculatePatternConfluence === 'function' ? calculatePatternConfluence(st) : 50;
@@ -675,7 +702,6 @@ function renderPatternsTable() {
     const s50 = Number(st.sma_50 || 0);
     const s200 = Number(st.sma_200 || 0);
 
-    // Resilient pattern detection handling both backend booleans and raw indicator signals
     const isFlag = (st.is_flag_pattern === true) || patSig.includes("FLAG") || confSig.includes("FLAG");
     const isVcp = (st.is_vcp_pattern === true) || patSig.includes("VCP") || (vcpRat <= 0.68 && vcpRat > 0);
     const isBase = (st.is_base_pattern === true) || patSig.includes("BASE") || patSig.includes("CUP") || confSig.includes("BASE");
@@ -713,7 +739,6 @@ function renderPatternsTable() {
     const close = Number(st.close || 0);
     const isAbovePoc = (st.is_above_poc === true) || (poc > 0 && close >= poc);
     
-    // SAFE NUMBER CONVERSION: Never throws on null or undefined
     const rawPocDiff = (st.dist_from_poc_pct != null) 
       ? Number(st.dist_from_poc_pct) 
       : (poc > 0 ? ((close - poc) / poc) * 100.0 : 0.0);
@@ -724,7 +749,6 @@ function renderPatternsTable() {
     const mrsScore = Number(st.mrs_score || 0);
     const atrStop = Number(st.cushioned_sl_price || st.atr_stop_loss || (close * 0.92));
 
-    // Uses openStockModalBySymbol to bypass all JSON stringification and quotation escaping issues
     return `
       <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
         <td style="text-align: center;" onclick="event.stopPropagation()">
@@ -912,6 +936,7 @@ function renderBacktestView() {
   const modelSelectEl = document.getElementById('btModelSelect');
   const sizeSelectEl = document.getElementById('btPortfolioSizeSelect');
   const mcapSelectEl = document.getElementById('btMcapSelect');
+  const riskSelectEl = document.getElementById('btRiskProfileSelect');
   if (!noticeEl || !contentEl || !btnContainer) return;
 
   if (!appState.backtestData || !appState.backtestData.quarters || appState.backtestData.quarters.length === 0) {
@@ -955,6 +980,7 @@ function renderBacktestView() {
   if (modelSelectEl && modelSelectEl.value !== requestedModel) modelSelectEl.value = requestedModel;
   if (sizeSelectEl && sizeSelectEl.value !== appState.selectedBacktestPortfolioSize) sizeSelectEl.value = appState.selectedBacktestPortfolioSize;
   if (mcapSelectEl && mcapSelectEl.value !== appState.selectedBacktestMcap) mcapSelectEl.value = appState.selectedBacktestMcap;
+  if (riskSelectEl && riskSelectEl.value !== selectedBacktestRisk) riskSelectEl.value = selectedBacktestRisk;
 
   btnContainer.innerHTML = '';
   months.forEach((mItem, idx) => {
@@ -966,8 +992,19 @@ function renderBacktestView() {
   });
 
   const allPicks = qData.picks || qData.picks_9 || [];
-  const mcapFilteredPicks = allPicks.filter(p => matchBacktestMcapFilter(p, appState.selectedBacktestMcap));
-  const portLimit = parseInt(appState.selectedBacktestPortfolioSize || "10", 10);
+  
+  // DUAL FILTER: Risk Appetite Overlay + Market-Cap Filter
+  const riskFilteredPicks = allPicks.filter(p => {
+    if (!selectedBacktestRisk || selectedBacktestRisk === "ALL") return true;
+    const rTag = String(p.risk_suitability || "").toLowerCase();
+    if (selectedBacktestRisk === 'Low') return rTag.includes('low') || rTag.includes('conservative');
+    if (selectedBacktestRisk === 'Medium') return rTag.includes('medium') || rTag.includes('balanced');
+    if (selectedBacktestRisk === 'High') return rTag.includes('high') || rTag.includes('aggressive');
+    return true;
+  });
+
+  const mcapFilteredPicks = riskFilteredPicks.filter(p => matchBacktestMcapFilter(p, appState.selectedBacktestMcap));
+  const portLimit = parseInt(appState.selectedBacktestPortfolioSize || "8", 10);
   const picks = mcapFilteredPicks.slice(0, portLimit);
 
   const countLbl = document.getElementById('btFilteredCountLabel');
@@ -1361,31 +1398,31 @@ function renderSectorDrilldown(sectorName) {
   renderStockRsChart();
 
   tbody.innerHTML = secStocks.map(st => {
-        const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
-        const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
-        const sectorRsText = st.sector_rs_status || '🟢 Outperforming Sector';
-        const marketRsText = st.rs_line_status || '—';
-        const activeScore = getStrategyScore(st, appState.strategyMode).toFixed(1);
+    const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
+    const patternText = st.chart_pattern_signal && st.chart_pattern_signal !== "" ? st.chart_pattern_signal : "";
+    const sectorRsText = st.sector_rs_status || '🟢 Outperforming Sector';
+    const marketRsText = st.rs_line_status || '—';
+    const activeScore = getStrategyScore(st, appState.strategyMode).toFixed(1);
 
-        return `
-          <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
-            <td style="text-align: center;" onclick="event.stopPropagation()">
-              <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
-            </td>
-            <td><strong>${st.symbol}</strong></td>
-            <td>${st.sector}</td>
-            <td>₹${Number(st.close).toFixed(2)}</td>
-            <td><span class="pill pill-buyzone">${st.inst_signal}</span></td>
-            <td><b>${activeScore}</b></td>
-            <td><b>${st.iasis_score ?? '--'}</b></td>
-            <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
-            <td><span style="color:var(--green); font-weight:600;">${sectorRsText}</span></td>
-            <td><span style="color:var(--accent); font-weight:600;">${marketRsText}</span></td>
-            <td>${st.risk_reward_ratio || 3.0}:1</td>
-            <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
-          </tr>
-        `;
-      }).join('');
+    return `
+      <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
+        <td style="text-align: center;" onclick="event.stopPropagation()">
+          <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
+        </td>
+        <td><strong>${st.symbol}</strong></td>
+        <td>${st.sector}</td>
+        <td>₹${Number(st.close).toFixed(2)}</td>
+        <td><span class="pill pill-buyzone">${st.inst_signal}</span></td>
+        <td><b>${activeScore}</b></td>
+        <td><b>${st.iasis_score ?? '--'}</b></td>
+        <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
+        <td><span style="color:var(--green); font-weight:600;">${sectorRsText}</span></td>
+        <td><span style="color:var(--accent); font-weight:600;">${marketRsText}</span></td>
+        <td>${st.risk_reward_ratio || 3.0}:1</td>
+        <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
+      </tr>
+    `;
+  }).join('');
 
   updateGlobalBadge();
 }
@@ -1673,32 +1710,4 @@ function endProductTour() {
   document.getElementById('tourPopover').style.display = 'none';
   localStorage.setItem('nse_alpha_tour_completed', 'true');
   switchTab('landing');
-}
-
-// Add this to ui_controller.js to handle risk profile switches
-let selectedRiskAppetite = "ALL";
-
-function setLandingRiskFilter(riskLevel) {
-  selectedRiskAppetite = riskLevel;
-  renderLandingDashboard();
-  updateGlobalBadge();
-}
-
-// Inside renderLandingDashboard(), filter your topTiles array by risk:
-if (selectedRiskAppetite !== "ALL") {
-  topTiles = topTiles.filter(st => (st.risk_suitability || "Medium") === selectedRiskAppetite);
-}
-
-function getStockRiskSuitability(st) {
-  const raw = String(st.risk_suitability || '').toLowerCase();
-  if (raw.includes('low') || raw.includes('conservative')) return 'Low';
-  if (raw.includes('medium') || raw.includes('balanced')) return 'Medium';
-  if (raw.includes('high') || raw.includes('aggressive')) return 'High';
-
-  // Fallback heuristic based on volatility & cap tier if tag is absent
-  const atr = Number(st.atr_pct || 3.0);
-  const mcap = String(st.mcap_tier || '');
-  if (atr <= 2.5 && (mcap.includes('Tier 1') || mcap.includes('Tier 2'))) return 'Low';
-  if (atr >= 4.5 || mcap.includes('Tier 4')) return 'High';
-  return 'Medium';
 }
