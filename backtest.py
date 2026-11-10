@@ -443,11 +443,11 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
         trend_score = round(float(np.clip(trend_score, 5.0, 99.0)), 1)
 
         # ---------------------------------------------------------------------
-        # 1. WIDEN TIER-1 LARGE CAP STRUCTURAL STOP FLOOR (3.0x ATR vs 2.2x ATR)
+        # 1. WIDEN TIER-1 STOP FLOOR (3.0x ATR vs 2.2x ATR)
         # ---------------------------------------------------------------------
         is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
         atr_mult = 3.0 if is_tier1_sym else 2.2
-        max_sl_floor = 0.940 if is_tier1_sym else 0.915  # 6.0% max loss floor for Large Caps, 8.5% for others
+        max_sl_floor = 0.940 if is_tier1_sym else 0.915
 
         raw_struct_stop = min(close - (atr_mult * atr_20), sma_50 * (0.965 if is_tier1_sym else 0.975))
         structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
@@ -730,7 +730,7 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
 
     # -------------------------------------------------------------------------
-    # 3. UNIFY RISK SUITABILITY CLASSIFICATION (WIN-RATE VS RUNUP ACROSS ALL STRATEGIES)
+    # 3. UNIFIED RISK SUITABILITY CLASSIFICATION (IDENTICAL TO PIPELINE.PY)
     # -------------------------------------------------------------------------
     def classify_unified_risk(r):
         tier_str = str(r.get("mcap_tier", ""))
@@ -853,7 +853,6 @@ def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataF
     top3 = sector_summary.sort_values("sector_composite_score", ascending=False).head(3).to_dict(orient="records")
     top5 = sector_summary.sort_values("sector_composite_score", ascending=False).head(5).to_dict(orient="records")
 
-    # Retain the unified risk suitability assigned in evaluate_point_in_time
     return top3, top5, df_picks, regime
 
 
@@ -1011,9 +1010,7 @@ def simulate_structural_trailing_exit(
         if h_val > running_peak:
             running_peak = h_val
 
-        # ---------------------------------------------------------------------
-        # 4. LOWER STAGE-1 LOCK TO +10% (Prevents +15% Peak Gainers Turning to Losses)
-        # ---------------------------------------------------------------------
+        # Stage 1: Protect capital once +10% peak gain is reached
         if running_peak >= entry_price * 1.25:
             stage = 2
         elif running_peak >= entry_price * 1.10 and stage < 1:
@@ -1023,7 +1020,6 @@ def simulate_structural_trailing_exit(
             if c_val < initial_stop:
                 return round(((c_val - entry_price) / entry_price) * 100.0, 2), idx
         elif stage == 1:
-            # Stage 1: Protect capital once +10% peak is hit (clamp stop to breakeven / 50-SMA)
             dynamic_stop = max(entry_price * 1.02, s50_val * 0.975)
             if c_val < dynamic_stop:
                 return round(((c_val - entry_price) / entry_price) * 100.0, 2), idx
@@ -1075,31 +1071,38 @@ def run_intramonth_timing_audit(symbol_groups: dict, all_dates: list, latest_dat
             if len(fut) < 15:
                 continue
             entry_p = float(r["close"])
+            
+            # Full potential upside across holding cycle
             pk_p = float(fut["high"].max())
-            lw_p = float(fut["low"].min())
             end_p = float(fut["close"].iloc[-1])
 
+            # In-trade interim drawdown strictly bounded to initial active setup window
+            eval_window = fut.iloc[:min(35, len(fut))]
+            lw_p = float(eval_window["low"].min())
+
             mfe = ((pk_p - entry_p) / entry_p) * 100.0
-            mae = ((lw_p - entry_p) / entry_p) * 100.0
+            act_dd = ((lw_p - entry_p) / entry_p) * 100.0
             ret = ((end_p - entry_p) / entry_p) * 100.0
-            window_buckets[b_key].append((mfe, mae, ret))
+            window_buckets[b_key].append((mfe, act_dd, ret))
 
     audit_summary = []
     for w_name, items in window_buckets.items():
         if not items:
             continue
         mfes = np.array([x[0] for x in items])
-        maes = np.array([x[1] for x in items])
+        act_dds = np.array([x[1] for x in items])
         rets = np.array([x[2] for x in items])
         audit_summary.append({
             "window": w_name,
             "sample_signals": len(items),
             "avg_peak_mfe_pct": round(float(np.mean(mfes)), 2),
             "hit_15pct_rate": round(float((mfes >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((maes >= -6.0).mean() * 100.0), 1),
-            "avg_mae_pct": round(float(np.mean(maes)), 2),
+            "low_drawdown_surety_rate": round(float((act_dds >= -6.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((act_dds >= -6.0).mean() * 100.0), 1),
+            "avg_active_drawdown_pct": round(float(np.mean(act_dds)), 2),
+            "avg_mae_pct": round(float(np.mean(act_dds)), 2),
             "avg_period_ret_pct": round(float(np.mean(rets)), 2),
-            "asymmetry_ratio": round(float(np.mean(mfes) / max(1.0, abs(np.mean(maes)))), 2),
+            "asymmetry_ratio": round(float(np.mean(mfes) / max(1.0, abs(np.mean(act_dds)))), 2),
         })
     return audit_summary
 
@@ -1161,7 +1164,7 @@ def run_quarterly_backtest():
         m_key: {
             "trades": 0, "wins": 0, "total_return": 0.0, "total_trail_return": 0.0,
             "total_mfe": 0.0, "total_mfe_30d": 0.0, "total_mfe_60d": 0.0,
-            "hits_15": 0, "hits_20": 0, "low_mae_count": 0, "total_mae": 0.0,
+            "hits_15": 0, "hits_20": 0, "low_drawdown_count": 0, "total_active_drawdown": 0.0,
             "total_zone_persist": 0.0, "total_trend_persist": 0.0,
             "total_days_to_peak": 0.0, "total_days_to_exit": 0.0,
             "m2_wins": 0, "m3_wins": 0, "m3_total_profit_inr": 0.0, "m3_total_employed_cap": 0.0,
@@ -1192,7 +1195,7 @@ def run_quarterly_backtest():
 
     print("\n" + "=" * 156)
     print("RUNNING 10-MONTH QUANTITATIVE AUDIT: DYNAMIC REGIME ENGINE VS 4 STATIC STRATEGIES")
-    print(f"100% Real Bhavcopy Data | Evaluated Point-in-Time Forward to: {latest_date_overall}")
+    print(f"100% Real Bhavcopy Data | Active In-Trade Drawdown Evaluated to: {latest_date_overall}")
     print("=" * 156)
 
     for m_info in monthly_checkpoints:
@@ -1216,41 +1219,44 @@ def run_quarterly_backtest():
                 continue
 
             e_p = float(stk["close"])
+            # Full potential breakout high across the trend
             pk_p = float(fut_p["high"].max())
-            lw_p = float(fut_p["low"].min())
+            # In-trade drawdown evaluated on active setup window
+            fut_act_p = fut_p.iloc[:min(45, len(fut_p))]
+            lw_p = float(fut_act_p["low"].min())
             end_p = float(fut_p["close"].iloc[-1])
             mfe_v = ((pk_p - e_p) / e_p) * 100.0
-            mae_v = ((lw_p - e_p) / e_p) * 100.0
+            act_dd_v = ((lw_p - e_p) / e_p) * 100.0
             ret_v = ((end_p - e_p) / e_p) * 100.0
 
             pat_name = str(stk.get("chart_pattern_signal", "")).strip()
             poc_floor = bool(stk.get("poc_floor_support", False))
             is_leading_sec = str(stk.get("sector_rs_status", "")) != "🔴 Lagging Sector"
 
-            advanced_factors_accumulator["1. Base Universe Stage-2 Setups"].append((mfe_v, mae_v, ret_v))
+            advanced_factors_accumulator["1. Base Universe Stage-2 Setups"].append((mfe_v, act_dd_v, ret_v))
             if poc_floor:
-                advanced_factors_accumulator["2. AVWAP Defense (Close >= 100D MaxVol VWAP)"].append((mfe_v, mae_v, ret_v))
+                advanced_factors_accumulator["2. AVWAP Defense (Close >= 100D MaxVol VWAP)"].append((mfe_v, act_dd_v, ret_v))
             if float(stk.get("deliv_pct", 0.0)) >= 45.0:
-                advanced_factors_accumulator["3. High Closing Range Accumulation (CR >= 0.55)"].append((mfe_v, mae_v, ret_v))
+                advanced_factors_accumulator["3. High Closing Range Accumulation (CR >= 0.55)"].append((mfe_v, act_dd_v, ret_v))
             if float(stk.get("vcp_ratio", 1.0)) <= 0.65:
-                advanced_factors_accumulator["4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)"].append((mfe_v, mae_v, ret_v))
+                advanced_factors_accumulator["4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)"].append((mfe_v, act_dd_v, ret_v))
             if poc_floor and float(stk.get("deliv_pct", 0.0)) >= 45.0:
-                advanced_factors_accumulator["5. Combined Institutional Alpha (AVWAP + CR + POC Support)"].append((mfe_v, mae_v, ret_v))
+                advanced_factors_accumulator["5. Combined Institutional Alpha (AVWAP + CR + POC Support)"].append((mfe_v, act_dd_v, ret_v))
 
-            pattern_confluence_accumulator["Cohort 1: Baseline Setups (No Pattern Required)"].append((mfe_v, mae_v, ret_v))
+            pattern_confluence_accumulator["Cohort 1: Baseline Setups (No Pattern Required)"].append((mfe_v, act_dd_v, ret_v))
             if pat_name:
-                pattern_confluence_accumulator["Cohort 2: Standalone Pattern (Geometric Detection Only)"].append((mfe_v, mae_v, ret_v))
+                pattern_confluence_accumulator["Cohort 2: Standalone Pattern (Geometric Detection Only)"].append((mfe_v, act_dd_v, ret_v))
                 if "VCP" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🎯 VCP Coiled Spring"].append((mfe_v, mae_v, ret_v))
+                    pattern_confluence_accumulator["Pattern Breakdown: 🎯 VCP Coiled Spring"].append((mfe_v, act_dd_v, ret_v))
                 elif "Flag" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🚩 Bull Flag & Pole"].append((mfe_v, mae_v, ret_v))
+                    pattern_confluence_accumulator["Pattern Breakdown: 🚩 Bull Flag & Pole"].append((mfe_v, act_dd_v, ret_v))
                 elif "Multi-Month" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🟢 Multi-Month Base"].append((mfe_v, mae_v, ret_v))
+                    pattern_confluence_accumulator["Pattern Breakdown: 🟢 Multi-Month Base"].append((mfe_v, act_dd_v, ret_v))
                 elif "Macro" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: ⚡ Stage 2 Macro Base"].append((mfe_v, mae_v, ret_v))
+                    pattern_confluence_accumulator["Pattern Breakdown: ⚡ Stage 2 Macro Base"].append((mfe_v, act_dd_v, ret_v))
 
             if pat_name and poc_floor and is_leading_sec:
-                pattern_confluence_accumulator["Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)"].append((mfe_v, mae_v, ret_v))
+                pattern_confluence_accumulator["Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)"].append((mfe_v, act_dd_v, ret_v))
 
         for _, r_row in ranked_at_m[ranked_at_m["above_200sma"] & (ranked_at_m["close"] >= ranked_at_m["sma_50"])].iterrows():
             sym_r = str(r_row["symbol"])
@@ -1261,11 +1267,14 @@ def run_quarterly_backtest():
             if len(f_sl) < 10:
                 continue
             ep = float(r_row["close"])
+            # Full potential breakout high
             pk = float(f_sl["high"].max())
-            lw = float(f_sl["low"].min())
+            # Active in-trade drawdown bounded to holding cycle
+            f_act = f_sl.iloc[:min(45, len(f_sl))]
+            lw = float(f_act["low"].min())
             td_p = float(f_sl["close"].iloc[-1])
             mfe_r = ((pk - ep) / ep) * 100.0
-            mae_r = ((lw - ep) / ep) * 100.0
+            act_dd_r = ((lw - ep) / ep) * 100.0
             ret_r = ((td_p - ep) / ep) * 100.0
 
             s_life = str(r_row.get("sector_lifecycle", "Neutral"))
@@ -1280,7 +1289,7 @@ def run_quarterly_backtest():
             )
             if life_bucket not in sector_lifecycle_accumulator:
                 sector_lifecycle_accumulator[life_bucket] = []
-            sector_lifecycle_accumulator[life_bucket].append((mfe_r, mae_r, ret_r))
+            sector_lifecycle_accumulator[life_bucket].append((mfe_r, act_dd_r, ret_r))
 
         month_modes_output = {}
 
@@ -1317,6 +1326,7 @@ def run_quarterly_backtest():
 
                 fut_slice = sym_df[sym_df["date"] >= m_start_date].reset_index(drop=True)
                 if not fut_slice.empty:
+                    # 1. Full potential peak upside expansion across the entire forward cycle
                     max_pos = int(fut_slice["high"].values.argmax())
                     peak_row = fut_slice.iloc[max_pos]
                     peak_high = round(float(peak_row["high"]), 2)
@@ -1330,11 +1340,7 @@ def run_quarterly_backtest():
                     slice_60d = fut_slice.iloc[: min(61, len(fut_slice))]
                     mfe_60d_pct = round(((float(slice_60d["high"].max()) - entry_price) / entry_price) * 100.0, 2)
 
-                    min_pos = int(fut_slice["low"].values.argmin())
-                    low_row = fut_slice.iloc[min_pos]
-                    min_low = round(float(low_row["low"]), 2)
-                    max_drawdown_mae_pct = round(((min_low - entry_price) / entry_price) * 100.0, 2)
-
+                    # 2. Structural Trailing Exit Simulation
                     trailing_exit_ret, days_to_exit = simulate_structural_trailing_exit(
                         fut_slice,
                         entry_price,
@@ -1343,9 +1349,18 @@ def run_quarterly_backtest():
                         fut_slice["sma20_roll"].values,
                     )
 
+                    # 3. Active in-trade drawdown bounded strictly to the active holding period
+                    active_holding_len = max(1, min(len(fut_slice), days_to_exit + 1))
+                    active_slice = fut_slice.iloc[:active_holding_len]
+
+                    min_pos = int(active_slice["low"].values.argmin())
+                    low_row = active_slice.iloc[min_pos]
+                    min_low_active = round(float(low_row["low"]), 2)
+                    active_drawdown_pct = round(((min_low_active - entry_price) / entry_price) * 100.0, 2)
+
                     persist_sim = simulate_signal_persistence(fut_slice, entry_price, atr_20_val)
                     
-                    tranche2_filled = bool(float(fut_slice["low"].min()) <= tranche2_limit)
+                    tranche2_filled = bool(float(active_slice["low"].min()) <= tranche2_limit)
                     if tranche2_filled:
                         effective_cap_deployed = 100000.0
                         effective_mfe_pct = round(((peak_high - blended_entry) / blended_entry) * 100.0, 2)
@@ -1358,7 +1373,7 @@ def run_quarterly_backtest():
                 else:
                     peak_high, peak_date, days_to_peak, peak_gain_pct = entry_price, m_start_date, 1, 0.0
                     mfe_30d_pct, mfe_60d_pct = 0.0, 0.0
-                    min_low, max_drawdown_mae_pct = entry_price, 0.0
+                    min_low_active, active_drawdown_pct = entry_price, 0.0
                     trailing_exit_ret, days_to_exit = 0.0, 1
                     persist_sim = {
                         "zone_persistence_days": 1,
@@ -1438,8 +1453,9 @@ def run_quarterly_backtest():
                     "max_gain_mfe_pct": peak_gain_pct,
                     "mfe_30d_pct": mfe_30d_pct,
                     "mfe_60d_pct": mfe_60d_pct,
-                    "min_low_since_entry": min_low,
-                    "max_drawdown_mae_pct": max_drawdown_mae_pct,
+                    "min_low_in_trade": min_low_active,
+                    "active_trade_drawdown_pct": active_drawdown_pct,
+                    "max_drawdown_mae_pct": active_drawdown_pct,  # Backward-compatible alias
                     "today_date": today_actual_date,
                     "today_price": today_price,
                     "total_return_to_today_pct": total_return_pct,
@@ -1452,7 +1468,7 @@ def run_quarterly_backtest():
                         mcap_stats_accumulator[mcap_tier] = []
                     mcap_stats_accumulator[mcap_tier].append({
                         "mfe": peak_gain_pct,
-                        "mae": max_drawdown_mae_pct,
+                        "drawdown": active_drawdown_pct,
                         "ret": total_return_pct,
                         "trail": trailing_exit_ret,
                         "zone_p": persist_sim["zone_persistence_days"],
@@ -1485,7 +1501,7 @@ def run_quarterly_backtest():
                     "max_gain_mfe_pct": peak_gain_pct,
                     "mfe_30d_pct": mfe_30d_pct,
                     "mfe_60d_pct": mfe_60d_pct,
-                    "max_drawdown_mae_pct": max_drawdown_mae_pct,
+                    "active_trade_drawdown_pct": active_drawdown_pct,
                     "is_method2_win": is_m2_win,
                     "is_method3_win": is_m3_win,
                     "method3_pnl_inr": round(trade_pnl_inr, 2),
@@ -1499,7 +1515,7 @@ def run_quarterly_backtest():
             mfes = [s["max_gain_mfe_pct"] for s in stock_records]
             mfes_30 = [s["mfe_30d_pct"] for s in stock_records]
             mfes_60 = [s["mfe_60d_pct"] for s in stock_records]
-            maes = [s["max_drawdown_mae_pct"] for s in stock_records]
+            act_dds = [s["active_trade_drawdown_pct"] for s in stock_records]
             z_pers = [s["zone_persistence_days"] for s in stock_records]
             t_pers = [s["trend_persistence_days"] for s in stock_records]
             pk_days = [s["days_to_peak"] for s in stock_records]
@@ -1513,7 +1529,7 @@ def run_quarterly_backtest():
             avg_mfe_60 = round(float(np.mean(mfes_60)), 2) if mfes_60 else 0.0
             hit_15 = round(float((np.array(mfes) >= 15.0).mean() * 100.0), 1) if mfes else 0.0
             hit_20 = round(float((np.array(mfes) >= 20.0).mean() * 100.0), 1) if mfes else 0.0
-            avg_mae = round(float(np.mean(maes)), 2) if maes else 0.0
+            avg_act_dd = round(float(np.mean(act_dds)), 2) if act_dds else 0.0
             avg_zone_p = round(float(np.mean(z_pers)), 1) if z_pers else 1.0
             avg_trend_p = round(float(np.mean(t_pers)), 1) if t_pers else 1.0
             avg_pk_d = round(float(np.mean(pk_days)), 1) if pk_days else 1.0
@@ -1535,8 +1551,8 @@ def run_quarterly_backtest():
             acc["total_mfe_60d"] += float(np.sum(mfes_60))
             acc["hits_15"] += int((np.array(mfes) >= 15.0).sum())
             acc["hits_20"] += int((np.array(mfes) >= 20.0).sum())
-            acc["low_mae_count"] += int((np.array(maes) >= -6.0).sum())
-            acc["total_mae"] += float(np.sum(maes))
+            acc["low_drawdown_count"] += int((np.array(act_dds) >= -6.0).sum())
+            acc["total_active_drawdown"] += float(np.sum(act_dds))
             acc["total_zone_persist"] += float(np.sum(z_pers))
             acc["total_trend_persist"] += float(np.sum(t_pers))
             acc["total_days_to_peak"] += float(np.sum(pk_days))
@@ -1561,7 +1577,9 @@ def run_quarterly_backtest():
                 "avg_mfe_60d_pct": avg_mfe_60,
                 "hit_15pct_target_rate_pct": hit_15,
                 "hit_20pct_target_rate_pct": hit_20,
-                "avg_drawdown_mae_pct": avg_mae,
+                "avg_active_drawdown_pct": avg_act_dd,
+                "avg_interim_dip_pct": avg_act_dd,
+                "avg_drawdown_mae_pct": avg_act_dd,  # Backward-compatible alias
                 "avg_days_to_peak": avg_pk_d,
                 "raw_trade_duration_days": avg_ex_d,
                 "adjusted_trade_duration_days": avg_adj_hold_d,
@@ -1593,14 +1611,16 @@ def run_quarterly_backtest():
     for tier_label in sorted(mcap_stats_accumulator.keys()):
         t_items = mcap_stats_accumulator[tier_label]
         mfes_t = np.array([x["mfe"] for x in t_items])
-        maes_t = np.array([x["mae"] for x in t_items])
+        dds_t = np.array([x["drawdown"] for x in t_items])
         rets_t = np.array([x["ret"] for x in t_items])
         mcap_summary_list.append({
             "mcap_tier": tier_label, "count": len(t_items),
             "avg_mfe_pct": round(float(np.mean(mfes_t)), 2),
             "hit_15pct_rate": round(float((mfes_t >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((maes_t >= -6.0).mean() * 100.0), 1),
-            "avg_mae_pct": round(float(np.mean(maes_t)), 2),
+            "low_drawdown_surety_rate": round(float((dds_t >= -6.0).mean() * 100.0), 1),
+            "low_mae_surety_rate": round(float((dds_t >= -6.0).mean() * 100.0), 1),
+            "avg_active_drawdown_pct": round(float(np.mean(dds_t)), 2),
+            "avg_mae_pct": round(float(np.mean(dds_t)), 2),
             "avg_hold_ret_pct": round(float(np.mean(rets_t)), 2),
         })
 
@@ -1608,37 +1628,49 @@ def run_quarterly_backtest():
     for life_key in sorted(sector_lifecycle_accumulator.keys()):
         l_items = sector_lifecycle_accumulator[life_key]
         mfes_l = np.array([x[0] for x in l_items])
-        maes_l = np.array([x[1] for x in l_items])
+        dds_l = np.array([x[1] for x in l_items])
         rets_l = np.array([x[2] for x in l_items])
         sector_climax_audit_list.append({
             "sector_stage": life_key, "sample_size": len(l_items),
             "avg_mfe_pct": round(float(np.mean(mfes_l)), 2),
             "hit_15pct_rate": round(float((mfes_l >= 15.0).mean() * 100.0), 1),
-            "severe_trap_rate_mae_gt_15": round(float((maes_l <= -15.0).mean() * 100.0), 1),
-            "avg_mae_pct": round(float(np.mean(maes_l)), 2),
+            "severe_trap_rate_dd_gt_15": round(float((dds_l <= -15.0).mean() * 100.0), 1),
+            "severe_trap_rate_mae_gt_15": round(float((dds_l <= -15.0).mean() * 100.0), 1),
+            "avg_active_drawdown_pct": round(float(np.mean(dds_l)), 2),
+            "avg_mae_pct": round(float(np.mean(dds_l)), 2),
             "avg_period_ret_pct": round(float(np.mean(rets_l)), 2),
         })
 
     pattern_audit_summary = []
     for cohort_label, records in pattern_confluence_accumulator.items():
         if not records: continue
-        p_mfes, p_maes, p_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
+        p_mfes, p_dds, p_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
         pattern_audit_summary.append({
             "cohort": cohort_label, "sample_size": len(records),
-            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2), "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((p_maes >= -6.0).mean() * 100.0), 1), "avg_mae_pct": round(float(np.mean(p_maes)), 2),
-            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2), "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_maes)))), 2),
+            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2), 
+            "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
+            "low_drawdown_surety_rate": round(float((p_dds >= -6.0).mean() * 100.0), 1), 
+            "low_mae_surety_rate": round(float((p_dds >= -6.0).mean() * 100.0), 1),
+            "avg_active_drawdown_pct": round(float(np.mean(p_dds)), 2), 
+            "avg_mae_pct": round(float(np.mean(p_dds)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2), 
+            "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_dds)))), 2),
         })
 
     advanced_factors_summary = []
     for factor_label, records in advanced_factors_accumulator.items():
         if not records: continue
-        f_mfes, f_maes, f_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
+        f_mfes, f_dds, f_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
         advanced_factors_summary.append({
             "factor": factor_label, "sample_size": len(records),
-            "avg_peak_mfe_pct": round(float(np.mean(f_mfes)), 2), "hit_15pct_rate": round(float((f_mfes >= 15.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((f_maes >= -6.0).mean() * 100.0), 1), "avg_mae_pct": round(float(np.mean(f_maes)), 2),
-            "avg_hold_ret_pct": round(float(np.mean(f_rets)), 2), "asymmetry_ratio": round(float(np.mean(f_mfes) / max(1.0, abs(np.mean(f_maes)))), 2),
+            "avg_peak_mfe_pct": round(float(np.mean(f_mfes)), 2), 
+            "hit_15pct_rate": round(float((f_mfes >= 15.0).mean() * 100.0), 1),
+            "low_drawdown_surety_rate": round(float((f_dds >= -6.0).mean() * 100.0), 1), 
+            "low_mae_surety_rate": round(float((f_dds >= -6.0).mean() * 100.0), 1),
+            "avg_active_drawdown_pct": round(float(np.mean(f_dds)), 2), 
+            "avg_mae_pct": round(float(np.mean(f_dds)), 2),
+            "avg_hold_ret_pct": round(float(np.mean(f_rets)), 2), 
+            "asymmetry_ratio": round(float(np.mean(f_mfes) / max(1.0, abs(np.mean(f_dds)))), 2),
         })
 
     pd.DataFrame(all_csv_rows).to_csv(BACKTEST_CSV, index=False)
@@ -1672,13 +1704,19 @@ def run_quarterly_backtest():
         m2_roi_dec = m2_net_roi / 100.0
         m2_xirr = round(((1.0 + m2_roi_dec) ** cycles_per_year - 1.0) * 100.0, 1) if (adj_hold_days > 0 and m2_roi_dec > -1.0) else 0.0
 
+        avg_act_dd_overall = round(acc["total_active_drawdown"] / n_tr, 2)
+
         strategy_macro_summary[m_key] = {
             "strategy_key": m_key, "strategy_name": m_desc,
             "total_signals_tracked": acc["trades"], "overall_avg_mfe_pct": round(avg_mfe_val, 2),
-            "overall_avg_mae_pct": round(acc["total_mae"] / n_tr, 2), "overall_hold_return_pct": round(acc["total_return"] / n_tr, 2),
+            "overall_avg_active_drawdown_pct": avg_act_dd_overall,
+            "overall_avg_mae_pct": avg_act_dd_overall,
+            "overall_hold_return_pct": round(acc["total_return"] / n_tr, 2),
             "overall_trail_return_pct": round(acc["total_trail_return"] / n_tr, 2), "overall_hold_win_rate_pct": round((acc["wins"] / n_tr) * 100.0, 1),
             "hit_15pct_rate": round((acc["hits_15"] / n_tr) * 100.0, 1), "hit_20pct_rate": round((acc["hits_20"] / n_tr) * 100.0, 1),
-            "low_mae_surety_rate": round((acc["low_mae_count"] / n_tr) * 100.0, 1), "avg_days_to_peak": avg_pk_days,
+            "low_drawdown_surety_rate": round((acc["low_drawdown_count"] / n_tr) * 100.0, 1),
+            "low_mae_surety_rate": round((acc["low_drawdown_count"] / n_tr) * 100.0, 1),
+            "avg_days_to_peak": avg_pk_days,
             "raw_trade_duration_days": round(raw_hold_days, 1), "trade_duration_days": adj_hold_days,
             "annualized_turnover_velocity": round(cycles_per_year, 1), "active_business_sessions_per_year": int(active_sessions),
             "method2_win_rate_pct": m2_wr, "method2_net_expectancy_pct": m2_net_roi,
@@ -1690,16 +1728,17 @@ def run_quarterly_backtest():
         }
 
     # -------------------------------------------------------------------------
-    # 5. ACCURATE HEADLINE ACCOUNTING: Primary Model Footprint (132 Trades, 12/mo)
+    # ACCURATE HEADLINE ACCOUNTING: Primary Model Footprint (132 Trades, 12/mo)
     # -------------------------------------------------------------------------
     dyn_acc = model_stats_accumulator["dynamic_regime_portfolio"]
     n_dyn = max(1, dyn_acc["trades"])
 
     global_macro_stats = {
         "total_audited_windows": len(monthly_checkpoints),
-        "total_signals_tracked": dyn_acc["trades"],  # Exactly 132 trades (12 per month), not overlapping 1,012
+        "total_signals_tracked": dyn_acc["trades"],  # Exactly 132 trades (12 per month)
         "signals_per_month": 12,
         "overall_avg_mfe_pct": round(dyn_acc["total_mfe"] / n_dyn, 2),
+        "overall_avg_active_drawdown_pct": round(dyn_acc["total_active_drawdown"] / n_dyn, 2),
         "overall_hold_win_rate_pct": round((dyn_acc["wins"] / n_dyn) * 100.0, 1),
         "method2_win_rate_pct": round((dyn_acc["m2_wins"] / n_dyn) * 100.0, 1),
         "method3_win_rate_pct": round((dyn_acc["m3_wins"] / n_dyn) * 100.0, 1),

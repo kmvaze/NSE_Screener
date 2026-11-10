@@ -366,7 +366,7 @@
           <option value="20">🌐 Full 20 Strategy List</option>
         </select>
 
-        <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Risk Appetite:</span>
+        <span style="font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-left: 4px;">Risk Profile:</span>
         <select id="btRiskProfileSelect" onchange="setBacktestRiskProfile(this.value)" style="padding: 5px 10px; font-size: 0.76rem; font-weight: 700;">
           <option value="ALL" selected>🛡️ All Risk Profiles</option>
           <option value="Low">🟢 Conservative (Win-Rate Lock)</option>
@@ -396,7 +396,7 @@
       <div id="btDualMethodCard" style="background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 14px; padding: 18px; margin-bottom: 20px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
           <div>
-            <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 Institutional Win Rate & Capital Expectancy Models</h3>
+            <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 Institutional Win Rate &amp; Capital Expectancy Models</h3>
             <span style="font-size:0.75rem; color:var(--muted);">Empirical backtest analysis based on Peak MFE expansion vs. ATR structural risk clamps</span>
           </div>
           <div style="display:flex; gap:8px;">
@@ -431,9 +431,9 @@
           <div id="btStatBmRetSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Benchmark Return: --</div>
         </div>
         <div class="bt-stat-card">
-          <div class="bt-stat-label">Period Return vs 50-SMA Sim</div>
-          <div class="bt-stat-value" id="btStatPortfolioRet">--</div>
-          <div id="btStatExitSimSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Trend-Decay Sim</div>
+          <div class="bt-stat-label" title="Average return captured by the mechanical structural trailing exit rule">⚡ Mechanical Exit Return</div>
+          <div class="bt-stat-value" id="btStatPortfolioRet" style="color: var(--green);">--</div>
+          <div id="btStatExitSimSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Realized Trailing Strategy Return</div>
         </div>
         <div class="bt-stat-card" style="border-color: rgba(192, 132, 252, 0.4);">
           <div class="bt-stat-label">⏳ Signal Persistence</div>
@@ -441,9 +441,9 @@
           <div id="btStatPersistenceSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Zone / Trend Hold Days</div>
         </div>
         <div class="bt-stat-card">
-          <div class="bt-stat-label">Structural Confirmation</div>
+          <div class="bt-stat-label" title="Percentage of picks that expanded to at least +15% gain before exit">🎯 Target Achievement (≥15% Gain)</div>
           <div class="bt-stat-value" id="btStatTargetHitRate" style="color: var(--green);">--</div>
-          <div id="btStat20PctHitRate" style="font-size: 0.68rem; color: var(--red); margin-top: 4px;">MAE: --</div>
+          <div id="btStat20PctHitRate" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Avg Interim Dip: --</div>
         </div>
       </div>
 
@@ -461,8 +461,8 @@
                   <th>Sample (N)</th>
                   <th>Peak MFE</th>
                   <th>&ge;15% Hit</th>
-                  <th>Low-MAE (&ge;-6%)</th>
-                  <th>Avg MAE</th>
+                  <th>Low Dip (&le;6%)</th>
+                  <th>Avg In-Trade Dip</th>
                   <th>Hold Return</th>
                   <th>Asymmetry</th>
                 </tr>
@@ -482,8 +482,8 @@
                   <th>Sample (N)</th>
                   <th>Peak MFE</th>
                   <th>&ge;15% Hit</th>
-                  <th>Low-MAE (&ge;-6%)</th>
-                  <th>Avg MAE</th>
+                  <th>Low Dip (&le;6%)</th>
+                  <th>Avg In-Trade Dip</th>
                   <th>Hold Return</th>
                   <th>Asymmetry</th>
                 </tr>
@@ -501,8 +501,8 @@
                   <th class="tip-trigger" data-tip="Number of historical trade samples audited.">Cnt</th>
                   <th class="tip-trigger" data-tip="Average peak profit expansion reached before exit.">Peak MFE</th>
                   <th class="tip-trigger" data-tip="Percentage of trades that gained at least 15% from entry.">&ge;15%</th>
-                  <th class="tip-trigger" data-tip="Percentage of trades where adverse drawdown stayed shallower than -6%.">Low-MAE</th>
-                  <th class="tip-trigger" data-tip="Average maximum adverse drawdown experienced before reversing.">Avg MAE</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades where interim adverse dip stayed shallower than -6%.">Low Dip (&le;6%)</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse dip experienced while trade was actively held.">Avg In-Trade Dip</th>
                   <th class="tip-trigger" data-tip="Average return across the entire audited window.">Ret</th>
                 </tr>
               </thead>
@@ -518,8 +518,8 @@
                   <th class="tip-trigger" data-tip="Total audited stock setups in this sector phase.">N</th>
                   <th class="tip-trigger" data-tip="Average maximum profit potential reached from entry.">Peak MFE</th>
                   <th class="tip-trigger" data-tip="Success rate reaching at least 15% upside.">&ge;15%</th>
-                  <th class="tip-trigger" data-tip="Frequency of setups that experienced severe adverse drawdowns deeper than -15%.">Trap Rate</th>
-                  <th class="tip-trigger" data-tip="Average maximum adverse drawdown experienced.">MAE</th>
+                  <th class="tip-trigger" data-tip="Frequency of setups that experienced severe adverse dips deeper than -15%.">Dip &gt;15% Trap</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse dip experienced during active holding.">Avg In-Trade Dip</th>
                   <th class="tip-trigger" data-tip="Average return over the audited test period.">Ret</th>
                 </tr>
               </thead>
@@ -535,8 +535,8 @@
                   <th class="tip-trigger" data-tip="Number of trade setups in this timing window.">N</th>
                   <th class="tip-trigger" data-tip="Average maximum profit potential reached.">MFE</th>
                   <th class="tip-trigger" data-tip="Percentage of trades reaching 15% upside.">&ge;15%</th>
-                  <th class="tip-trigger" data-tip="Percentage of trades holding low drawdowns (stays within -6%).">Surety</th>
-                  <th class="tip-trigger" data-tip="Average maximum adverse drop below entry price.">MAE</th>
+                  <th class="tip-trigger" data-tip="Percentage of trades holding low drawdowns (stays within -6%).">Low Dip (&le;6%)</th>
+                  <th class="tip-trigger" data-tip="Average maximum adverse drop below entry price during active trade.">Avg In-Trade Dip</th>
                   <th class="tip-trigger" data-tip="Reward-to-risk asymmetry multiple. Higher means upside vastly outweighed downside.">Asymmetry</th>
                 </tr>
               </thead>
@@ -555,7 +555,20 @@
 
       <div class="table-container">
         <table>
-          <thead id="btProgressionTableHead"></thead>
+          <thead id="btProgressionTableHead">
+            <tr>
+              <th style="width: 35px; text-align: center;">⭐</th>
+              <th class="tip-trigger" data-tip="Strategy rank and company market capitalization tier.">Rank &amp; Cap Tier</th>
+              <th class="tip-trigger" data-tip="Official stock ticker and company name.">Symbol</th>
+              <th class="tip-trigger" data-tip="The setup type identified on the signal date.">Setup Signal</th>
+              <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
+              <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
+              <th class="peak-highlight-cell tip-trigger" data-tip="Maximum upside expansion achieved and the date/trading days taken to reach peak.">🚀 Peak MFE &amp; Date</th>
+              <th class="tip-trigger" data-tip="Trade resolution: Date exited, trading days held, and realized trailing or stop-loss return.">Trade Exit &amp; Status</th>
+              <th class="tip-trigger" data-tip="Maximum interim dip experienced while the position was active.">In-Trade Max Dip</th>
+              <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
+            </tr>
+          </thead>
           <tbody id="btProgressionTableBody"></tbody>
         </table>
       </div>
@@ -716,7 +729,7 @@
       </p>
       <ul>
         <li><strong>Peak Profit Expansion (MFE):</strong> Evaluates the maximum profit potential each trade setup achieved after the buy signal before exiting. Across all strategies, average peak expansion exceeds <strong>+28%</strong>.</li>
-        <li><strong>Max Adverse Drawdown (MAE):</strong> Evaluates how far a stock dipped below its entry price before moving upward, helping you verify that your stop-loss will not be hit prematurely.</li>
+        <li><strong>In-Trade Max Dip:</strong> Evaluates the maximum drawdown experienced strictly during the active trade holding period, providing realistic stop-loss verification without contamination from post-exit market corrections.</li>
         <li><strong>Method 3 (50:50 Staggered Execution):</strong> By entering half a position at trigger and placing a limit order for the second half at a discount, backtest audits verify that win rates surge from <strong>63.0% to 83.6%</strong>, with capital expectancy reaching over <strong>+₹22,700 per ₹1 Lakh allocated</strong>.</li>
         <li><strong>Month-on-Month Cohorts:</strong> Switch between monthly signal dates (from Jan 2026 to Nov 2026) to see the exact setups selected at each turn and how they performed forward in time.</li>
         <li><strong>Strategy &amp; Market-Cap Filtering:</strong> Easily toggle the backtest view strategy-wise (Surety, Momentum, Rotation, Pullback) or by company size (Large Cap, Mid/Small Cap, Microcap) to see which segments generated the highest market outperformance.</li>

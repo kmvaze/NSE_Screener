@@ -846,14 +846,16 @@ function renderBacktestForensicTables() {
   if (patTbody) {
     patTbody.innerHTML = patternAudit.map(pa => {
       const isHighlight = pa.cohort.includes('Cohort 3') || pa.cohort.includes('Bull Flag');
+      const inTradeDip = Number(pa.avg_active_drawdown_pct ?? pa.avg_mae_pct ?? 0);
+      const lowDipRate = Number(pa.low_drawdown_surety_rate ?? pa.low_mae_surety_rate ?? 0);
       return `
         <tr style="${isHighlight ? 'background: rgba(56, 189, 248, 0.08);' : ''}">
           <td><strong style="color: ${isHighlight ? 'var(--accent)' : 'var(--text)'};">${pa.cohort}</strong></td>
           <td>${pa.sample_size}</td>
           <td style="color:var(--green); font-weight:700;">+${Number(pa.avg_peak_mfe_pct).toFixed(2)}%</td>
           <td>${Number(pa.hit_15pct_rate).toFixed(1)}%</td>
-          <td style="color:var(--teal); font-weight:700;">${Number(pa.low_mae_surety_rate).toFixed(1)}%</td>
-          <td style="color:var(--red);">${Number(pa.avg_mae_pct).toFixed(2)}%</td>
+          <td style="color:var(--teal); font-weight:700;">${lowDipRate.toFixed(1)}%</td>
+          <td style="color:var(--red);">${inTradeDip.toFixed(2)}%</td>
           <td style="color:${pa.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${pa.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(pa.avg_hold_ret_pct).toFixed(2)}%</td>
           <td style="color:var(--purple); font-weight:800;">${Number(pa.asymmetry_ratio).toFixed(2)}x</td>
         </tr>
@@ -865,14 +867,16 @@ function renderBacktestForensicTables() {
   if (factorTbody) {
     factorTbody.innerHTML = factorAudit.map(fa => {
       const isTopTier = fa.factor.includes('Combined') || fa.factor.includes('AVWAP');
+      const inTradeDip = Number(fa.avg_active_drawdown_pct ?? fa.avg_mae_pct ?? 0);
+      const lowDipRate = Number(fa.low_drawdown_surety_rate ?? fa.low_mae_surety_rate ?? 0);
       return `
         <tr style="${isTopTier ? 'background: rgba(45, 212, 191, 0.08);' : ''}">
           <td><strong style="color: ${isTopTier ? 'var(--teal)' : 'var(--text)'};">${fa.factor}</strong></td>
           <td>${fa.sample_size}</td>
           <td style="color:var(--green); font-weight:700;">+${Number(fa.avg_peak_mfe_pct).toFixed(2)}%</td>
           <td>${Number(fa.hit_15pct_rate).toFixed(1)}%</td>
-          <td style="color:var(--teal); font-weight:700;">${Number(fa.low_mae_surety_rate).toFixed(1)}%</td>
-          <td style="color:var(--red);">${Number(fa.avg_mae_pct).toFixed(2)}%</td>
+          <td style="color:var(--teal); font-weight:700;">${lowDipRate.toFixed(1)}%</td>
+          <td style="color:var(--red);">${inTradeDip.toFixed(2)}%</td>
           <td style="color:${fa.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${fa.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(fa.avg_hold_ret_pct).toFixed(2)}%</td>
           <td style="color:var(--purple); font-weight:800;">${Number(fa.asymmetry_ratio).toFixed(2)}x</td>
         </tr>
@@ -882,31 +886,37 @@ function renderBacktestForensicTables() {
 
   const mcapTbody = document.getElementById('btMcapAuditTableBody');
   if (mcapTbody) {
-    mcapTbody.innerHTML = mcapSummary.map(mc => `
-      <tr>
-        <td><strong>${mc.mcap_tier}</strong></td>
-        <td>${mc.count}</td>
-        <td style="color:var(--green); font-weight:700;">+${Number(mc.avg_mfe_pct).toFixed(2)}%</td>
-        <td>${Number(mc.hit_15pct_rate).toFixed(1)}%</td>
-        <td style="color:var(--teal); font-weight:700;">${Number(mc.low_mae_surety_rate).toFixed(1)}%</td>
-        <td style="color:var(--red);">${Number(mc.avg_mae_pct).toFixed(2)}%</td>
-        <td style="color:${mc.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${mc.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(mc.avg_hold_ret_pct).toFixed(2)}%</td>
-      </tr>
-    `).join('');
+    mcapTbody.innerHTML = mcapSummary.map(mc => {
+      const inTradeDip = Number(mc.avg_active_drawdown_pct ?? mc.avg_mae_pct ?? 0);
+      const lowDipRate = Number(mc.low_drawdown_surety_rate ?? mc.low_mae_surety_rate ?? 0);
+      return `
+        <tr>
+          <td><strong>${mc.mcap_tier}</strong></td>
+          <td>${mc.count}</td>
+          <td style="color:var(--green); font-weight:700;">+${Number(mc.avg_mfe_pct).toFixed(2)}%</td>
+          <td>${Number(mc.hit_15pct_rate).toFixed(1)}%</td>
+          <td style="color:var(--teal); font-weight:700;">${lowDipRate.toFixed(1)}%</td>
+          <td style="color:var(--red);">${inTradeDip.toFixed(2)}%</td>
+          <td style="color:${mc.avg_hold_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${mc.avg_hold_ret_pct >= 0 ? '+' : ''}${Number(mc.avg_hold_ret_pct).toFixed(2)}%</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   const climaxTbody = document.getElementById('btSectorClimaxTableBody');
   if (climaxTbody) {
     climaxTbody.innerHTML = climaxAudit.map(sc => {
       const isTrap = String(sc.sector_stage).includes("Climactic");
+      const inTradeDip = Number(sc.avg_active_drawdown_pct ?? sc.avg_mae_pct ?? 0);
+      const trapRate = Number(sc.severe_trap_rate_dd_gt_15 ?? sc.severe_trap_rate_mae_gt_15 ?? 0);
       return `
         <tr style="${isTrap ? 'background:rgba(239,68,68,0.06);' : ''}">
           <td><strong style="color:${isTrap ? 'var(--red)' : 'var(--text)'};">${sc.sector_stage}</strong></td>
           <td>${sc.sample_size}</td>
           <td style="color:var(--green); font-weight:700;">+${Number(sc.avg_mfe_pct).toFixed(2)}%</td>
           <td>${Number(sc.hit_15pct_rate).toFixed(1)}%</td>
-          <td style="color:${isTrap ? 'var(--red)' : 'var(--muted)'}; font-weight:700;">${Number(sc.severe_trap_rate_mae_gt_15).toFixed(1)}%</td>
-          <td style="color:var(--red);">${Number(sc.avg_mae_pct).toFixed(2)}%</td>
+          <td style="color:${isTrap ? 'var(--red)' : 'var(--muted)'}; font-weight:700;">${trapRate.toFixed(1)}%</td>
+          <td style="color:var(--red);">${inTradeDip.toFixed(2)}%</td>
           <td style="color:${sc.avg_period_ret_pct >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${sc.avg_period_ret_pct >= 0 ? '+' : ''}${Number(sc.avg_period_ret_pct).toFixed(2)}%</td>
         </tr>
       `;
@@ -915,17 +925,21 @@ function renderBacktestForensicTables() {
 
   const intraTbody = document.getElementById('btIntramonthTableBody');
   if (intraTbody) {
-    intraTbody.innerHTML = intramonthAudit.map(im => `
-      <tr>
-        <td><strong>${im.window}</strong></td>
-        <td>${im.sample_signals}</td>
-        <td style="color:var(--green); font-weight:700;">+${Number(im.avg_peak_mfe_pct).toFixed(2)}%</td>
-        <td>${Number(im.hit_15pct_rate).toFixed(1)}%</td>
-        <td style="color:var(--teal); font-weight:700;">${Number(im.low_mae_surety_rate).toFixed(1)}%</td>
-        <td style="color:var(--red);">${Number(im.avg_mae_pct).toFixed(2)}%</td>
-        <td style="color:var(--accent); font-weight:800;">${Number(im.asymmetry_ratio).toFixed(2)}x</td>
-      </tr>
-    `).join('');
+    intraTbody.innerHTML = intramonthAudit.map(im => {
+      const inTradeDip = Number(im.avg_active_drawdown_pct ?? im.avg_mae_pct ?? 0);
+      const lowDipRate = Number(im.low_drawdown_surety_rate ?? im.low_mae_surety_rate ?? 0);
+      return `
+        <tr>
+          <td><strong>${im.window}</strong></td>
+          <td>${im.sample_signals}</td>
+          <td style="color:var(--green); font-weight:700;">+${Number(im.avg_peak_mfe_pct).toFixed(2)}%</td>
+          <td>${Number(im.hit_15pct_rate).toFixed(1)}%</td>
+          <td style="color:var(--teal); font-weight:700;">${lowDipRate.toFixed(1)}%</td>
+          <td style="color:var(--red);">${inTradeDip.toFixed(2)}%</td>
+          <td style="color:var(--accent); font-weight:800;">${Number(im.asymmetry_ratio).toFixed(2)}x</td>
+        </tr>
+      `;
+    }).join('');
   }
 }
 
@@ -1011,20 +1025,18 @@ function renderBacktestView() {
   if (countLbl) countLbl.textContent = `${picks.length} shown (out of ${mcapFilteredPicks.length})`;
 
   const mfes = picks.map(p => Number(p.max_gain_mfe_pct || 0));
-  const maes = picks.map(p => Number(p.max_drawdown_mae_pct || 0));
-  const rets = picks.map(p => Number(p.total_return_to_today_pct || 0));
+  const inTradeDips = picks.map(p => Number(p.active_trade_drawdown_pct ?? p.max_drawdown_mae_pct ?? 0));
   const trails = picks.map(p => Number(p.trailing_exit_return_pct || 0));
 
   const avgPeakMfe = mfes.length > 0 ? mfes.reduce((a, b) => a + b, 0) / mfes.length : 0;
-  const avgMae = maes.length > 0 ? maes.reduce((a, b) => a + b, 0) / maes.length : 0;
-  const portRet = rets.length > 0 ? rets.reduce((a, b) => a + b, 0) / rets.length : 0;
+  const avgInTradeDip = inTradeDips.length > 0 ? inTradeDips.reduce((a, b) => a + b, 0) / inTradeDips.length : 0;
   const day1TrailAvg = trails.length > 0 ? trails.reduce((a, b) => a + b, 0) / trails.length : 0;
 
   const hit15Count = mfes.filter(v => v >= 15.0).length;
   const hit15Rate = picks.length > 0 ? ((hit15Count / picks.length) * 100.0) : 0;
 
   const benchmarkRet = Number(rawEntry.universe_benchmark_ret_pct || 0);
-  const alphaVal = portRet - benchmarkRet;
+  const alphaVal = day1TrailAvg - benchmarkRet;
 
   const elDate = document.getElementById('btStatSignalDate');
   if (elDate) elDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
@@ -1045,20 +1057,25 @@ function renderBacktestView() {
     bmSub.textContent = `Nifty Benchmark: ${benchmarkRet >= 0 ? '+' : ''}${benchmarkRet.toFixed(2)}%`;
   }
 
+  // Authentic Mechanical Trailing Strategy Return Card
   const portEl = document.getElementById('btStatPortfolioRet');
   if (portEl) {
-    portEl.textContent = `${portRet >= 0 ? '+' : ''}${portRet.toFixed(2)}%`;
-    portEl.style.color = portRet >= 0 ? 'var(--green)' : 'var(--red)';
+    portEl.textContent = `${day1TrailAvg >= 0 ? '+' : ''}${day1TrailAvg.toFixed(2)}%`;
+    portEl.style.color = day1TrailAvg >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+  const elExit = document.getElementById('btStatExitSimSub');
+  if (elExit) {
+    elExit.textContent = `Realized Trailing Strategy Return`;
   }
 
-  const elExit = document.getElementById('btStatExitSimSub');
-  if (elExit) elExit.innerHTML = `50-SMA Sim: <b style="color:${day1TrailAvg >= 0 ? 'var(--green)' : 'var(--red)'};">${day1TrailAvg >= 0 ? '+' : ''}${day1TrailAvg.toFixed(2)}%</b>`;
   const elPers = document.getElementById('btStatPersistence');
   if (elPers) elPers.textContent = `${qData.avg_zone_persistence_days || 12.5}d / ${qData.avg_trend_persistence_days || 34.0}d`;
+  
+  // Explicit Target Achievement & In-Trade Dip Display
   const elHit = document.getElementById('btStatTargetHitRate');
   if (elHit) elHit.textContent = `${hit15Count} / ${picks.length} (${hit15Rate.toFixed(0)}%)`;
   const elDraw = document.getElementById('btStat20PctHitRate');
-  if (elDraw) elDraw.textContent = `Max Adverse Drawdown: ${avgMae.toFixed(2)}%`;
+  if (elDraw) elDraw.textContent = `Avg In-Trade Dip: ${avgInTradeDip.toFixed(2)}%`;
 
   const secGrid = document.getElementById('btTopSectorsGrid');
   if (secGrid) {
@@ -1089,6 +1106,9 @@ function renderBacktestView() {
     });
   }
 
+  // ============================================================================
+  // AUTHENTIC SWING TRADING PROGRESSION TABLE RENDERER
+  // ============================================================================
   const thead = document.getElementById('btProgressionTableHead');
   const tbody = document.getElementById('btProgressionTableBody');
   if (thead && tbody) {
@@ -1097,12 +1117,12 @@ function renderBacktestView() {
         <th style="width:35px; text-align:center;">⭐</th>
         <th class="tip-trigger" data-tip="Strategy rank and company market capitalization tier.">Rank &amp; Cap Tier</th>
         <th class="tip-trigger" data-tip="Official stock ticker and company name.">Symbol</th>
-        <th class="tip-trigger" data-tip="The setup type identified on the signal date and its sector phase.">Setup &amp; Sector Stage</th>
-        <th class="tip-trigger" data-tip="Stock closing price on the date the signal occurred.">Reference Entry</th>
-        <th class="peak-highlight-cell tip-trigger" data-tip="The highest percentage gain the stock reached after entry before exiting.">🚀 Max Potential Gain</th>
-        <th class="tip-trigger" data-tip="The maximum percentage drop experienced below entry price during the trade.">Adverse Drawdown (MAE)</th>
-        <th class="tip-trigger" data-tip="Current closing market price on the exchange.">Latest Price</th>
-        <th class="tip-trigger" data-tip="Total percentage return from the signal date to today.">Period Return</th>
+        <th class="tip-trigger" data-tip="The setup type identified on the signal date.">Setup Signal</th>
+        <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
+        <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
+        <th class="peak-highlight-cell tip-trigger" data-tip="Highest price reached, peak gain percentage, and date/days taken.">🚀 Peak MFE &amp; Date</th>
+        <th class="tip-trigger" data-tip="Outcome of the trade: Exit date, duration held, and realized gain or stop loss.">Trade Exit &amp; Status</th>
+        <th class="tip-trigger" data-tip="Maximum price dip experienced strictly while the position was active.">In-Trade Max Dip</th>
         <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
       </tr>
     `;
@@ -1117,10 +1137,37 @@ function renderBacktestView() {
       const tr = document.createElement('tr');
       tr.className = 'stock-row';
       const isStarred = appState.watchlist.includes(pick.symbol.toUpperCase());
-      const peakPrice = Number(pick.peak_high_since_entry || pick.entry_price);
+      
+      const entryPrice = Number(pick.entry_price || 0);
+      const peakPrice = Number(pick.peak_high_since_entry || entryPrice);
       const peakGainPct = Number(pick.max_gain_mfe_pct || 0);
-      const maxDdPct = Number(pick.max_drawdown_mae_pct || 0);
-      const totRet = Number(pick.total_return_to_today_pct || 0);
+      const peakDate = pick.peak_date || '--';
+      const daysToPeak = pick.days_to_peak || 1;
+      
+      const daysToExit = pick.raw_days_to_exit || 1;
+      const trailRet = Number(pick.trailing_exit_return_pct || 0);
+      const inTradeDip = Number(pick.active_trade_drawdown_pct ?? pick.max_drawdown_mae_pct ?? 0);
+
+      // Compute approximate exit date from signal date + daysToExit if explicit exit_date is not present
+      let exitDateLabel = pick.exit_date;
+      if (!exitDateLabel && pick.entry_date) {
+        const eD = new Date(pick.entry_date);
+        eD.setDate(eD.getDate() + Math.round(daysToExit * 1.4));
+        exitDateLabel = eD.toISOString().split('T')[0];
+      }
+
+      // Exit & Status pill formatting
+      const exitBadge = trailRet > 0
+        ? `
+          <span class="pill pill-buyzone" style="font-size:0.7rem; font-weight:800;">+${trailRet.toFixed(1)}% Exit</span>
+          <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
+        `
+        : `
+          <span class="pill" style="background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.25); font-size:0.7rem; font-weight:800;">
+            ${trailRet.toFixed(1)}% Stop
+          </span>
+          <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
+        `;
 
       tr.innerHTML = `
         <td style="text-align:center;" onclick="event.stopPropagation()">
@@ -1128,20 +1175,38 @@ function renderBacktestView() {
         </td>
         <td>
           <span class="pill" style="background:rgba(56,189,248,0.12); color:var(--accent);">Rank #${pick.rank || i + 1}</span>
-          <div style="font-weight:700; margin-top:3px;">${pick.sector}</div>
+          <div style="font-size:0.68rem; color:var(--muted); margin-top:3px;">${pick.mcap_tier ? pick.mcap_tier.split(':')[0] : 'Core'}</div>
         </td>
-        <td><strong>${pick.symbol}</strong><br><span style="font-size:0.7rem; color:var(--muted);">${pick.company_name}</span></td>
         <td>
-          <div style="font-weight:700; color:var(--purple); font-size:0.74rem;">${pick.inst_signal_at_entry}</div>
-          <div style="font-size:0.68rem; color:var(--green);">${pick.sector_rs_status_at_entry}</div>
+          <strong>${pick.symbol}</strong><br>
+          <span style="font-size:0.7rem; color:var(--muted);">${pick.company_name || pick.symbol}</span>
         </td>
-        <td>₹${Number(pick.entry_price).toFixed(2)}</td>
+        <td>
+          <div style="font-weight:700; color:var(--purple); font-size:0.74rem;">${pick.inst_signal_at_entry || 'Consolidation'}</div>
+          <div style="font-size:0.68rem; color:var(--muted);">${pick.sector || 'Equities'}</div>
+        </td>
+        <td>
+          <div style="font-weight:600; font-size:0.78rem;">${pick.entry_date || rawEntry.start_date}</div>
+        </td>
+        <td>
+          <div style="font-weight:700; font-variant-numeric:tabular-nums;">₹${entryPrice.toFixed(2)}</div>
+        </td>
         <td class="peak-highlight-cell">
-          <div style="font-weight:800; font-size:0.92rem;">₹${peakPrice.toFixed(2)} <span class="pill pill-buyzone">+${peakGainPct.toFixed(2)}%</span></div>
+          <div style="font-weight:800; font-size:0.92rem; color:var(--green);">
+            +${peakGainPct.toFixed(2)}%
+          </div>
+          <div style="font-size:0.68rem; color:var(--muted);">
+            ₹${peakPrice.toFixed(2)} &bull; ${peakDate} (${daysToPeak}d)
+          </div>
         </td>
-        <td><b style="color:${maxDdPct >= -6.0 ? 'var(--teal)' : 'var(--red)'};">${maxDdPct.toFixed(2)}%</b></td>
-        <td>₹${Number(pick.today_price).toFixed(2)}</td>
-        <td><span class="pill ${totRet >= 0 ? 'pill-buyzone' : 'pill-extended'}">${totRet >= 0 ? '+' : ''}${totRet.toFixed(2)}%</span></td>
+        <td>
+          ${exitBadge}
+        </td>
+        <td>
+          <b style="color:${inTradeDip >= -6.0 ? 'var(--teal)' : 'var(--red)'}; font-variant-numeric:tabular-nums;">
+            ${inTradeDip.toFixed(2)}%
+          </b>
+        </td>
         <td onclick="event.stopPropagation()">
           <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${pick.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
         </td>
