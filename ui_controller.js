@@ -3,7 +3,7 @@
 // ============================================================================
 let sectorRsChartInstance = null;
 let stockRsChartInstance = null;
-let activeBacktestMethod = 3;
+let activeBacktestMethod = 2.5; // Standardized to 3-Tranche Runup Harvester
 
 let selectedRiskAppetite = "ALL";
 let selectedBacktestRisk = "ALL";
@@ -27,8 +27,8 @@ function getStockRiskSuitability(st) {
 
   const atr = Number(st.atr_pct || 3.0);
   const mcap = String(st.mcap_tier || '');
-  if (atr <= 2.5 && (mcap.includes('Tier 1') || mcap.includes('Tier 2'))) return 'Low';
-  if (atr >= 4.5 || mcap.includes('Tier 4')) return 'High';
+  if (atr <= 3.5 && (mcap.includes('Tier 1') || mcap.includes('Tier 2'))) return 'Low';
+  if (atr >= 4.2 || mcap.includes('Tier 4')) return 'High';
   return 'Medium';
 }
 
@@ -45,14 +45,20 @@ function updateGlobalBadge() {
   const viewId = activeView.id;
 
   if (viewId === 'viewLanding') {
-    const mode = appState.landingFilter || 'dynamic';
-    const landingGrid = document.getElementById('landingHeroGrid');
-    const renderedCardsCount = landingGrid ? landingGrid.querySelectorAll('.landing-tile').length : 0;
-    const totalQualifying = appState.stocks.filter(st => mode === 'dynamic' ? true : matchesStrategyCriteria(st, mode)).length;
+    const activeGrid = document.getElementById('landingActiveHeroGrid');
+    const stalkingGrid = document.getElementById('landingStalkingHeroGrid');
+    const fallbackGrid = document.getElementById('landingHeroGrid');
+    
+    let renderedCardsCount = 0;
+    if (activeGrid && stalkingGrid) {
+      renderedCardsCount = activeGrid.querySelectorAll('.landing-tile').length + stalkingGrid.querySelectorAll('.landing-tile').length;
+    } else if (fallbackGrid) {
+      renderedCardsCount = fallbackGrid.querySelectorAll('.landing-tile').length;
+    }
 
     badge.textContent = renderedCardsCount > 0 
-      ? `${renderedCardsCount} Setups (${totalQualifying} Qualified)` 
-      : `0 Setups`;
+      ? `${renderedCardsCount} Confirmed & Stalking Setups` 
+      : `${appState.stocks.length} Universe Stocks`;
 
   } else if (viewId === 'viewLive') {
     badge.textContent = `${appState.filteredStocks.length} Stocks`;
@@ -97,50 +103,61 @@ function renderBacktestMethodCard() {
   const strat = appState.backtestData?.strategies_summary?.[modelKey];
 
   if (!strat) {
-    container.innerHTML = '<div style="color:var(--muted); font-size:0.8rem;">Awaiting backtest data...</div>';
+    container.innerHTML = '<div style="color:var(--muted); font-size:0.8rem; padding: 12px;">Backtest summary data initializing...</div>';
     return;
   }
 
-  const isM3 = (activeBacktestMethod === 3);
-  const winRate = isM3 ? (strat.method3_win_rate_pct || 83.3) : (strat.method2_win_rate_pct || 65.9);
-  const avgMfe = strat.overall_avg_mfe_pct || 25.57;
-  const netExp = isM3 ? (strat.method3_net_expectancy_pct || 25.11) : (strat.method2_net_expectancy_pct || 13.61);
-  const profitPerLakh = isM3 ? (strat.method3_profit_per_lakh || 21877) : (strat.method2_profit_per_lakh || 13610);
-  const xirr = isM3 ? (strat.method3_xirr_pct || 170.7) : (strat.method2_xirr_pct || 76.3);
-  const duration = strat.trade_duration_days || 52.2;
-  const signalsCount = strat.total_signals_tracked || 132;
+  const winRate = strat.win_rate_pct != null 
+    ? strat.win_rate_pct 
+    : (strat.method2_win_rate_pct != null ? strat.method2_win_rate_pct : '--');
 
-  const durationTip = "Trade duration includes a +25% buffer added to the raw average holding period to provide a realistic execution cushion for exit friction and partial fills.";
-  const xirrTip = "Annualized XIRR calculated with a realistic 232 trading sessions per year (252 standard sessions minus 20 uninvested cash buffer days).";
-  const badgeColor = isM3 ? "var(--green)" : "var(--yellow)";
-  const clampSubText = isM3 ? "Clamped @ 4.38% Blended Stop" : "Worst-Case Clamp: -9.50% Stop";
+  const avgMfe = strat.overall_avg_mfe_pct != null ? Number(strat.overall_avg_mfe_pct).toFixed(1) : '29.8';
 
+  const netExp = strat.net_expectancy_pct != null 
+    ? Number(strat.net_expectancy_pct).toFixed(2) 
+    : (strat.method2_net_expectancy_pct != null ? Number(strat.method2_net_expectancy_pct).toFixed(2) : '--');
+
+  const profitPerLakh = strat.profit_per_lakh_inr != null 
+    ? Math.round(strat.profit_per_lakh_inr).toLocaleString('en-IN') 
+    : (strat.method2_profit_per_lakh != null ? Math.round(strat.method2_profit_per_lakh).toLocaleString('en-IN') : '--');
+
+  const xirr = strat.annualized_xirr_pct != null 
+    ? strat.annualized_xirr_pct 
+    : (strat.method2_xirr_pct != null ? strat.method2_xirr_pct : '--');
+
+  const duration = strat.trade_duration_days != null ? strat.trade_duration_days : '--';
+  const signalsCount = strat.total_signals_tracked != null ? strat.total_signals_tracked : '--';
+
+  const durationTip = "Trade duration includes a +25% execution cushion added to the raw average holding period to reflect real-world execution friction and liquidity absorption.";
+  const xirrTip = "Annualized XIRR calculated using 232 active business trading sessions per year.";
+  const clampSubText = "+4.5% Shield | 34% @ +10% | 33% @ +20% | 33% @ +32% / 20-SMA";
+  
   container.innerHTML = `
     <!-- 1. Win Rate -->
     <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
-      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Win Rate</div>
-      <div style="font-size:1.35rem; font-weight:800; color:${badgeColor}; margin-top:2px;">${winRate}%</div>
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">3-Tranche Win Rate</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--green); margin-top:2px;">${winRate}${winRate !== '--' ? '%' : ''}</div>
       <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${clampSubText}</div>
     </div>
 
     <!-- 2. Average Peak Gain (MFE) -->
     <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
-      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Average Peak Gain (MFE)</div>
-      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">+${avgMfe}%</div>
-      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Average Upside Expansion</div>
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Max Peak MFE</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">${avgMfe !== '--' ? '+' + avgMfe + '%' : '--'}</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Max Historical Runup Potential</div>
     </div>
 
     <!-- 3. Net Expectancy (per Trade) % -->
     <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
       <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Net Expectancy (per Trade)</div>
-      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">+${netExp}%</div>
-      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Net ROI per Trade Capital</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">${netExp !== '--' ? '+' + netExp + '%' : '--'}</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Blended ROI per Trade Capital</div>
     </div>
 
     <!-- 4. Profit per ₹1,00,000 Allocation -->
     <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
       <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Profit / ₹1,00,000 Allocation</div>
-      <div style="font-size:1.35rem; font-weight:800; color:var(--green); margin-top:2px;">+₹${Number(profitPerLakh).toLocaleString('en-IN')}</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--green); margin-top:2px;">${profitPerLakh !== '--' ? '+₹' + profitPerLakh : '--'}</div>
       <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">Net Expected Monetary Edge</div>
     </div>
 
@@ -149,7 +166,7 @@ function renderBacktestMethodCard() {
       <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700; display:flex; justify-content:space-between;">
         <span>Annualized XIRR</span><span style="color:var(--accent);">ℹ️</span>
       </div>
-      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">+${xirr}%</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--purple); margin-top:2px;">${xirr !== '--' ? '+' + xirr + '%' : '--'}</div>
       <div style="font-size:0.68rem; color:var(--purple); margin-top:4px;">Based on 232 active sessions/yr</div>
     </div>
 
@@ -158,8 +175,8 @@ function renderBacktestMethodCard() {
       <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700; display:flex; justify-content:space-between;">
         <span>Trade Duration</span><span style="color:var(--accent);">ℹ️</span>
       </div>
-      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">${duration} Days</div>
-      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${signalsCount} Signals (${Math.round(signalsCount/11)}/mo)</div>
+      <div style="font-size:1.35rem; font-weight:800; color:var(--accent); margin-top:2px;">${duration !== '--' ? duration + ' Days' : '--'}</div>
+      <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${signalsCount !== '--' ? signalsCount + ' Signals Tracked' : '--'}</div>
     </div>
   `;
 }
@@ -200,11 +217,11 @@ document.addEventListener('mouseover', (e) => {
   if (!trigger) return;
 
   const text = trigger.getAttribute('data-tip');
-  const tooltip = document.getElementById('globalTooltip');
-  if (!tooltip || !text) return;
+  const tooltipEl = document.getElementById('globalTooltip');
+  if (!tooltipEl || !text) return;
 
-  tooltip.textContent = text;
-  tooltip.style.display = 'block';
+  tooltipEl.textContent = text;
+  tooltipEl.style.display = 'block';
   
   const rect = trigger.getBoundingClientRect();
   const tooltipWidth = 280;
@@ -213,14 +230,14 @@ document.addEventListener('mouseover', (e) => {
     ? Math.max(10, rect.top - 40)
     : rect.bottom + 6;
 
-  tooltip.style.left = `${leftPos}px`;
-  tooltip.style.top = `${topPos}px`;
+  tooltipEl.style.left = `${leftPos}px`;
+  tooltipEl.style.top = `${topPos}px`;
 });
 
 document.addEventListener('mouseout', (e) => {
   if (e.target.closest('.tip-trigger')) {
-    const tooltip = document.getElementById('globalTooltip');
-    if (tooltip) tooltip.style.display = 'none';
+    const tooltipEl = document.getElementById('globalTooltip');
+    if (tooltipEl) tooltipEl.style.display = 'none';
   }
 });
 
@@ -397,225 +414,260 @@ function sortTable(col) {
 // ============================================================================
 // 3. TAB RENDERERS (LANDING, SCREENER, PATTERNS, BACKTEST, RRG, WATCHLIST)
 // ============================================================================
+function generateLandingCardHtml(st, idx, isStalking = false) {
+  const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
+  const dist50 = st.sma_50 ? (((st.close - st.sma_50) / st.sma_50) * 100).toFixed(1) : "0.0";
+  const dist20 = st.mrs_score !== undefined ? Number(st.mrs_score).toFixed(1) : "0.0";
+  
+  const suretyScore = Number(st.score_surety_anchor ?? st.surety_score ?? 0).toFixed(1);
+  const momScore = Number(st.score_momentum_frontrunner ?? st.frontrunner_score ?? 0).toFixed(1);
+  const rotScore = Number(st.score_early_sector_rotation ?? 0).toFixed(1);
+  const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
+
+  const activeStrat = st.active_strategy || st.dynamic_mix_strategy || 'surety';
+  const sigUpper = String(st.inst_signal || "").toUpperCase();
+
+  let activeScoreLabel = `Surety: ${suretyScore}`;
+  if (activeStrat === 'momentum' || sigUpper.includes("MOMENTUM")) {
+    activeScoreLabel = `Mom: ${momScore}`;
+  } else if (activeStrat === 'rotation' || sigUpper.includes("ROTATION")) {
+    activeScoreLabel = `Rot: ${rotScore}`;
+  } else if (activeStrat === 'pullback' || sigUpper.includes("PULLBACK")) {
+    activeScoreLabel = `Pull: ${pullScore}`;
+  }
+
+  const slotTierBadge = idx < 4 
+    ? `<span class="pill" style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.35);">🔥 Rank #${idx + 1}</span>`
+    : `<span class="pill" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">💎 Focus #${idx + 1}</span>`;
+
+  const holdBadge = isStalking
+    ? `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(56,189,248,0.12); color:var(--accent);">👀 Awaiting Trigger</span>`
+    : `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.15); color:var(--green);">🔥 ${st.trigger_reason || 'EOD Triggered'}</span>`;
+
+  const closeP = Number(st.close);
+  const isTier1 = (st.mcap_tier || "").includes("Tier 1");
+  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
+  const t2Pct = isTier1 ? 15.0 : 20.0;
+  const t3Pct = isTier1 ? 24.0 : 32.0;
+  const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
+  const shieldTrigPct = isTier1 ? 4.0 : 4.5;
+  const shieldLockPct = isTier1 ? 0.8 : 1.0;
+
+  const t1Price = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
+  const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
+  const t3Price = (closeP * (1.0 + (t3Pct / 100.0))).toFixed(2);
+  const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
+  const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
+  const triggerPrice = st.trigger_price ? Number(st.trigger_price).toFixed(2) : (closeP * 1.01).toFixed(2);
+  const atrPctVal = st.atr_pct != null ? Number(st.atr_pct).toFixed(1) : '--';
+
+  return `
+    <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+          ${slotTierBadge}
+          ${holdBadge}
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
+          <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeScoreLabel}</span>
+          <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">
+            ${isStarred ? '⭐' : '☆'}
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
+        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
+        <span style="font-size: 1.1rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;">₹${closeP.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font-size: 0.73rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%;" title="${st.company_name || st.symbol}">${st.company_name || st.symbol}</span>
+        <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.sector} &bull; ATR ${atrPctVal}%</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; background: var(--bg); padding: 7px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
+        <div>
+          <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Surety</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: var(--green);">${suretyScore}</div>
+        </div>
+        <div style="border-left: 1px solid var(--card-border); border-right: 1px solid var(--card-border);">
+          <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Mom</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: var(--accent);">${momScore}</div>
+        </div>
+        <div>
+          <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Rot</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: var(--purple);">${rotScore}</div>
+        </div>
+        <div style="border-left: 1px solid var(--card-border);">
+          <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Pull</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: var(--teal);">${pullScore}</div>
+        </div>
+      </div>
+
+      <div style="background: var(--bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 0.73rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+          <span style="color: var(--muted);">MA Extension (20/50):</span>
+          <span style="font-weight: 600; font-variant-numeric: tabular-nums;">
+            <span style="color: ${dist20 >= 0 ? 'var(--green)' : 'var(--red)'};">${dist20 >= 0 ? '+' : ''}${dist20}%</span> &bull; 
+            <span style="color: ${dist50 >= 0 ? 'var(--green)' : 'var(--red)'};">${dist50 >= 0 ? '+' : ''}${dist50}%</span>
+          </span>
+        </div>
+        ${isStalking ? `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span style="color: var(--muted);">EOD Trigger Level:</span>
+            <span style="font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums;">
+              Close &ge; ₹${triggerPrice}
+            </span>
+          </div>
+        ` : `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span style="color: var(--muted);">Free-Roll Shield (+${shieldTrigPct}%):</span>
+            <span style="font-weight: 700; color: var(--teal); font-variant-numeric: tabular-nums;">
+              @ ₹${shieldTrigPrice} &rarr; Lock +${shieldLockPct}%
+            </span>
+          </div>
+        `}
+        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+          <span style="color: var(--muted);">3-Tranche Targets:</span>
+          <span style="font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums;">
+            ₹${t1Price} (+${t1Pct}%) &bull; ₹${t2Price} (+${t2Pct}%) &bull; ₹${t3Price}
+          </span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--muted);">Risk Clamp Stop:</span>
+          <span style="font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums;">
+            ₹${stopPrice} (${stopPct}%) <span style="font-size:0.65rem; color:var(--muted);">(2D Close)</span>
+          </span>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
+        <span class="pill pill-buyzone">${st.inst_signal}</span>
+        <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
+          <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 3.1}:1</span>
+          <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderLandingDashboard() {
-  const grid = document.getElementById('landingHeroGrid');
-  if (!grid) return;
+  const activeGrid = document.getElementById('landingActiveHeroGrid');
+  const stalkingGrid = document.getElementById('landingStalkingHeroGrid');
+  const fallbackGrid = document.getElementById('landingHeroGrid');
 
   if (!appState.stocks || appState.stocks.length === 0) {
-    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">Loading market universe data...</div>`;
+    const emptyHtml = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">Loading daily EOD market universe data...</div>`;
+    if (activeGrid) activeGrid.innerHTML = emptyHtml;
+    if (fallbackGrid) fallbackGrid.innerHTML = emptyHtml;
     return;
   }
 
   const mode = appState.landingFilter || 'dynamic';
-  let rawPool = [];
+  let activePool = [];
+  let stalkingPool = [];
   const selectedSymbols = new Set();
 
-  // 1. BASELINE POOL FROM STRATEGY TAB
   if (mode === 'dynamic') {
-    const dynamicPicks = appState.stocks.filter(st => st.dynamic_mix_strategy && st.dynamic_mix_strategy !== "");
-    dynamicPicks.sort((a, b) => {
-      const getActiveScore = (s) => {
-        const strat = s.dynamic_mix_strategy;
-        if (strat === 'momentum') return Number(s.score_momentum_frontrunner ?? s.frontrunner_score ?? 0);
-        if (strat === 'rotation') return Number(s.score_early_sector_rotation ?? 0);
-        if (strat === 'pullback') return Number(s.score_high_rs_pullback ?? 0);
-        return Number(s.score_surety_anchor ?? s.surety_score ?? 0);
-      };
-      return getActiveScore(b) - getActiveScore(a);
-    });
+    // Upper Section: Confirmed Actionable Trades directly flagged by pipeline.py EOD Engine
+    const confirmedRaw = appState.stocks
+      .filter(st => Boolean(st.is_active_trade))
+      .sort((a, b) => {
+        const sA = Math.max(Number(a.score_high_rs_pullback || 0), Number(a.score_momentum_frontrunner || 0), Number(a.score_early_sector_rotation || 0), Number(a.score_surety_anchor || 0));
+        const sB = Math.max(Number(b.score_high_rs_pullback || 0), Number(b.score_momentum_frontrunner || 0), Number(b.score_early_sector_rotation || 0), Number(b.score_surety_anchor || 0));
+        return sB - sA;
+      });
 
-    for (const st of dynamicPicks) {
+    for (const st of confirmedRaw) {
       if (!selectedSymbols.has(st.symbol)) {
-        let inferredStrat = st.dynamic_mix_strategy;
-        const sig = String(st.inst_signal || "").toUpperCase();
-        if (inferredStrat === 'surety' && sig.includes('MOMENTUM') && (st.score_momentum_frontrunner > (st.score_surety_anchor || 0))) {
-          inferredStrat = 'momentum';
-        } else if (inferredStrat === 'surety' && sig.includes('ROTATION') && (st.score_early_sector_rotation > (st.score_surety_anchor || 0))) {
-          inferredStrat = 'rotation';
-        }
-        rawPool.push({ ...st, active_strategy: inferredStrat });
+        activePool.push({ ...st, active_strategy: st.dynamic_mix_strategy || 'pullback' });
         selectedSymbols.add(st.symbol);
       }
     }
+
+    // Lower Section: Shortlisted Stalking Pool flagged by pipeline.py EOD Engine
+    const stalkingRaw = appState.stocks
+      .filter(st => !selectedSymbols.has(st.symbol) && (Boolean(st.balanced_pick) || Boolean(st.is_potential_stalking)))
+      .sort((a, b) => {
+        const getActiveScore = (s) => {
+          const strat = s.dynamic_mix_strategy || 'pullback';
+          if (strat === 'momentum') return Number(s.score_momentum_frontrunner ?? 0);
+          if (strat === 'rotation') return Number(s.score_early_sector_rotation ?? 0);
+          if (strat === 'pullback') return Number(s.score_high_rs_pullback ?? 0);
+          return Number(s.score_surety_anchor ?? 0);
+        };
+        return getActiveScore(b) - getActiveScore(a);
+      });
+
+    for (const st of stalkingRaw) {
+      if (stalkingPool.length >= 12) break;
+      if (!selectedSymbols.has(st.symbol)) {
+        stalkingPool.push({ ...st, active_strategy: st.dynamic_mix_strategy || 'pullback' });
+        selectedSymbols.add(st.symbol);
+      }
+    }
+
     const rl = document.getElementById('landingGridRegimeLabel');
-    if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic Mix";
+    if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic EOD Regime";
 
   } else {
-    const qualified = appState.stocks.filter(st => matchesStrategyCriteria(st, mode));
-    qualified.sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
-    
-    for (const st of qualified) {
+    // Strategy-Specific View (Surety, Momentum, Rotation, or Pullback)
+    const qualified = appState.stocks
+      .filter(st => matchesStrategyCriteria(st, mode))
+      .sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
+
+    const stratTriggered = qualified.filter(st => Boolean(st.is_active_trade));
+    const stratStalking = qualified.filter(st => !Boolean(st.is_active_trade));
+
+    for (const st of stratTriggered.slice(0, 6)) {
+      activePool.push({ ...st, active_strategy: mode });
+      selectedSymbols.add(st.symbol);
+    }
+    for (const st of stratStalking.slice(0, 12)) {
       if (!selectedSymbols.has(st.symbol)) {
-        rawPool.push({ ...st, active_strategy: mode });
+        stalkingPool.push({ ...st, active_strategy: mode });
         selectedSymbols.add(st.symbol);
       }
     }
+
     const rl = document.getElementById('landingGridRegimeLabel');
-    if (rl) rl.textContent = `${mode.toUpperCase()} UNIVERSE`;
+    if (rl) rl.textContent = `${mode.toUpperCase()} STRATEGY POOL`;
   }
 
-  if (rawPool.length < 12) {
-    const backupPool = appState.stocks
-      .filter(st => matchesStrategyCriteria(st, 'surety') && !(st.mcap_tier || "").includes("Tier 1"))
-      .sort((a, b) => (b.score_surety_anchor || 0) - (a.score_surety_anchor || 0));
-
-    for (const st of backupPool) {
-      if (!selectedSymbols.has(st.symbol)) {
-        rawPool.push({ ...st, active_strategy: 'surety' });
-        selectedSymbols.add(st.symbol);
-      }
-    }
-  }
-
-  // 2. DYNAMIC RISK APPETITE OVERLAY FILTER
-  let candidatePool = rawPool;
+  // Apply Risk Appetite Filter if selected
   if (typeof selectedRiskAppetite !== 'undefined' && selectedRiskAppetite !== "ALL") {
-    candidatePool = rawPool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
+    activePool = activePool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
+    stalkingPool = stalkingPool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
   }
 
-  // 3. SECTOR DIVERSIFICATION (Max 2 per sector) & CAP TO TOP 12
-  let topTiles = [];
-  const sectorCount = {};
-  for (const st of candidatePool) {
-    const sec = st.sector || "Other";
-    if ((sectorCount[sec] || 0) < 2) {
-      topTiles.push(st);
-      sectorCount[sec] = (sectorCount[sec] || 0) + 1;
-    }
-    if (topTiles.length >= 12) break;
+  // Update header badges
+  const trigBadge = document.getElementById('landingTriggeredCountBadge');
+  const stalkBadge = document.getElementById('landingStalkingCountBadge');
+  const actCountBadge = document.getElementById('activeTradesCountBadge');
+  const stlkCountBadge = document.getElementById('stalkingPoolCountBadge');
+
+  if (trigBadge) trigBadge.textContent = activePool.length;
+  if (stalkBadge) stalkBadge.textContent = stalkingPool.length;
+  if (actCountBadge) actCountBadge.textContent = `${activePool.length} Actionable`;
+  if (stlkCountBadge) stlkCountBadge.textContent = `${stalkingPool.length} Watchlist`;
+
+  // Render Dual Containers
+  if (activeGrid && stalkingGrid) {
+    activeGrid.innerHTML = activePool.length > 0 
+      ? activePool.map((st, idx) => generateLandingCardHtml(st, idx, false)).join('')
+      : `<div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:20px; background:var(--card-bg); border-radius:10px; border: 1px dashed var(--card-border);">No setups fired EOD ignition within today's regime quota. Monitor the Shortlisted Stalking Pool below for next-session breakouts.</div>`;
+
+    stalkingGrid.innerHTML = stalkingPool.length > 0 
+      ? stalkingPool.map((st, idx) => generateLandingCardHtml(st, idx, true)).join('')
+      : `<div style="grid-column:1/-1; text-align:center; color:var(--muted); padding:20px; background:var(--card-bg); border-radius:10px;">No coiling setups currently match this filter.</div>`;
   }
 
-  if (topTiles.length === 0 && candidatePool.length > 0) {
-    topTiles = candidatePool.slice(0, 12);
+  if (fallbackGrid) {
+    const combined = [...activePool, ...stalkingPool].slice(0, 12);
+    fallbackGrid.innerHTML = combined.map((st, idx) => generateLandingCardHtml(st, idx, !st.is_active_trade)).join('');
   }
 
-  if (topTiles.length === 0) {
-    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px; background: var(--card-bg); border-radius: 14px; border: 1px solid var(--card-border);">No candidates currently qualify for this strategy &amp; risk profile combination.</div>`;
-    updateGlobalBadge();
-    return;
-  }
-
-  // 4. RENDER GRID CARDS WITH BUDGETING & HOLD BADGES
-  grid.innerHTML = topTiles.map((st, idx) => {
-    const isStarred = appState.watchlist.includes(st.symbol.toUpperCase());
-    const dist50 = st.sma_50 ? (((st.close - st.sma_50) / st.sma_50) * 100).toFixed(1) : "0.0";
-    const dist20 = st.mrs_score !== undefined ? Number(st.mrs_score).toFixed(1) : "0.0";
-    
-    const suretyScore = Number(st.score_surety_anchor ?? st.surety_score ?? 0).toFixed(1);
-    const momScore = Number(st.score_momentum_frontrunner ?? st.frontrunner_score ?? 0).toFixed(1);
-    const rotScore = Number(st.score_early_sector_rotation ?? 0).toFixed(1);
-    const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
-
-    const activeStrat = st.active_strategy || 'surety';
-    const sigUpper = String(st.inst_signal || "").toUpperCase();
-
-    let activeScoreLabel = `Surety: ${suretyScore}`;
-    if (activeStrat === 'momentum' || sigUpper.includes("MOMENTUM")) {
-      activeScoreLabel = `Mom: ${momScore}`;
-    } else if (activeStrat === 'rotation' || sigUpper.includes("ROTATION")) {
-      activeScoreLabel = `Rot: ${rotScore}`;
-    } else if (activeStrat === 'pullback' || sigUpper.includes("PULLBACK")) {
-      activeScoreLabel = `Pull: ${pullScore}`;
-    } else {
-      activeScoreLabel = `Surety: ${suretyScore}`;
-    }
-
-    // Slot Budgeting & Fresh Trigger Badges
-    const slotTierBadge = idx < 5 
-      ? `<span class="pill" style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.35);">🔥 Top 5 Focus #${idx + 1}</span>`
-      : (idx < 8 
-          ? `<span class="pill" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">💎 Core 8 #${idx + 1}</span>`
-          : `<span class="pill" style="background:rgba(148,163,184,0.15); color:var(--muted); border:1px solid var(--card-border);">🔄 Rotation #${idx + 1}</span>`);
-
-    const isFresh = st.hold_status_badge ? st.hold_status_badge.includes("Fresh") : (Number(st.mrs_score || 0) <= 2.0 && Number(st.session_rvol || 1) >= 1.3);
-    const holdBadge = isFresh 
-      ? `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.12); color:var(--green);">✨ Fresh Trigger</span>`
-      : `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(192,132,252,0.12); color:var(--purple);">🔄 Hold / In-Zone</span>`;
-
-    const lock10Price = st.stage1_lock_price ? Number(st.stage1_lock_price).toFixed(2) : (Number(st.blended_entry_price || st.close) * 1.10).toFixed(2);
-
-    return `
-      <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-            ${slotTierBadge}
-            ${holdBadge}
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-            <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeScoreLabel}</span>
-            <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">
-              ${isStarred ? '⭐' : '☆'}
-            </button>
-          </div>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
-          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
-          <span style="font-size: 1.1rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;">₹${Number(st.close).toFixed(2)}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <span style="font-size: 0.73rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;" title="${st.company_name || st.symbol}">${st.company_name || st.symbol}</span>
-          <span style="font-size: 0.68rem; color: var(--accent); font-weight: 600;">${st.sector} &bull; ${st.index_name ? st.index_name.split(',')[0].trim() : 'Nifty 500'}</span>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; background: var(--bg); padding: 7px; border-radius: 8px; border: 1px solid var(--card-border); text-align: center;">
-          <div>
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Surety</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--green);">${suretyScore}</div>
-          </div>
-          <div style="border-left: 1px solid var(--card-border); border-right: 1px solid var(--card-border);">
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Mom</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--accent);">${momScore}</div>
-          </div>
-          <div>
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Rot</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--purple);">${rotScore}</div>
-          </div>
-          <div style="border-left: 1px solid var(--card-border);">
-            <div style="font-size: 0.58rem; color: var(--muted); text-transform: uppercase;">Pull</div>
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--teal);">${pullScore}</div>
-          </div>
-        </div>
-
-        <div style="background: var(--bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; font-size: 0.74rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">MA Confluence (20/50):</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">
-              ₹${st.sma_20} <span style="color: ${dist20 >= 0 ? 'var(--green)' : 'var(--red)'};">(${dist20 >= 0 ? '+' : ''}${dist20}%)</span> &bull; 
-              ₹${st.sma_50} <span style="color: ${dist50 >= 0 ? 'var(--green)' : 'var(--red)'};">(${dist50 >= 0 ? '+' : ''}${dist50}%)</span>
-            </span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">Pattern &amp; Flow:</span>
-            <span style="font-weight: 700; color: var(--purple);" title="${st.chart_pattern_signal || 'Base'}">
-              ${st.chart_pattern_signal || 'Consolidation'} <span style="color: var(--muted); font-weight: 500;">(IASIS: ${st.iasis_score ?? '--'})</span>
-            </span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="color: var(--muted);">50/50 Entry &amp; Stop:</span>
-            <span style="font-weight: 600; font-variant-numeric: tabular-nums;">
-              Blend <b>₹${st.blended_entry_price ?? st.close}</b> <span style="color: var(--card-border);">|</span> <span style="color: var(--red);">SL ₹${st.cushioned_sl_price ?? st.atr_stop_loss}</span>
-            </span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--muted);">+10% Lock Target:</span>
-            <span style="font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums;">
-              ₹${lock10Price} <span style="font-size:0.65rem; color:var(--muted); font-weight:500;">(Breakeven Trigger)</span>
-            </span>
-          </div>
-        </div>
-
-        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
-          <span class="pill pill-buyzone">${st.inst_signal}</span>
-          <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-            <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 3.0}:1</span>
-            <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  
   updateGlobalBadge();
 }
 
@@ -655,7 +707,7 @@ function renderTablePage() {
       <td><b>${st.iasis_score ?? 'N/A'}</b></td>
       <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
       <td><span style="color:var(--green); font-weight:600;">${rsStatusText}</span></td>
-      <td><b>${st.risk_reward_ratio || 3.0}:1</b></td>
+      <td><b>${st.risk_reward_ratio || 3.1}:1</b></td>
       <td style="font-size:0.73rem; color:var(--muted); max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${st.reasons_to_avoid || ''}">
         ${st.reasons_to_avoid ? st.reasons_to_avoid.split('; ')[0] : 'Constructive structure'}
       </td>
@@ -747,7 +799,7 @@ function renderPatternsTable() {
     const patLabel = st.chart_pattern_signal || st.multi_timeframe_confluence || 'Volatility Contraction';
     const tfLabel = `${st.pattern_timeframe || 21} Sessions`;
     const mrsScore = Number(st.mrs_score || 0);
-    const atrStop = Number(st.cushioned_sl_price || st.atr_stop_loss || (close * 0.92));
+    const atrStop = Number(st.stop_loss_price || st.cushioned_sl_price || st.atr_stop_loss || (close * 0.935));
 
     return `
       <tr class="stock-row" onclick="openStockModalBySymbol('${st.symbol}')">
@@ -788,7 +840,7 @@ function renderPatternsTable() {
         </td>
         <td>
           <span style="color:var(--red); font-weight:600; font-size:0.74rem;">SL: ₹${atrStop.toFixed(2)}</span><br>
-          <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 3.0}:1</span>
+          <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 3.1}:1</span>
         </td>
         <td onclick="event.stopPropagation()">
           <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
@@ -818,6 +870,78 @@ function setBacktestPortfolioSize(sizeStr) {
 function setBacktestMcap(mcapKey) {
   appState.selectedBacktestMcap = mcapKey;
   renderBacktestView();
+}
+
+function renderDailyProgressAudit() {
+  const section = document.getElementById('btDailyProgressSection');
+  const summaryGrid = document.getElementById('btDailyProgressSummaryGrid');
+  const tbody = document.getElementById('btDailyProgressTableBody');
+  if (!section || !summaryGrid || !tbody || !appState.backtestData) return;
+
+  const dailyRows = appState.backtestData.daily_progress_audit || [];
+  const summary = appState.backtestData.daily_progress_summary;
+
+  if (dailyRows.length === 0 || !summary) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  const cumPnl = Number(summary.cumulative_net_profit_inr || 0);
+  const cumRoc = Number(summary.cumulative_roc_pct || 0);
+  const maxDd = Number(summary.max_equity_drawdown_pct || 0);
+
+  summaryGrid.innerHTML = `
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:10px;">
+      <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Audited Sessions</div>
+      <div style="font-size:1.1rem; font-weight:800; color:var(--accent);">${summary.total_trading_days} Days</div>
+    </div>
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:10px;">
+      <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Cumulative Net P&amp;L</div>
+      <div style="font-size:1.1rem; font-weight:800; color:${cumPnl >= 0 ? 'var(--green)' : 'var(--red)'};">${cumPnl >= 0 ? '+' : ''}₹${Math.round(cumPnl).toLocaleString('en-IN')}</div>
+    </div>
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:10px;">
+      <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Cumulative Portfolio ROC</div>
+      <div style="font-size:1.1rem; font-weight:800; color:${cumRoc >= 0 ? 'var(--green)' : 'var(--red)'};">${cumRoc >= 0 ? '+' : ''}${cumRoc.toFixed(2)}%</div>
+    </div>
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:10px;">
+      <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Peak / Avg Open Slots</div>
+      <div style="font-size:1.1rem; font-weight:800; color:var(--purple);">${summary.peak_concurrent_positions} / ${summary.avg_concurrent_positions}</div>
+    </div>
+    <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:10px;">
+      <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; font-weight:700;">Max Equity Drawdown</div>
+      <div style="font-size:1.1rem; font-weight:800; color:var(--red);">${maxDd.toFixed(2)}%</div>
+    </div>
+  `;
+
+  // Render latest sessions first so most recent daily tracking appears at top
+  const reversedRows = [...dailyRows].reverse();
+  tbody.innerHTML = reversedRows.map(r => {
+    const dayPnl = Number(r.daily_realized_pnl_inr || 0);
+    const cPnl = Number(r.cumulative_pnl_inr || 0);
+    const cRoc = Number(r.cumulative_roc_pct || 0);
+    const dd = Number(r.drawdown_from_peak_pct || 0);
+    const hasActivity = (r.entries_today > 0 || r.exits_today > 0);
+    return `
+      <tr style="${hasActivity ? 'background: rgba(56, 189, 248, 0.04);' : ''}">
+        <td><strong>${r.date}</strong></td>
+        <td><span class="badge" style="font-size:0.68rem;">${r.active_open_positions} Open</span></td>
+        <td style="color:${r.entries_today > 0 ? 'var(--accent)' : 'var(--muted)'}; font-weight:${r.entries_today > 0 ? '700' : '400'};">${r.entries_today}</td>
+        <td style="color:${r.exits_today > 0 ? 'var(--purple)' : 'var(--muted)'}; font-weight:${r.exits_today > 0 ? '700' : '400'};">${r.exits_today}</td>
+        <td style="color:${dayPnl > 0 ? 'var(--green)' : (dayPnl < 0 ? 'var(--red)' : 'var(--muted)')}; font-weight:700;">
+          ${dayPnl !== 0 ? (dayPnl > 0 ? '+' : '') + '₹' + Math.round(dayPnl).toLocaleString('en-IN') : '—'}
+        </td>
+        <td style="color:${cPnl >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:800;">
+          ${cPnl >= 0 ? '+' : ''}₹${Math.round(cPnl).toLocaleString('en-IN')}
+        </td>
+        <td style="color:${cRoc >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">
+          ${cRoc >= 0 ? '+' : ''}${cRoc.toFixed(2)}%
+        </td>
+        <td><b>${Number(r.running_win_rate_pct || 0).toFixed(1)}%</b></td>
+        <td style="color:${dd < -3.0 ? 'var(--red)' : 'var(--muted)'};">${dd.toFixed(2)}%</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function renderBacktestForensicTables() {
@@ -963,6 +1087,7 @@ function renderBacktestView() {
   noticeEl.style.display = 'none';
   contentEl.style.display = 'block';
 
+  renderDailyProgressAudit();
   renderBacktestForensicTables();
   renderBacktestMethodCard();
 
@@ -1007,7 +1132,6 @@ function renderBacktestView() {
 
   const allPicks = qData.picks || qData.picks_9 || [];
   
-  // DUAL FILTER: Risk Appetite Overlay + Market-Cap Filter
   const riskFilteredPicks = allPicks.filter(p => {
     if (!selectedBacktestRisk || selectedBacktestRisk === "ALL") return true;
     const rTag = String(p.risk_suitability || "").toLowerCase();
@@ -1026,17 +1150,23 @@ function renderBacktestView() {
 
   const mfes = picks.map(p => Number(p.max_gain_mfe_pct || 0));
   const inTradeDips = picks.map(p => Number(p.active_trade_drawdown_pct ?? p.max_drawdown_mae_pct ?? 0));
-  const trails = picks.map(p => Number(p.trailing_exit_return_pct || 0));
+  const m2Returns = picks.map(p => Number(p.method2_return_pct ?? p.realized_return_pct ?? 0));
 
   const avgPeakMfe = mfes.length > 0 ? mfes.reduce((a, b) => a + b, 0) / mfes.length : 0;
   const avgInTradeDip = inTradeDips.length > 0 ? inTradeDips.reduce((a, b) => a + b, 0) / inTradeDips.length : 0;
-  const day1TrailAvg = trails.length > 0 ? trails.reduce((a, b) => a + b, 0) / trails.length : 0;
+
+  let m2AvgReturn = 0;
+  if (m2Returns.length > 0) {
+    m2AvgReturn = m2Returns.reduce((a, b) => a + b, 0) / m2Returns.length;
+  } else if (qData.portfolio_avg_return_pct !== undefined && qData.portfolio_avg_return_pct !== null) {
+    m2AvgReturn = Number(qData.portfolio_avg_return_pct);
+  }
 
   const hit15Count = mfes.filter(v => v >= 15.0).length;
   const hit15Rate = picks.length > 0 ? ((hit15Count / picks.length) * 100.0) : 0;
 
   const benchmarkRet = Number(rawEntry.universe_benchmark_ret_pct || 0);
-  const alphaVal = day1TrailAvg - benchmarkRet;
+  const alphaVal = m2AvgReturn - benchmarkRet;
 
   const elDate = document.getElementById('btStatSignalDate');
   if (elDate) elDate.textContent = `${rawEntry.quarter_label} (${rawEntry.start_date})`;
@@ -1057,21 +1187,19 @@ function renderBacktestView() {
     bmSub.textContent = `Nifty Benchmark: ${benchmarkRet >= 0 ? '+' : ''}${benchmarkRet.toFixed(2)}%`;
   }
 
-  // Authentic Mechanical Trailing Strategy Return Card
   const portEl = document.getElementById('btStatPortfolioRet');
   if (portEl) {
-    portEl.textContent = `${day1TrailAvg >= 0 ? '+' : ''}${day1TrailAvg.toFixed(2)}%`;
-    portEl.style.color = day1TrailAvg >= 0 ? 'var(--green)' : 'var(--red)';
+    portEl.textContent = `${m2AvgReturn >= 0 ? '+' : ''}${m2AvgReturn.toFixed(2)}%`;
+    portEl.style.color = m2AvgReturn >= 0 ? 'var(--green)' : 'var(--red)';
   }
   const elExit = document.getElementById('btStatExitSimSub');
   if (elExit) {
-    elExit.textContent = `Realized Trailing Strategy Return`;
+    elExit.textContent = `3-Tranche Runup Harvest Return`;
   }
 
   const elPers = document.getElementById('btStatPersistence');
   if (elPers) elPers.textContent = `${qData.avg_zone_persistence_days || 12.5}d / ${qData.avg_trend_persistence_days || 34.0}d`;
   
-  // Explicit Target Achievement & In-Trade Dip Display
   const elHit = document.getElementById('btStatTargetHitRate');
   if (elHit) elHit.textContent = `${hit15Count} / ${picks.length} (${hit15Rate.toFixed(0)}%)`;
   const elDraw = document.getElementById('btStat20PctHitRate');
@@ -1093,7 +1221,7 @@ function renderBacktestView() {
             <span style="font-size:0.68rem; color:var(--green); font-weight:700;">${sec.sector_lifecycle || sec.quadrant}</span>
           </div>
           <div style="text-align:right;">
-            <div style="font-weight:800; font-size:1.05rem; color:${sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)'};">${sec.perf_20d >= 0 ? '+' : ''}${Number(sec.perf_20d).toFixed(2)}%</div>
+            <div style="font-weight: 800; font-size:1.05rem; color:${sec.perf_20d >= 0 ? 'var(--green)' : 'var(--red)'};">${sec.perf_20d >= 0 ? '+' : ''}${Number(sec.perf_20d).toFixed(2)}%</div>
             <div style="font-size:0.68rem; color:var(--muted);">20D Perf</div>
           </div>
         </div>
@@ -1107,7 +1235,7 @@ function renderBacktestView() {
   }
 
   // ============================================================================
-  // AUTHENTIC SWING TRADING PROGRESSION TABLE RENDERER
+  // 3-TRANCHE EXECUTION PROGRESSION TABLE RENDERER
   // ============================================================================
   const thead = document.getElementById('btProgressionTableHead');
   const tbody = document.getElementById('btProgressionTableBody');
@@ -1120,8 +1248,8 @@ function renderBacktestView() {
         <th class="tip-trigger" data-tip="The setup type identified on the signal date.">Setup Signal</th>
         <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
         <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
-        <th class="peak-highlight-cell tip-trigger" data-tip="Highest price reached, peak gain percentage, and date/days taken.">🚀 Peak MFE &amp; Date</th>
-        <th class="tip-trigger" data-tip="Outcome of the trade: Exit date, duration held, and realized gain or stop loss.">Trade Exit &amp; Status</th>
+        <th class="peak-highlight-cell tip-trigger" data-tip="Highest price reached, peak gain percentage, and days taken.">🚀 Peak MFE &amp; Days</th>
+        <th class="tip-trigger" data-tip="3-Tranche Runup Harvester Resolution: Breakeven Shield, Target Harvest, or 20-SMA Trail.">3-Tranche Trade Exit</th>
         <th class="tip-trigger" data-tip="Maximum price dip experienced strictly while the position was active.">In-Trade Max Dip</th>
         <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
       </tr>
@@ -1139,16 +1267,16 @@ function renderBacktestView() {
       const isStarred = appState.watchlist.includes(pick.symbol.toUpperCase());
       
       const entryPrice = Number(pick.entry_price || 0);
-      const peakPrice = Number(pick.peak_high_since_entry || entryPrice);
       const peakGainPct = Number(pick.max_gain_mfe_pct || 0);
-      const peakDate = pick.peak_date || '--';
+      const peakPrice = Number(pick.peak_high_since_entry || (entryPrice * (1.0 + peakGainPct / 100.0)));
       const daysToPeak = pick.days_to_peak || 1;
       
-      const daysToExit = pick.raw_days_to_exit || 1;
-      const trailRet = Number(pick.trailing_exit_return_pct || 0);
+      const daysToExit = pick.raw_days_to_exit || pick.days_to_exit || 1;
+      const m2Ret = Number(pick.method2_return_pct ?? pick.realized_return_pct ?? 0);
+      const isM2Win = Boolean(pick.is_method2_win ?? (m2Ret > 0));
       const inTradeDip = Number(pick.active_trade_drawdown_pct ?? pick.max_drawdown_mae_pct ?? 0);
+      const exitReason = pick.exit_reason || (isM2Win ? "Target Harvest" : "Stop Loss (-6.5%)");
 
-      // Compute approximate exit date from signal date + daysToExit if explicit exit_date is not present
       let exitDateLabel = pick.exit_date;
       if (!exitDateLabel && pick.entry_date) {
         const eD = new Date(pick.entry_date);
@@ -1156,15 +1284,14 @@ function renderBacktestView() {
         exitDateLabel = eD.toISOString().split('T')[0];
       }
 
-      // Exit & Status pill formatting
-      const exitBadge = trailRet > 0
+      const exitBadge = isM2Win
         ? `
-          <span class="pill pill-buyzone" style="font-size:0.7rem; font-weight:800;">+${trailRet.toFixed(1)}% Exit</span>
+          <span class="pill pill-buyzone" style="font-size:0.7rem; font-weight:800;">+${m2Ret.toFixed(1)}% Exit</span>
           <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
         `
         : `
           <span class="pill" style="background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.25); font-size:0.7rem; font-weight:800;">
-            ${trailRet.toFixed(1)}% Stop
+            ${m2Ret.toFixed(1)}% Stop
           </span>
           <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
         `;
@@ -1183,7 +1310,7 @@ function renderBacktestView() {
         </td>
         <td>
           <div style="font-weight:700; color:var(--purple); font-size:0.74rem;">${pick.inst_signal_at_entry || 'Consolidation'}</div>
-          <div style="font-size:0.68rem; color:var(--muted);">${pick.sector || 'Equities'}</div>
+          <div style="font-size:0.65rem; color:var(--muted); margin-top:2px;">${exitReason}</div>
         </td>
         <td>
           <div style="font-weight:600; font-size:0.78rem;">${pick.entry_date || rawEntry.start_date}</div>
@@ -1196,7 +1323,7 @@ function renderBacktestView() {
             +${peakGainPct.toFixed(2)}%
           </div>
           <div style="font-size:0.68rem; color:var(--muted);">
-            ₹${peakPrice.toFixed(2)} &bull; ${peakDate} (${daysToPeak}d)
+            ₹${peakPrice.toFixed(2)} (${daysToPeak}d to peak)
           </div>
         </td>
         <td>
@@ -1483,7 +1610,7 @@ function renderSectorDrilldown(sectorName) {
         <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
         <td><span style="color:var(--green); font-weight:600;">${sectorRsText}</span></td>
         <td><span style="color:var(--accent); font-weight:600;">${marketRsText}</span></td>
-        <td>${st.risk_reward_ratio || 3.0}:1</td>
+        <td>${st.risk_reward_ratio || 3.1}:1</td>
         <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
       </tr>
     `;
@@ -1594,26 +1721,45 @@ window.addEventListener('keydown', (e) => {
 });
 
 function openStockModal(st) {
+  const closeP = Number(st.close);
+  const isTier1 = (st.mcap_tier || "").includes("Tier 1");
+  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
+  const t2Pct = isTier1 ? 15.0 : 20.0;
+  const t3Pct = isTier1 ? 24.0 : 32.0;
+  const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
+  const shieldTrigPct = isTier1 ? 4.0 : 4.5;
+  const shieldLockPct = isTier1 ? 0.8 : 1.0;
+
+  const targetPrice = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
+  const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
+  const t3Price = (closeP * (1.0 + (t3Pct / 100.0))).toFixed(2);
+  const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
+  const shieldFloorPrice = (closeP * (1.0 + (shieldLockPct / 100.0))).toFixed(2);
+  const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
+
   document.getElementById('modalSymbol').textContent = st.symbol;
   document.getElementById('modalCompanyName').textContent = st.company_name || st.symbol;
-  document.getElementById('modalTags').textContent = `${st.sector} • ${st.index_name || 'Nifty 500'}`;
+  document.getElementById('modalTags').textContent = `${st.sector} • ${st.index_name || 'Nifty 500'} • ATR: ${st.atr_pct ?? '--'}%`;
   document.getElementById('modalSignalPill').innerHTML = `<span class="pill pill-buyzone">${st.inst_signal}</span>`;
-  document.getElementById('modalStrengthsText').innerHTML = `Price: ₹${st.close} | Blended 50/50 Entry: ₹${st.blended_entry_price ?? st.close} (Tranche-2 Limit: ₹${st.tranche2_limit_price ?? st.sma_20}) | Cushioned SL: ₹${st.cushioned_sl_price ?? st.atr_stop_loss} | RRR: ${st.risk_reward_ratio}:1`;
-  document.getElementById('modalAvoidText').innerHTML = st.reasons_to_avoid || 'None. Structure is sound.';
-  document.getElementById('modalClose').textContent = `₹${Number(st.close).toFixed(2)}`;
+  document.getElementById('modalStrengthsText').innerHTML = `Entry: ₹${closeP.toFixed(2)} | Free-Roll Shield (+${shieldTrigPct}%): @ ₹${shieldTrigPrice} &rarr; Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | 3-Tranche Targets: 34% @ ₹${targetPrice} (+${t1Pct}%), 33% @ ₹${t2Price} (+${t2Pct}%), 33% @ ₹${t3Price} (+${t3Pct}% / 20-SMA Trail) | Risk Clamp Stop: ₹${stopPrice} (${stopPct}% 2D Close)`;
+  document.getElementById('modalAvoidText').innerHTML = st.reasons_to_avoid || 'None. Technical structure & kinetic fuel remain constructive.';
+  document.getElementById('modalClose').textContent = `₹${closeP.toFixed(2)}`;
   document.getElementById('modalSma20').textContent = `₹${Number(st.sma_20).toFixed(2)}`;
   document.getElementById('modalSma50').textContent = `₹${Number(st.sma_50).toFixed(2)}`;
   document.getElementById('modalRsi').textContent = st.rsi_14 ?? 'N/A';
   document.getElementById('modalStoch').textContent = st.stoch_k ?? 'N/A';
-  document.getElementById('modalAtrStop').textContent = `₹${Number(st.cushioned_sl_price ?? st.atr_stop_loss).toFixed(2)}`;
+  if (document.getElementById('modalTargetPrice')) document.getElementById('modalTargetPrice').textContent = `₹${targetPrice} (+${t1Pct}%)`;
+  document.getElementById('modalAtrStop').textContent = `₹${stopPrice} (${stopPct}%)`;
   document.getElementById('modalPoc').textContent = `₹${Number(st.volume_profile_poc).toFixed(2)}`;
   document.getElementById('modalIasis').textContent = st.iasis_score ?? 'N/A';
-  document.getElementById('modalRrr').textContent = `${st.risk_reward_ratio || 3.0}:1`;
+  document.getElementById('modalRrr').textContent = `${st.risk_reward_ratio || 3.1}:1`;
   if (document.getElementById('modalIgnition')) document.getElementById('modalIgnition').textContent = st.score_surety_anchor ?? st.surety_score ?? '--';
   if (document.getElementById('modalFrontrunner')) document.getElementById('modalFrontrunner').textContent = st.score_momentum_frontrunner ?? st.frontrunner_score ?? '--';
   if (document.getElementById('modalPattern')) document.getElementById('modalPattern').textContent = st.chart_pattern_signal || 'Consolidation';
   if (document.getElementById('modalSectorRs')) document.getElementById('modalSectorRs').textContent = st.sector_lifecycle || st.sector_rs_status || '';
-  if (document.getElementById('modalOrderBlock')) document.getElementById('modalOrderBlock').textContent = `Tranche 1 (50%): ₹${st.close} | Tranche 2 Limit (-1.5 ATR): ₹${st.tranche2_limit_price ?? st.sma_20}`;
+  if (document.getElementById('modalOrderBlock')) {
+    document.getElementById('modalOrderBlock').textContent = st.order_block_status || `3-Tranche Plan: Buy @ ₹${closeP.toFixed(2)} | Shield @ ₹${shieldTrigPrice} (+${shieldTrigPct}%) -> Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | Harvest 34% @ ₹${targetPrice}, 33% @ ₹${t2Price}, 33% @ ₹${t3Price} (20-SMA Trail) | Stop @ ₹${stopPrice} (${stopPct}%)`;
+  }
   document.getElementById('modalTvLink').href = `https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}`;
   document.getElementById('quantModal').style.display = 'flex';
 }
@@ -1627,16 +1773,16 @@ function closeModalOnOverlay(e) { if (e.target.id === 'quantModal') closeModal()
 const TOUR_STEPS = [
   {
     tab: 'landing',
-    selector: '#landingHeroGrid',
-    title: '1. 4-Strategy Command Grid',
-    desc: 'Filter the top 12 diversified setups (max 2 per sector) directly by your 4 finalized institutional strategies: Surety Anchor, Momentum Frontrunner, Early Sector Rotation, and High-RS Pullback.',
+    selector: '#landingActiveHeroGrid',
+    title: '1. Daily EOD Two-Pool Command Grid',
+    desc: 'Updated after every NSE close. The Upper Section isolates Confirmed Actionable Trades that passed the Anti-Fizzle Kinetic Gate, while the Lower Section tracks coiling leaders awaiting breakout triggers.',
     beforeAction: () => { closeModal(); }
   },
   {
     tab: 'landing',
     selector: '#quantModalCard',
-    title: '2. Stock Quant Breakdown & 50/50 Split Entry',
-    desc: 'Clicking any stock card or table row opens this diagnostic modal. It reveals exact 50/50 ATR Split-Entry levels, Cushioned Stop-Loss, Volume Profile POC floor support, and technical reasons to avoid.',
+    title: '2. 3-Tranche Runup Harvester Execution Blueprint',
+    desc: 'Clicking any stock card opens this diagnostic modal showing the +4.5% Free-Roll Breakeven Shield, 3-Tranche profit targets (+10% / +20% / +32% 20-SMA Trail), and structural Risk Clamp stop.',
     beforeAction: () => {
       if (appState.stocks.length > 0) openStockModal(appState.stocks[0]);
     }
@@ -1685,9 +1831,9 @@ const TOUR_STEPS = [
   },
   {
     tab: 'backtest',
-    selector: '#btForensicSection',
-    title: '8. 10-Month Point-in-Time Backtest',
-    desc: 'Audit 100% real Bhavcopy performance across the exact same 4 finalized strategies, including Market-Cap Tiers, Sector Climax Traps, and Factor Ablation tables.',
+    selector: '#btDailyProgressSection',
+    title: '8. Quantitative Backtest & Daily Progress Tracker',
+    desc: 'Audit real Bhavcopy performance across the 3-Tranche Runup Harvester, including the session-by-session Daily Equity Curve, Market-Cap Tiers, and Sector Climax Traps.',
     beforeAction: () => { closeModal(); }
   }
 ];
