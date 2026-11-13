@@ -428,10 +428,6 @@ def run_screener_engine():
     latest_date = dates[-1]
     latest_df = df_all[df_all["date"] == latest_date].copy().drop_duplicates(subset=["symbol"])
 
-    # Compute 5-session-ago Breadth for U-Shaped Macro Velocity Router
-    date_5d_ago = dates[max(0, len(dates) - 6)]
-    df_5d_ago = df_all[df_all["date"] == date_5d_ago][["symbol", "close"]].rename(columns={"close": "close_5d_ago"}).drop_duplicates(subset=["symbol"])
-
     lookback_idx_20 = max(0, len(dates) - 20)
     lookback_date_20 = dates[lookback_idx_20]
     df_20_ago = df_all[df_all["date"] == lookback_date_20][["symbol", "close"]].rename(columns={"close": "close_20d_ago"}).drop_duplicates(subset=["symbol"])
@@ -497,20 +493,39 @@ def run_screener_engine():
         if close <= 0:
             continue
 
-        sma_20 = round(float(np.mean(prices[-20:])), 2)
+        sma_20_series = p_series.rolling(20, min_periods=10).mean()
+        sma_20 = round(float(sma_20_series.iloc[-1]), 2)
+        sma_20_10d_ago = float(sma_20_series.iloc[-min(11, len(sma_20_series))])
+        sma20_slope_10d = round(float(((sma_20 - sma_20_10d_ago) / (sma_20_10d_ago + 1e-5)) * 100.0), 2)
+
         ema_10 = float(p_series.ewm(span=10, adjust=False).mean().iloc[-1])
         ema_21 = float(p_series.ewm(span=21, adjust=False).mean().iloc[-1])
+
         sma_50_series = p_series.rolling(50, min_periods=20).mean()
         sma_50 = round(float(sma_50_series.iloc[-1]), 2)
         sma_50_5d_ago = float(sma_50_series.iloc[-min(6, len(sma_50_series))])
         sma_50_10d_ago = float(sma_50_series.iloc[-min(10, len(sma_50_series))])
+        sma_50_20d_ago = float(sma_50_series.iloc[-min(21, len(sma_50_series))])
         sma_50_rising = sma_50 >= (sma_50_10d_ago * 0.998)
+        sma50_slope_20d = round(float(((sma_50 - sma_50_20d_ago) / (sma_50_20d_ago + 1e-5)) * 100.0), 2)
+
         sma_200 = round(float(p_series.rolling(min(200, n_bars), min_periods=40).mean().iloc[-1]), 2)
 
         if np.isnan(sma_20) or np.isnan(sma_50) or np.isnan(sma_200):
             continue
 
         above_sma50_5d_ago = bool(prices[-min(6, n_bars)] >= sma_50_5d_ago)
+
+        # Weekly Multi-Timeframe Alignment (W-FRI Resample)
+        w_df = grp[["date", "close"]].copy()
+        w_df["dt"] = pd.to_datetime(w_df["date"])
+        w_close = w_df.set_index("dt")["close"].resample("W-FRI").last().dropna()
+        if len(w_close) >= 12:
+            w_ema10 = float(w_close.ewm(span=10, adjust=False).mean().iloc[-1])
+            w_sma20 = float(w_close.rolling(min(20, len(w_close)), min_periods=5).mean().iloc[-1])
+            weekly_aligned = bool((close >= w_ema10) and (w_ema10 >= w_sma20 * 0.995))
+        else:
+            weekly_aligned = bool((close > sma_50) and (sma_50 > sma_200))
 
         tr_arr = np.maximum(
             highs[-20:] - lows[-20:],
@@ -533,7 +548,7 @@ def run_screener_engine():
         up_vol_15 = np.sum(sub_15_vols[sub_15_diff > 0]) if np.any(sub_15_diff > 0) else 1.0
         down_vol_15 = np.sum(sub_15_vols[sub_15_diff < 0]) if np.any(sub_15_diff < 0) else 1.0
         supply_exhaustion_ratio = round(float(up_vol_15 / (down_vol_15 + 1e-5)), 2)
-        is_supply_exhausted = supply_exhaustion_ratio >= 3.5
+        is_supply_exhausted = supply_exhaustion_ratio >= 2.5
 
         stock_series_full = grp.set_index("date")["close"]
         common_s_idx_full = stock_series_full.index.intersection(market_benchmark.index)
@@ -548,14 +563,26 @@ def run_screener_engine():
             rs_acceleration = 0.0
         is_rs_accelerating = rs_acceleration > 0.0
 
+        # RSI-14 & 10-Day RSI Change (Bearish Divergence Detector)
         diffs = np.diff(prices)
-        avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-        avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-        rsi_14 = round(100.0 - (100.0 / (1.0 + (avg_g / (avg_l + 1e-5)))), 1)
+        if len(diffs) >= 24:
+            d_ser = pd.Series(diffs)
+            g_ser = d_ser.clip(lower=0).rolling(14, min_periods=5).mean()
+            l_ser = (-d_ser.clip(upper=0)).rolling(14, min_periods=5).mean()
+            rsi_hist = (100.0 - (100.0 / (1.0 + (g_ser / (l_ser + 1e-5))))).dropna().values
+            rsi_14 = round(float(rsi_hist[-1]), 1)
+            rsi_10d_ago = float(rsi_hist[-min(11, len(rsi_hist))])
+            rsi_10d_chg = round(float(rsi_14 - rsi_10d_ago), 2)
+        else:
+            avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
+            avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
+            rsi_14 = round(100.0 - (100.0 / (1.0 + (avg_g / (avg_l + 1e-5)))), 1)
+            rsi_10d_chg = 0.0
 
         min_l, max_h = np.min(lows[-20:]), np.max(highs[-20:])
         stoch_k = round(float(np.clip((prices[-1] - min_l) / (max_h - min_l + 1e-5) * 100.0, 0, 100)), 1)
 
+        # True 50-bar Volume-Profile Histogram POC
         hist, bins = np.histogram(prices[-50:], bins=10, weights=volumes[-50:])
         poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist) + 1]) / 2.0), 2)
 
@@ -661,6 +688,7 @@ def run_screener_engine():
         stk_ret_126 = (close / (prices[-min(126, n_bars)] + 1e-5)) - 1.0
         stk_ret_250 = (close / (prices[0] + 1e-5)) - 1.0
         prior_63d_pct = round(float(stk_ret_63 * 100.0), 2)
+        ret_250d_pct = round(float(stk_ret_250 * 100.0), 2)
 
         rs_spread_21 = (stk_ret_21 - bm_ret_21) * 100.0
         rs_spread_63 = (stk_ret_63 - bm_ret_63) * 100.0
@@ -681,6 +709,8 @@ def run_screener_engine():
         sma_200_slope = (sma_200 - sma_200_20d_ago) / (sma_200_20d_ago + 1e-5)
         h_52 = float(np.max(highs))
         l_52 = float(np.min(lows))
+        pct_of_52w_high = round(float((close / (h_52 + 1e-5)) * 100.0), 2)
+
         trend_score = 0.0
         if close > sma_200:
             trend_score += 25.0
@@ -702,10 +732,7 @@ def run_screener_engine():
         deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
         deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
 
-        # ---------------------------------------------------------------------
-        # EMPIRICAL KINETIC ALPHA SCORE (REPLACING INVERTED LOW-VOLATILITY BIAS)
-        # Rewards ATR Fuel (3.2%-5.5%), Healthy Coil Depth (15%-28%), and Delivery Flow
-        # ---------------------------------------------------------------------
+        # Empirical Kinetic Alpha Score
         atr_fuel_pts = float(np.clip(((atr_pct - 2.2) / 2.4) * 30.0, 2.0, 30.0))
         base_coil_pts = float(np.clip(25.0 * np.exp(-((base_depth_pct - 21.5) ** 2) / 65.0), 3.0, 25.0)) if close >= sma_50 else 4.0
         flow_pts = float(np.clip(30.0 * (np.log1p(min(deliv_flow_ratio, 6.0)) / np.log1p(4.0)), 4.0, 30.0))
@@ -718,7 +745,11 @@ def run_screener_engine():
             iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
 
         # ---------------------------------------------------------------------
-        # 3-TRANCHE RUNUP EXECUTION LEVELS (91%+ WIN RATE + BIG TREND CAPTURE)
+        # 50/50 DUAL-STAGE EXECUTION PLAN (SYNCHRONIZED WITH BACKTEST.PY)
+        #   - Shield: At +4.5% (+4.0% T1), lock +1.0% (+0.8% T1) if Close < 10-EMA
+        #   - 50% Core Harvest: Book at +10.0% (+8.0% T1)
+        #   - 50% Trend Runner: Trail on 2 consecutive closes < 20-SMA * 0.97 (up to +35%)
+        #   - Stop: 2-Close -6.5% (-5.0% T1) / -8.5% 1D / -9.5% Intraday Catastrophe
         # ---------------------------------------------------------------------
         is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
         atr_mult = 2.8 if is_tier1_sym else 2.5
@@ -728,15 +759,13 @@ def run_screener_engine():
         structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
 
         t1_target_pct = 8.0 if is_tier1_sym else 10.0
-        t2_target_pct = 15.0 if is_tier1_sym else 20.0
-        t3_target_pct = 24.0 if is_tier1_sym else 32.0
+        t2_target_pct = 22.0 if is_tier1_sym else 35.0
         m2_stop_pct = -5.0 if is_tier1_sym else -6.5
         shield_trig_pct = 4.0 if is_tier1_sym else 4.5
         shield_lock_pct = 0.8 if is_tier1_sym else 1.0
 
         target_price = round(close * (1.0 + (t1_target_pct / 100.0)), 2)
         tranche2_breakout_price = round(close * (1.0 + (t2_target_pct / 100.0)), 2)
-        tranche3_climax_price = round(close * (1.0 + (t3_target_pct / 100.0)), 2)
         risk_clamp_stop = round(close * (1.0 + (m2_stop_pct / 100.0)), 2)
         shield_trigger_price = round(close * (1.0 + (shield_trig_pct / 100.0)), 2)
         shield_floor_price = round(close * (1.0 + (shield_lock_pct / 100.0)), 2)
@@ -746,17 +775,17 @@ def run_screener_engine():
         cushioned_sl_price = structural_stop
         stage1_lock_price = shield_floor_price
 
-        rrr_calc = round(min(8.0, max(1.5, abs(t2_target_pct / m2_stop_pct))), 1)
+        rrr_calc = round(min(8.0, max(1.5, abs(t1_target_pct / m2_stop_pct))), 1)
 
         order_block_status = (
-            f"3-Tranche Runup Plan: Entry ₹{close:.2f} | "
-            f"Shield: At ₹{shield_trigger_price:.2f} (+{shield_trig_pct:.1f}%), lock Stop @ ₹{shield_floor_price:.2f} (+{shield_lock_pct:.1f}%) | "
-            f"Harvest: 34% @ ₹{target_price:.2f} (+{t1_target_pct:.0f}%), 33% @ ₹{tranche2_breakout_price:.2f} (+{t2_target_pct:.0f}%), "
-            f"33% @ ₹{tranche3_climax_price:.2f} (+{t3_target_pct:.0f}% / 20-SMA Trail) | SL: ₹{risk_clamp_stop:.2f} ({m2_stop_pct:.1f}%)"
+            f"50/50 Dual-Stage Plan: Entry ₹{close:.2f} | "
+            f"Shield: At ₹{shield_trigger_price:.2f} (+{shield_trig_pct:.1f}%), lock ₹{shield_floor_price:.2f} (+{shield_lock_pct:.1f}% if <10EMA) | "
+            f"Harvest: 50% @ ₹{target_price:.2f} (+{t1_target_pct:.0f}%), 50% Runner @ ₹{tranche2_breakout_price:.2f} (+{t2_target_pct:.0f}% / 2-Close 20-SMA) | "
+            f"Stop: ₹{risk_clamp_stop:.2f} ({m2_stop_pct:.1f}% 2D Close)"
         )
 
         # ---------------------------------------------------------------------
-        # TECHNICAL IGNITION STATE MACHINE + ANTI-FIZZLE KINETIC GATE
+        # TECHNICAL IGNITION STATE MACHINE + 500-DAY STRUCTURAL BULL-TRAP SHIELD
         # ---------------------------------------------------------------------
         prev_c, prev_h, prev_l = prices[-2], highs[-2], lows[-2]
         prev2_h = max(prev_h, highs[-3]) if n_bars >= 3 else prev_h
@@ -765,9 +794,8 @@ def run_screener_engine():
         prior_vol_quiet = (volumes[-2] <= vol_20_avg * 1.08) or (prior_2d_range_pct <= 6.0)
 
         is_not_extended = dist_from_20 <= 0.040
-        has_structural_floor = close >= sma_50 * 0.985
+        has_structural_floor = (close >= sma_50 * 0.985) and (close >= poc)
 
-        # Trigger A: Pocket Pivot / Coil Breakout
         is_ignition_fired = bool(
             has_structural_floor and
             is_not_extended and
@@ -778,11 +806,9 @@ def run_screener_engine():
             (ema_10 >= sma_50 * 0.99) and
             (close >= sma_20 * 0.995) and
             (cr >= 0.65) and
-            (session_rvol >= 1.25) and
-            (close >= poc * 0.99)
+            (session_rvol >= 1.25)
         )
 
-        # Trigger B: 20-SMA / 10-EMA / POC Support Reclaim
         tested_support = bool(
             (prev_l <= sma_20 * 1.012) or
             (low_c <= sma_20 * 1.012) or
@@ -800,25 +826,30 @@ def run_screener_engine():
             (close >= sma_50 * 0.990)
         )
 
-        # Forensic Anti-Fizzle Kinetic Quality Gate (Validated across 1,327 trades)
+        no_bearish_rsi_div = not ((pct_of_52w_high >= 90.0) and (rsi_14 < 54.0) and (rsi_10d_chg < -4.0))
+
         passes_anti_fizzle_gate = bool(
             (close >= sma_200) and
             (close >= sma_50 * 0.985) and
-            (close >= poc * 0.99) and
-            (atr_pct >= 3.10) and
-            (15.0 <= base_depth_pct <= 28.0) and
-            (rsi_14 <= 62.5) and
-            (stoch_k <= 75.0) and
-            (up_down_ratio >= 1.25)
+            (close >= poc) and
+            (weekly_aligned) and
+            (no_bearish_rsi_div) and
+            (ret_250d_pct >= 12.0) and
+            (pct_of_52w_high >= 82.0) and
+            (dist_from_20 <= 0.040) and
+            (dist_from_50_pct <= 14.0) and
+            (atr_pct >= 3.05) and
+            (up_down_ratio >= 1.20)
         )
 
-        # Broader Stalking Quality Gate for Lower Watchlist Pool
         passes_quality_gate = bool(
             (close >= sma_200) and
             (close >= sma_50 * 0.985) and
-            (close >= poc * 0.99) and
+            (close >= poc) and
+            (no_bearish_rsi_div) and
+            (ret_250d_pct >= 10.0) and
+            (pct_of_52w_high >= 80.0) and
             (up_down_ratio >= 1.15) and
-            (base_depth_pct <= 28.0) and
             (atr_pct >= 2.85)
         )
 
@@ -837,7 +868,7 @@ def run_screener_engine():
             is_potential_stalking = True
         else:
             execution_state = "❌ EVICTED_BREAKDOWN"
-            trigger_reason = "Below Kinetic Fuel / 50-SMA / POC Floor"
+            trigger_reason = "Below Structural Momentum / 50-SMA / POC Floor"
             is_active_trade = False
             is_potential_stalking = False
 
@@ -846,20 +877,24 @@ def run_screener_engine():
             reasons_to_avoid.append("Price trading below 200-day SMA (heavy overhead supply)")
         if close < sma_50:
             reasons_to_avoid.append("Price below intermediate 50-day SMA (intermediate downtrend)")
-        if atr_pct < 3.0:
-            reasons_to_avoid.append(f"Low kinetic fuel (ATR {atr_pct:.1f}% < 3.1% threshold; prone to fizzles)")
+        if close < poc:
+            reasons_to_avoid.append(f"Price below Volume Profile POC (₹{poc:.2f} overhead resistance)")
+        if ret_250d_pct < 12.0:
+            reasons_to_avoid.append(f"Weak 1-year structural trend ({ret_250d_pct:+.1f}% < +12.0% floor)")
+        if pct_of_52w_high < 82.0:
+            reasons_to_avoid.append(f"Too far below 52W High ({pct_of_52w_high:.1f}% < 82.0% threshold)")
+        if not no_bearish_rsi_div:
+            reasons_to_avoid.append(f"Bearish RSI divergence near highs (RSI {rsi_14:.1f}, 10D chg {rsi_10d_chg:+.1f})")
+        if not weekly_aligned:
+            reasons_to_avoid.append("Weekly multi-timeframe trend not aligned (below W-10EMA/W-20SMA)")
+        if atr_pct < 3.05:
+            reasons_to_avoid.append(f"Low kinetic fuel (ATR {atr_pct:.1f}% < 3.05% threshold; prone to fizzles)")
         if is_extended_danger:
             reasons_to_avoid.append("Price extended >8% above 20 SMA (high risk of mean-reversion pullback)")
-        if rsi_14 > 65.0:
-            reasons_to_avoid.append(f"Oscillator stretched (RSI {rsi_14:.0f} > 62.5; wait for pullback)")
-        if prior_63d_pct > 38.0:
-            reasons_to_avoid.append(f"Already ran +{prior_63d_pct:.0f}% in 63 days (late-stage exhaustion risk)")
         if rs_is_lagging:
             reasons_to_avoid.append("Relative strength line making 63-day lows vs benchmark")
-        if up_down_ratio < 1.05:
-            reasons_to_avoid.append("Weak accumulation (Up/Down volume ratio < 1.05)")
-        if base_depth_pct > 30.0:
-            reasons_to_avoid.append("Consolidation base too deep (>30% correction, damaged structure)")
+        if up_down_ratio < 1.15:
+            reasons_to_avoid.append("Weak accumulation (Up/Down volume ratio < 1.15)")
 
         if len(common_s_idx) > 10:
             stk_norm = (stock_series.loc[common_s_idx] / stock_series.loc[common_s_idx[0]]) * 100.0
@@ -882,11 +917,15 @@ def run_screener_engine():
             "sma_50": sma_50,
             "sma_200": sma_200,
             "sma_50_rising": sma_50_rising,
+            "sma20_slope_10d": sma20_slope_10d,
+            "sma50_slope_20d": sma50_slope_20d,
             "above_sma50_5d_ago": above_sma50_5d_ago,
+            "weekly_aligned": weekly_aligned,
             "stage2_aligned": bool((close > sma_50) and (sma_50 > sma_200) and sma_50_rising),
             "ema_10": ema_10,
             "ema_21": ema_21,
             "rsi_14": rsi_14,
+            "rsi_10d_chg": rsi_10d_chg,
             "stoch_k": stoch_k,
             "volume_profile_poc": poc,
             "chart_pattern_signal": pattern,
@@ -901,7 +940,7 @@ def run_screener_engine():
             "stop_loss_price": risk_clamp_stop,
             "target_pct": t1_target_pct,
             "risk_clamp_pct": m2_stop_pct,
-            "benchmark_peak_mfe_pct": 29.77,
+            "benchmark_peak_mfe_pct": 32.12,
             "tranche2_limit_price": tranche2_limit_price,
             "tranche2_breakout_price": tranche2_breakout_price,
             "tranche2_Breakout_price": tranche2_breakout_price,
@@ -921,6 +960,7 @@ def run_screener_engine():
             "smooth_deliv_pct": round(float(np.mean(deliv_pcts[-min(20, n_bars):])), 1),
             "high_52w": h_52,
             "low_52w": l_52,
+            "pct_of_52w_high": pct_of_52w_high,
             "risk_reward_calc": rrr_calc,
             "order_block_status": order_block_status,
             "session_rvol": session_rvol,
@@ -937,7 +977,10 @@ def run_screener_engine():
             "dist_from_50_pct": dist_from_50_pct,
             "dist_from_200_pct": dist_from_200_pct,
             "prior_63d_pct": prior_63d_pct,
+            "ret_250d_pct": ret_250d_pct,
             "base_depth_pct": round(base_depth_pct, 2),
+            "trig_a": is_ignition_fired,
+            "trig_b": is_reclaim_fired,
             "trigger_price": trigger_price,
             "pyramid_confluence_price": pyramid_confluence_price,
             "execution_state": execution_state,
@@ -1022,9 +1065,9 @@ def run_screener_engine():
     lag20_series = ranked["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else np.nan)
     universe_20d_ret = float(((ranked["close"] / (lag20_series + 1e-5)) - 1.0).mean() * 100.0)
 
-    tier_20d_ret = ranked.groupby("mcap_tier").apply(
-        lambda g: float((((g["close"] / (g["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else g.loc[s, "close"]) + 1e-5)) - 1.0).mean() * 100.0))
-    ).to_dict()
+    ranked["_ret_20d"] = ((ranked["close"] / (lag20_series + 1e-5)) - 1.0) * 100.0
+    tier_20d_ret = ranked.groupby("mcap_tier")["_ret_20d"].mean().to_dict()
+    ranked.drop(columns=["_ret_20d"], inplace=True)
 
     def compute_selective_tier_mult(row):
         tier = str(row["mcap_tier"])
@@ -1032,7 +1075,6 @@ def run_screener_engine():
         ret_diff = tier_20d_ret.get(tier, 0.0) - universe_20d_ret
         is_poc_supported = float(row["close"]) >= float(row["volume_profile_poc"])
 
-        # Forensics: Tier 1 Large Caps average +8.6% MFE vs +22.3% for Tier 4 / +16.5% Tier 2
         if "Tier 1" in tier:
             if ret_diff > 1.5 and is_poc_supported and float(row.get("trend_score", 0)) >= 75.0:
                 return 0.96
@@ -1048,7 +1090,6 @@ def run_screener_engine():
 
     global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
     tier_rs_pct = ranked.groupby("mcap_tier")["raw_multi_rs"].rank(pct=True) * 100.0
-    # Forensics: Pure Market-Wide Stock RS (>=80) is #1 predictor of win rate and MFE
     rs_percentile = ((0.80 * global_rs_pct) + (0.20 * tier_rs_pct)).round(1)
     ranked["blended_rs_percentile"] = rs_percentile
 
@@ -1090,22 +1131,38 @@ def run_screener_engine():
     tier_mult = ranked["tier_climax_mult"]
     sec_adj = np.clip(ranked["sector_climax_mult"], 0.84, 1.08)
 
-    # Anti-Fizzle Kinetic Bonus: Rewards ATR >= 3.15% and RSI <= 62.5 (Quintiles 4-5)
     kinetic_mult = np.where(
-        (ranked["atr_pct"] >= 3.20) & (ranked["rsi_14"] <= 62.5),
+        (ranked["atr_pct"] >= 3.20) & (ranked["rsi_14"] <= 66.0),
         1.08,
         np.where(ranked["atr_pct"] < 2.80, 0.72, 0.96),
     )
 
-    # =========================================================================
-    # 1. STRATEGY 1: HIGH-SURETY INSTITUTIONAL ANCHOR (REFINED FORENSIC WEIGHTS)
-    #    Anchored on POC Floor + Delivery Absorption + Healthy ATR >= 2.85%
-    # =========================================================================
     dist_poc_pct_series = np.where(
         ranked["volume_profile_poc"] > 0,
         ((ranked["close"] - ranked["volume_profile_poc"]) / (ranked["volume_profile_poc"] + 1e-5)) * 100.0,
         0.0,
     )
+    ranked["dist_poc_pct"] = np.round(dist_poc_pct_series, 2)
+
+    # =========================================================================
+    # CROSS-TAB + WEEKLY MTF CONFLUENCE MULTIPLIER (SYNCHRONIZED WITH BACKTEST.PY)
+    # =========================================================================
+    ranked["sector_internal_rank"] = ranked.groupby("sector")["raw_multi_rs"].rank(ascending=False, method="min")
+    sec_avg_rs_map = ranked.groupby("sector")["raw_multi_rs"].mean().to_dict()
+    ranked["beats_own_sector"] = ranked["raw_multi_rs"] >= ranked["sector"].map(lambda s: sec_avg_rs_map.get(s, -999.0))
+
+    near_52w_bonus = np.where(ranked["pct_of_52w_high"] >= 88.0, 1.05, 0.97)
+    supply_ex_bonus = np.where(ranked["supply_exhaustion_ratio"] >= 2.5, 1.06, 1.00)
+    weekly_mtf_bonus = np.where(ranked["weekly_aligned"], 1.03, 0.94)
+    top3_sec_poc_bonus = np.where(
+        (ranked["sector_internal_rank"] <= 3) & (dist_poc_pct_series >= 0.0) & (dist_poc_pct_series <= 5.5),
+        1.05,
+        1.00,
+    )
+    confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
+    ranked["confluence_booster"] = np.round(confluence_booster, 3)
+
+    # 1. Strategy 1: High-Surety Institutional Anchor
     poc_floor_pts = 28.0 * np.exp(-((dist_poc_pct_series - 2.0) ** 2) / 14.0)
     atr_anchor_pts = np.clip(((ranked["atr_pct"] - 2.3) / 2.2) * 22.0, 3.0, 22.0)
     deliv_anchor_pts = np.clip(25.0 * (np.log1p(np.minimum(ranked["smooth_deliv_expansion"], 5.0)) / np.log1p(3.5)), 4.0, 25.0)
@@ -1117,14 +1174,13 @@ def run_screener_engine():
         + (0.15 * rs_percentile)
         + (0.10 * ranked["iasis_score"])
     )
-    ranked["surety_score"] = (raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult).clip(5.0, 99.0).round(1)
+    ranked["surety_score"] = (
+        raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster
+    ).clip(5.0, 99.0).round(1)
     ranked["score_surety_anchor"] = ranked["surety_score"]
 
-    # =========================================================================
-    # 2. STRATEGY 2: MOMENTUM FRONTRUNNER (REFINED FORENSIC WEIGHTS)
-    #    Top-Decile RS (>=80) + Trend Separation (+6% above 50SMA) + RSI <= 62.5
-    # =========================================================================
-    rsi_headroom_mult = np.where(ranked["rsi_14"] <= 62.5, 1.05, 0.78)
+    # 2. Strategy 2: Momentum Frontrunner
+    rsi_headroom_mult = np.where(ranked["rsi_14"] <= 68.0, 1.05, 0.82)
     dist50_sweet_pts = np.clip(((ranked["dist_from_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
     ranked["score_momentum_frontrunner"] = (
         (0.45 * rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * ranked["trend_score"] + dist50_sweet_pts)
@@ -1133,24 +1189,20 @@ def run_screener_engine():
         * tier_mult
         * kinetic_mult
         * rsi_headroom_mult
+        * confluence_booster
     ).clip(5.0, 99.0).round(1)
 
-    # =========================================================================
-    # 3. STRATEGY 3: EARLY SECTOR ROTATION LEADER (REFINED DUAL-RS WEIGHTS)
-    #    Outperforms Own Sector (beta_neutral_mrs > 0) + Early Rotation/Leadership
-    # =========================================================================
+    # 3. Strategy 3: Early Sector Rotation Leader
     ranked["score_early_sector_rotation"] = (
         (0.35 * rs_percentile + 0.25 * peer_rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * ranked["ignition_score"])
         * rot_struct_penalty
         * poc_multiplier
         * tier_mult
         * kinetic_mult
+        * confluence_booster
     ).clip(5.0, 99.0).round(1)
 
-    # =========================================================================
-    # 4. STRATEGY 4: HIGH-RS PULLBACK STRUCTURE (85%+ WIN-RATE SNIPER)
-    #    Top-Decile RS (>=80) dipping near 20-SMA (-4.5% to +1.5%) + Stoch <= 60
-    # =========================================================================
+    # 4. Strategy 4: High-RS Pullback Structure
     pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.0)) ** 2) / 8.5)
     stoch_oversold_pts = 20.0 * np.clip(1.0 - (ranked["stoch_k"] / 65.0), 0.0, 1.0)
     cr_series = ranked["closing_range"]
@@ -1167,7 +1219,114 @@ def run_screener_engine():
         * pullback_penalty
         * tier_mult
         * kinetic_mult
+        * confluence_booster
     ).clip(5.0, 99.0).round(1)
+
+    # =========================================================================
+    # 500-DAY DECISION-TREE CORE GATE & STRATEGY-SPECIFIC QUALIFICATIONS
+    # (100% SYNCHRONIZED WITH VERIFIED BACKTEST.PY)
+    # =========================================================================
+    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
+    breadth_5d_ago_pct = float((ranked["above_sma50_5d_ago"].mean()) * 100.0)
+    breadth_5d_change = round(market_breadth_pct - breadth_5d_ago_pct, 2)
+
+    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
+    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
+
+    active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
+
+    if market_breadth_pct >= 55.0:
+        regime_label = f"🟢 Bull Expansion ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
+        max_active_quota = 4
+        branch_ok = (ranked["atr_pct"] >= 3.05) & (rs_percentile >= 76.0)
+        quotas = {
+            "score_high_rs_pullback": 4,
+            "score_momentum_frontrunner": 4,
+            "score_early_sector_rotation": 2 if active_rot > 0 else 0,
+            "score_surety_anchor": 2,
+        }
+    elif 48.0 <= market_breadth_pct < 55.0:
+        regime_label = f"🔄 Selective Mid-Tape ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
+        max_active_quota = 2
+        branch_ok = (rs_percentile >= 78.0) & (
+            (ranked["atr_pct"] >= 3.45) | ((ranked["sma20_slope_10d"] >= 0.96) & (ranked["session_rvol"] <= 1.05))
+        )
+        quotas = {
+            "score_high_rs_pullback": 4,
+            "score_surety_anchor": 4,
+            "score_momentum_frontrunner": 2,
+            "score_early_sector_rotation": 2,
+        }
+    elif market_breadth_pct < 28.0:
+        regime_label = f"⚡ Capitulation Spring ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
+        max_active_quota = 3
+        branch_ok = (rs_percentile >= 82.0) & (ranked["atr_pct"] >= 3.40)
+        quotas = {
+            "score_high_rs_pullback": 5,
+            "score_early_sector_rotation": 3 if active_rot > 0 else 0,
+            "score_surety_anchor": 2,
+            "score_momentum_frontrunner": 2,
+        }
+    else:
+        regime_label = f"🛑 Chop Dead-Zone Lockdown ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
+        max_active_quota = 0
+        branch_ok = pd.Series(False, index=ranked.index)
+        quotas = {
+            "score_high_rs_pullback": 5,
+            "score_surety_anchor": 4,
+            "score_momentum_frontrunner": 2,
+            "score_early_sector_rotation": 1,
+        }
+
+    ex_large = ~ranked["mcap_tier"].str.contains("Tier 1", na=False)
+    tree_core_gate = ex_large & ranked["passes_anti_fizzle_gate"] & branch_ok & (ranked["trig_a"] | ranked["trig_b"])
+
+    ranked["qual_s1_surety"] = (
+        tree_core_gate
+        & ranked["dist_poc_pct"].between(0.0, 5.5)
+        & (ranked["flow_ratio"] >= 1.35)
+        & (ranked["sma50_slope_20d"] >= 2.5)
+        & (ranked["up_down_vol_ratio"] >= 1.25)
+    )
+    ranked["qual_s2_momentum"] = (
+        tree_core_gate
+        & (rs_percentile >= 82.0)
+        & (ranked["sma50_slope_20d"] >= 4.5)
+        & (ranked["pct_of_52w_high"] >= 88.0)
+        & ((market_breadth_pct >= 55.0) | (ranked["atr_pct"] >= 3.55))
+        & (ranked["up_down_vol_ratio"] >= 1.30)
+    )
+    ranked["qual_s3_rotation"] = (
+        tree_core_gate
+        & (ranked["sector_internal_rank"] <= 3)
+        & (ranked["beats_own_sector"])
+        & (rs_percentile >= 80.0)
+        & (ranked["sma50_slope_20d"] >= 3.0)
+        & ranked["dist_poc_pct"].between(0.0, 7.5)
+        & (ranked["flow_ratio"] >= 1.25)
+    )
+    ranked["qual_s4_pullback"] = (
+        tree_core_gate
+        & (rs_percentile >= 78.0)
+        & ranked["mrs_score"].between(-3.5, 2.5)
+        & (ranked["trig_b"])
+        & ((ranked["session_rvol"] <= 1.15) | (ranked["atr_pct"] >= 3.45))
+        & (ranked["sma50_slope_20d"] >= 2.5)
+    )
+
+    ranked["strat_confluence_count"] = (
+        ranked["qual_s1_surety"].astype(int)
+        + ranked["qual_s2_momentum"].astype(int)
+        + ranked["qual_s3_rotation"].astype(int)
+        + ranked["qual_s4_pullback"].astype(int)
+    )
+
+    ranked["is_eod_confirmed"] = (
+        ranked["qual_s1_surety"]
+        | ranked["qual_s2_momentum"]
+        | ranked["qual_s3_rotation"]
+        | ranked["qual_s4_pullback"]
+    )
 
     def get_signal(r):
         c_pattern = str(r.get("chart_pattern_signal", ""))
@@ -1180,6 +1339,20 @@ def run_screener_engine():
         s_mom = float(r["score_momentum_frontrunner"])
         s_rot = float(r["score_early_sector_rotation"])
         s_pull = float(r["score_high_rs_pullback"])
+
+        if bool(r.get("is_eod_confirmed", False)):
+            qual_candidates = []
+            if bool(r.get("qual_s1_surety", False)):
+                qual_candidates.append((s_anchor, "🛡️ High-Surety Anchor"))
+            if bool(r.get("qual_s3_rotation", False)):
+                qual_candidates.append((s_rot, "🔄 Early Sector Rotation Leader"))
+            if bool(r.get("qual_s4_pullback", False)):
+                qual_candidates.append((s_pull, "📉 High-RS Pullback"))
+            if bool(r.get("qual_s2_momentum", False)):
+                qual_candidates.append((s_mom, "🚀 Momentum Frontrunner"))
+            if qual_candidates:
+                qual_candidates.sort(key=lambda x: x[0], reverse=True)
+                return qual_candidates[0][1]
 
         if mrs > 8.0 or float(r.get("dist_from_50_pct", 0.0)) > 18.0 or float(r.get("prior_63d_pct", 0.0)) > 42.0:
             return "⚠️ Extended (Wait for Dip)"
@@ -1213,95 +1386,33 @@ def run_screener_engine():
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
 
     # =========================================================================
-    # U-SHAPED MARKET BREADTH ROUTER (BULL EXPANSION, CAPITULATION SPRING, CHOP TRAP)
+    # SELECT UPPER SECTION: CONFIRMED ACTIONABLE TRADES (MULTI-STRATEGY PRIORITY)
     # =========================================================================
-    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
-    breadth_5d_ago_pct = float((ranked["above_sma50_5d_ago"].mean()) * 100.0)
-    breadth_5d_change = round(market_breadth_pct - breadth_5d_ago_pct, 2)
-
-    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
-    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
-
-    active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
-
-    if market_breadth_pct >= 52.0:
-        # Zone 1: Confirmed Bull Expansion (81%+ Win Rate Zone) -> Full 8 Actionable Slots
-        regime_label = f"🟢 Bull Expansion ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
-        max_active_quota = 8
-        quotas = {
-            "score_high_rs_pullback": 4,
-            "score_momentum_frontrunner": 4,
-            "score_early_sector_rotation": 2 if active_rot > 0 else 0,
-            "score_surety_anchor": 2,
-        }
-    elif market_breadth_pct < 28.0 or breadth_5d_change <= -7.5:
-        # Zone 2: Capitulation Washout Spring (79%-84% Win Rate Zone) -> 5 High-RS Reclaim Slots
-        regime_label = f"⚡ Capitulation Spring ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
-        max_active_quota = 5
-        quotas = {
-            "score_high_rs_pullback": 5,
-            "score_early_sector_rotation": 3 if active_rot > 0 else 0,
-            "score_surety_anchor": 2,
-            "score_momentum_frontrunner": 2,
-        }
-    elif breadth_5d_change >= 3.5:
-        # Zone 3: Early Breadth Recovery Thrust -> 5 Rotation & Pullback Slots
-        regime_label = f"🔄 Early Breadth Thrust ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
-        max_active_quota = 5
-        quotas = {
-            "score_early_sector_rotation": 4 if active_rot > 0 else 0,
-            "score_high_rs_pullback": 4 + (4 if active_rot == 0 else 0),
-            "score_momentum_frontrunner": 2,
-            "score_surety_anchor": 2,
-        }
-    else:
-        # Zone 4: Stagnant Mid-Tape Chop Trap (Breadth 28%-51% flat) -> Defensive 2-Slot Lockdown
-        regime_label = f"🛑 Stagnant Mid-Tape Lockdown ({market_breadth_pct:.1f}% >50SMA | 5D {breadth_5d_change:+.1f}%)"
-        max_active_quota = 2
-        quotas = {
-            "score_high_rs_pullback": 5,
-            "score_surety_anchor": 4,
-            "score_momentum_frontrunner": 2,
-            "score_early_sector_rotation": 1,
-        }
-
-    # =========================================================================
-    # SELECT UPPER SECTION: CONFIRMED ACTIONABLE TRADES (ELITE SNIPER FILTER)
-    # =========================================================================
-    # In Stagnant Mid-Tape, raise RS bar to >= 85; in Bull / Capitulation / Thrust, require RS >= 80
-    min_rs_required = 85.0 if max_active_quota <= 2 else 80.0
-
-    elite_actionable_mask = (
-        (ranked["is_active_trade"] == True) &
-        (ranked["passes_anti_fizzle_gate"] == True) &
-        (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
-        (ranked["blended_rs_percentile"] >= min_rs_required) &
-        (ranked["turnover_cr"] >= 1.5) &
-        (
-            (~ranked["sector_lifecycle"].str.contains("Lagging|Decelerating", na=False)) |
-            ((ranked["blended_rs_percentile"] >= 88.0) & (ranked["beta_neutral_mrs"] >= 4.0))
-        )
-    )
-
-    elite_triggered_df = ranked[elite_actionable_mask].copy()
-    elite_triggered_df["max_strat_score"] = elite_triggered_df[
-        ["score_high_rs_pullback", "score_momentum_frontrunner", "score_early_sector_rotation", "score_surety_anchor"]
-    ].max(axis=1)
-    elite_triggered_df = elite_triggered_df.sort_values(
-        by=["blended_rs_percentile", "max_strat_score", "atr_pct"], ascending=False
-    )
-
     confirmed_active_symbols = set()
-    active_sec_counts = {}
-    for _, r in elite_triggered_df.iterrows():
-        if len(confirmed_active_symbols) >= max_active_quota:
-            break
-        sym, sec = r["symbol"], r["sector"]
-        if active_sec_counts.get(sec, 0) < 2:
-            confirmed_active_symbols.add(sym)
-            active_sec_counts[sec] = active_sec_counts.get(sec, 0) + 1
+    if max_active_quota > 0:
+        elite_triggered_df = ranked[
+            (ranked["is_eod_confirmed"] == True) &
+            (ranked["turnover_cr"] >= 1.5)
+        ].copy()
 
-    # Demote triggered stocks outside the top regime quota into the Stalking Watchlist
+        if not elite_triggered_df.empty:
+            elite_triggered_df["max_strat_score"] = elite_triggered_df[
+                ["score_high_rs_pullback", "score_momentum_frontrunner", "score_early_sector_rotation", "score_surety_anchor"]
+            ].max(axis=1)
+            elite_triggered_df = elite_triggered_df.sort_values(
+                by=["strat_confluence_count", "max_strat_score", "blended_rs_percentile"],
+                ascending=[False, False, False],
+            )
+
+            active_sec_counts = {}
+            for _, r in elite_triggered_df.iterrows():
+                if len(confirmed_active_symbols) >= max_active_quota:
+                    break
+                sym, sec = r["symbol"], r["sector"]
+                if active_sec_counts.get(sec, 0) < 2:
+                    confirmed_active_symbols.add(sym)
+                    active_sec_counts[sec] = active_sec_counts.get(sec, 0) + 1
+
     ranked["is_active_trade"] = ranked["symbol"].isin(confirmed_active_symbols)
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "is_potential_stalking"] = True
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "execution_state"] = "👀 STALKING_WATCHLIST"
@@ -1315,6 +1426,7 @@ def run_screener_engine():
 
     stalking_quality_gate = (
         (ranked["passes_quality_gate"] == True) &
+        (ranked["weekly_aligned"] == True) &
         (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
         (ranked["blended_rs_percentile"] >= 75.0) &
         (
@@ -1333,14 +1445,14 @@ def run_screener_engine():
             mask = (sub["close"] >= sub["sma_50"] * 0.985) & (sub["mrs_score"].between(-4.0, 4.0))
         elif strat_key == "score_momentum_frontrunner":
             strat_name = "momentum"
-            mask = (sub["stage2_aligned"]) & (sub["mrs_score"].between(-1.5, 4.5)) & (sub["rsi_14"] <= 63.0)
+            mask = (sub["stage2_aligned"]) & (sub["mrs_score"].between(-1.5, 4.5)) & (sub["rsi_14"] <= 66.0)
         elif strat_key == "score_early_sector_rotation":
             sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
             strat_name = "rotation"
             mask = (sub["beta_neutral_mrs"] >= 1.0)
         elif strat_key == "score_high_rs_pullback":
             strat_name = "pullback"
-            mask = (sub["close"] >= sub["sma_50"] * 0.985) & (sub["mrs_score"].between(-5.0, 1.8)) & (sub["stoch_k"] <= 65.0)
+            mask = (sub["close"] >= sub["sma_50"] * 0.985) & (sub["mrs_score"].between(-5.0, 2.0)) & (sub["stoch_k"] <= 68.0)
         else:
             strat_name = "pullback"
             mask = sub["close"] > 0
@@ -1359,7 +1471,6 @@ def run_screener_engine():
                 seen_sec[sec] = seen_sec.get(sec, 0) + 1
                 added += 1
 
-    # Backfill Stalking Pool up to 12 with top RS leaders if needed
     if len(dynamic_picks_map) < 12:
         backfill_pool = ranked[
             stalking_quality_gate & (~ranked["symbol"].isin(seen_sym))
@@ -1374,7 +1485,6 @@ def run_screener_engine():
                 seen_sym.add(sym)
                 seen_sec[sec] = seen_sec.get(sec, 0) + 1
 
-    # Also tag confirmed active trades with their dominant strategy key
     for _, r in ranked[ranked["is_active_trade"]].iterrows():
         sym = r["symbol"]
         s_map = [
@@ -1394,7 +1504,7 @@ def run_screener_engine():
         (ranked["turnover_cr"] >= 10.0) &
         (ranked["close"] >= ranked["sma_200"]) &
         (ranked["close"] >= ranked["sma_50"] * 0.985) &
-        (ranked["close"] >= ranked["volume_profile_poc"] * 0.99) &
+        (ranked["close"] >= ranked["volume_profile_poc"]) &
         ((ranked["score_surety_anchor"] >= 58.0) | (ranked["score_high_rs_pullback"] >= 58.0))
     ].sort_values(by=["score_surety_anchor", "score_high_rs_pullback"], ascending=False)
 
@@ -1427,8 +1537,8 @@ def run_screener_engine():
             agg_sec_counts[sec] = agg_sec_counts.get(sec, 0) + 1
 
     ranked = ranked.sort_values(
-        by=["is_active_trade", "score_high_rs_pullback", "score_momentum_frontrunner", "blended_rs_percentile"],
-        ascending=[False, False, False, False],
+        by=["is_active_trade", "strat_confluence_count", "score_high_rs_pullback", "score_momentum_frontrunner", "blended_rs_percentile"],
+        ascending=[False, False, False, False, False],
     ).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
 
     output_stocks = []
@@ -1552,6 +1662,7 @@ def run_screener_engine():
             "sma_20": clean(r.get("sma_20")),
             "sma_50": clean(r.get("sma_50")),
             "sma_200": clean(r.get("sma_200")),
+            "weekly_aligned": bool(r.get("weekly_aligned", False)),
             "stage2_aligned": bool(r.get("stage2_aligned", False)),
             "rsi_14": clean(r.get("rsi_14")),
             "stoch_k": clean(r.get("stoch_k")),
@@ -1613,6 +1724,8 @@ def run_screener_engine():
             "dist_from_50_pct": clean(r.get("dist_from_50_pct")),
             "dist_from_200_pct": clean(r.get("dist_from_200_pct")),
             "prior_63d_pct": clean(r.get("prior_63d_pct")),
+            "ret_250d_pct": clean(r.get("ret_250d_pct")),
+            "pct_of_52w_high": clean(r.get("pct_of_52w_high")),
             "absorption_ratio": clean(r.get("absorption_ratio")),
             "turnover_cr": clean(r.get("turnover_cr")),
             "mrs_score": clean(r.get("mrs_score")),
@@ -1637,6 +1750,9 @@ def run_screener_engine():
             "session_rvol": clean(r.get("session_rvol")),
             "supply_exhaustion_ratio": clean(r.get("supply_exhaustion_ratio")),
             "rs_acceleration": clean(r.get("rs_acceleration")),
+            "sector_internal_rank": int(r.get("sector_internal_rank", 99)),
+            "strat_confluence_count": int(r.get("strat_confluence_count", 0)),
+            "confluence_booster": clean(r.get("confluence_booster")),
             "reasons_to_avoid": clean(r.get("reasons_to_avoid", ""), True),
             "is_surety_candidate": bool(is_surety_candidate),
             "is_momentum_candidate": bool(is_momentum_candidate),
@@ -1654,7 +1770,6 @@ def run_screener_engine():
             "is_above_poc": is_above_poc,
         })
 
-    # Segregate the 2 dashboard pools (Upper: Confirmed Actionable Trades | Lower: Shortlisted Stalking Pool)
     active_triggered_trades = [s for s in output_stocks if s.get("is_active_trade")]
     potential_stalking_pool = [
         s for s in output_stocks

@@ -15,7 +15,6 @@ from pipeline import (
     NIFTY_NEXT_50_SYMBOLS,
     load_index_mappings,
     ensure_metadata,
-    detect_genuine_chart_patterns,
 )
 
 BACKTEST_JSON = os.path.join(BASE_DIR, "backtest_data.json")
@@ -23,28 +22,27 @@ BACKTEST_SUMMARY_JSON = os.path.join(BASE_DIR, "backtest_summary.json")
 BACKTEST_CSV = os.path.join(DATA_DIR, "backtest_results.csv")
 
 
-def get_first_trading_date_on_or_after(all_dates: list, target_iso: str) -> str:
-    """Finds the actual first NSE trading date in csv_store on or after a target date."""
-    candidates = [d for d in all_dates if d >= target_iso]
-    return candidates[0] if candidates else all_dates[-1]
-
-
 def determine_monthly_dates(all_dates: list):
     """
-    Generates point-in-time signal dates representing the 1st trading session
-    of every month from January 2026 through November 2026.
+    Generates monthly windows from January 2026 through November 2026.
+    Each month scans all trading sessions within that month continuously.
     """
     monthly_checkpoints = []
     for month in range(1, 12):
         cal_date = f"2026-{month:02d}-01"
-        trading_date = get_first_trading_date_on_or_after(all_dates, cal_date)
-        dt = datetime.strptime(trading_date, "%Y-%m-%d")
+        next_cal_date = f"2026-{month + 1:02d}-01" if month < 11 else "2026-12-31"
+        month_dates = [d for d in all_dates if cal_date <= d < next_cal_date]
+        if not month_dates:
+            continue
+        dt = datetime.strptime(month_dates[0], "%Y-%m-%d")
         label = dt.strftime("%b %Y")
         monthly_checkpoints.append({
             "label": label,
             "month_num": month,
             "cal_date": cal_date,
-            "date": trading_date,
+            "date": month_dates[0],
+            "end_date": month_dates[-1],
+            "trading_dates": month_dates,
         })
     return monthly_checkpoints, all_dates[-1]
 
@@ -181,348 +179,248 @@ def classify_sector_lifecycle(row: pd.Series) -> tuple:
     return "🔴 Lagging Sector Regime", 0.82
 
 
-def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
-    df_past = df_all[df_all["date"] <= cutoff_date].copy()
-    dates = sorted(df_past["date"].unique())
-    if len(dates) < 25:
-        raise ValueError(f"Insufficient trading sessions ({len(dates)}) before {cutoff_date}.")
+def precompute_daily_eod_panel(df_all: pd.DataFrame) -> tuple:
+    """
+    Pre-computes vectorized indicators, Weekly MTF alignment, 50-bar Volume-Profile POC,
+    and 500-Day Decision-Tree structural features across the entire universe with zero lookahead bias.
+    """
+    all_dates = sorted(df_all["date"].unique())
 
-    latest_date = dates[-1]
-    latest_df = df_past[df_past["date"] == latest_date].copy().drop_duplicates(subset=["symbol"])
+    mkt_close = df_all.groupby("date")["close"].mean().reindex(all_dates).ffill()
+    bm_ret_21 = (mkt_close / mkt_close.shift(21).bfill()) - 1.0
+    bm_ret_63 = (mkt_close / mkt_close.shift(63).bfill()) - 1.0
+    bm_ret_126 = (mkt_close / mkt_close.shift(126).bfill()) - 1.0
+    bm_ret_250 = (mkt_close / mkt_close.shift(250).bfill()) - 1.0
+    bm_sma_20 = mkt_close.rolling(20, min_periods=5).mean()
+    bm_mrs_series = (((mkt_close / (bm_sma_20 + 1e-5)) - 1.0) * 100.0).round(2)
 
-    lookback_idx_20 = max(0, len(dates) - 20)
-    lookback_date_20 = dates[lookback_idx_20]
-    df_20_ago = (
-        df_past[df_past["date"] == lookback_date_20][["symbol", "close"]]
-        .rename(columns={"close": "close_20d_ago"})
-        .drop_duplicates(subset=["symbol"])
-    )
-
-    lookback_idx_63 = max(0, len(dates) - 63)
-    lookback_date_63 = dates[lookback_idx_63]
-    df_63_ago = (
-        df_past[df_past["date"] == lookback_date_63][["symbol", "close"]]
-        .rename(columns={"close": "close_63d_ago"})
-        .drop_duplicates(subset=["symbol"])
-    )
-
-    sec_base = pd.merge(latest_df, df_20_ago, on="symbol", how="left")
-    sec_base = pd.merge(sec_base, df_63_ago, on="symbol", how="left")
-    sec_base["close_20d_ago"] = sec_base["close_20d_ago"].fillna(sec_base["close"])
-    sec_base["close_63d_ago"] = sec_base["close_63d_ago"].fillna(sec_base["close"])
-
-    df_250d_all = df_past[df_past["date"].isin(dates[-250:])].sort_values(by=["symbol", "date"])
-    market_pivot = df_250d_all.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
-    market_benchmark = market_pivot.mean(axis=1)
-
-    sector_benchmarks = {}
-    for sec_name, sec_grp in df_250d_all.groupby("sector"):
-        if sec_name == "General Equities":
-            continue
-        sec_pivot = sec_grp.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
-        if not sec_pivot.empty:
-            sector_benchmarks[sec_name] = sec_pivot.mean(axis=1)
-
-    mkt_len = len(market_benchmark)
-    bm_ret_21 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(21, mkt_len)] + 1e-5)) - 1.0
-    bm_ret_63 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(63, mkt_len)] + 1e-5)) - 1.0
-    bm_ret_126 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(126, mkt_len)] + 1e-5)) - 1.0
-    bm_ret_250 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[0] + 1e-5)) - 1.0
-
-    stock_tech_rows = []
-    for sym, grp in df_250d_all.groupby("symbol"):
-        prices = grp["close"].values.astype(float)
-        volumes = grp["volume"].values.astype(float)
-        highs = grp["high"].values.astype(float)
-        lows = grp["low"].values.astype(float)
-        deliv_qtys = grp["deliv_qty"].values.astype(float) if "deliv_qty" in grp.columns else np.zeros_like(prices)
-
-        n_bars = len(prices)
-        if n_bars < 20:
+    panel_rows = []
+    for sym, grp in df_all.groupby("symbol", sort=False):
+        g = grp.sort_values("date").reset_index(drop=True)
+        n = len(g)
+        if n < 50:
             continue
 
-        p_series = pd.Series(prices)
-        close = float(prices[-1])
-        sma_20 = round(float(np.mean(prices[-min(20, n_bars):])), 2)
-        ema_10 = float(p_series.ewm(span=10, adjust=False).mean().iloc[-1])
-        ema_21 = float(p_series.ewm(span=21, adjust=False).mean().iloc[-1])
-        sma_50_series = p_series.rolling(min(50, n_bars), min_periods=10).mean()
-        sma_50 = round(float(sma_50_series.iloc[-1]), 2)
-        sma_50_5d_ago = float(sma_50_series.iloc[-min(6, len(sma_50_series))])
-        sma_50_10d_ago = float(sma_50_series.iloc[-min(10, len(sma_50_series))])
-        sma_50_rising = sma_50 >= (sma_50_10d_ago * 0.998)
-        sma_200 = round(float(p_series.rolling(min(200, n_bars), min_periods=20).mean().iloc[-1]), 2)
+        c = g["close"].values.astype(float)
+        o = g["open"].values.astype(float)
+        h = g["high"].values.astype(float)
+        l = g["low"].values.astype(float)
+        v = g["volume"].values.astype(float)
+        d_qty = g["deliv_qty"].values.astype(float) if "deliv_qty" in g.columns else np.zeros(n)
+        d_arr = g["date"].values
 
-        above_sma50_5d_ago = bool(prices[-min(6, n_bars)] >= sma_50_5d_ago)
+        p_ser = pd.Series(c)
+        sma_20 = p_ser.rolling(20, min_periods=10).mean().values
+        ema_10 = p_ser.ewm(span=10, adjust=False).mean().values
+        sma_50 = p_ser.rolling(50, min_periods=20).mean().values
+        sma_200 = p_ser.rolling(200, min_periods=40).mean().values
 
-        tr_arr = np.maximum(
-            highs[-20:] - lows[-20:],
-            np.maximum(
-                np.abs(highs[-20:] - np.roll(prices, 1)[-20:]),
-                np.abs(lows[-20:] - np.roll(prices, 1)[-20:]),
-            ),
+        # Moving Average Slopes (10D slope of 20-SMA & 20D slope of 50-SMA)
+        sma20_10d_ago = pd.Series(sma_20).shift(10).bfill().values
+        sma20_slope_10d = ((sma_20 - sma20_10d_ago) / (sma20_10d_ago + 1e-5)) * 100.0
+        sma50_20d_ago = pd.Series(sma_50).shift(20).bfill().values
+        sma50_slope_20d = ((sma_50 - sma50_20d_ago) / (sma50_20d_ago + 1e-5)) * 100.0
+
+        # Weekly Multi-Timeframe Alignment (point-in-time W-FRI mapped back to daily)
+        w_df = pd.DataFrame({"dt": pd.to_datetime(d_arr), "close": c}).set_index("dt")
+        w_close = w_df["close"].resample("W-FRI").last().dropna()
+        w_ema10 = w_close.ewm(span=10, adjust=False).mean()
+        w_sma20 = w_close.rolling(20, min_periods=5).mean()
+        w_aligned_weekly = ((w_close >= w_ema10) & (w_ema10 >= w_sma20 * 0.995)).astype(bool)
+        w_aligned_daily = (
+            w_aligned_weekly.shift(1, fill_value=True)
+            .reindex(w_df.index, method="ffill")
+            .fillna(True)
+            .to_numpy(dtype=bool)
         )
-        atr_20 = float(np.mean(tr_arr))
-        atr_pct = round(float((atr_20 / (close + 1e-5)) * 100.0), 2)
 
-        poc_bars = min(50, n_bars)
-        hist, bins = np.histogram(prices[-poc_bars:], bins=10, weights=volumes[-poc_bars:])
-        poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist) + 1]) / 2.0), 2)
+        prev_c = np.roll(c, 1)
+        prev_c[0] = c[0]
+        tr = np.maximum(h - l, np.maximum(np.abs(h - prev_c), np.abs(l - prev_c)))
+        atr_20 = pd.Series(tr).rolling(20, min_periods=10).mean().values
+        atr_pct = (atr_20 / (c + 1e-5)) * 100.0
 
-        cr = float((close - lows[-1]) / (highs[-1] - lows[-1] + 1e-5))
+        vol_20 = pd.Series(v).rolling(20, min_periods=10).mean().values + 1e-5
+        rvol = v / vol_20
+        cr = (c - l) / (h - l + 1e-5)
 
-        vol_20_avg = float(np.mean(volumes[-min(20, n_bars):])) + 1e-5
-        session_rvol = round(float(volumes[-1] / vol_20_avg), 2)
-        is_rvol_expanded = session_rvol >= 2.5
+        diff = np.diff(c, prepend=c[0])
+        gain = pd.Series(np.where(diff > 0, diff, 0.0)).rolling(14, min_periods=5).mean().values
+        loss = pd.Series(np.where(diff < 0, -diff, 0.0)).rolling(14, min_periods=5).mean().values
+        rsi_14 = 100.0 - (100.0 / (1.0 + (gain / (loss + 1e-5))))
+        rsi_ser = pd.Series(rsi_14)
+        rsi_10d_chg = (rsi_ser - rsi_ser.shift(10).bfill()).values
 
-        sub_15_diff = np.diff(prices[-16:]) if n_bars >= 16 else np.diff(prices)
-        sub_15_vols = volumes[-len(sub_15_diff):]
-        up_vol_15 = np.sum(sub_15_vols[sub_15_diff > 0]) if np.any(sub_15_diff > 0) else 1.0
-        down_vol_15 = np.sum(sub_15_vols[sub_15_diff < 0]) if np.any(sub_15_diff < 0) else 1.0
-        supply_exhaustion_ratio = round(float(up_vol_15 / (down_vol_15 + 1e-5)), 2)
-        is_supply_exhausted = supply_exhaustion_ratio >= 3.5
+        low_20 = pd.Series(l).rolling(20, min_periods=5).min().values
+        high_20 = pd.Series(h).rolling(20, min_periods=5).max().values
+        stoch_k = np.clip(((c - low_20) / (high_20 - low_20 + 1e-5)) * 100.0, 0.0, 100.0)
 
-        stock_series = grp.set_index("date")["close"]
-        common_s_idx = stock_series.index.intersection(market_benchmark.index)
-        stk_sub = stock_series.loc[common_s_idx]
-        bm_sub = market_benchmark.loc[common_s_idx]
-        rs_full_series = (stk_sub / bm_sub).values
-        if len(rs_full_series) >= 30:
-            rs_slope_10 = (rs_full_series[-1] - rs_full_series[-10]) / (rs_full_series[-10] + 1e-5)
-            rs_slope_30 = (rs_full_series[-1] - rs_full_series[-30]) / (rs_full_series[-30] + 1e-5)
-            rs_acceleration = round(float(rs_slope_10 - (rs_slope_30 / 3.0)), 4)
-        else:
-            rs_acceleration = 0.0
-        is_rs_accelerating = rs_acceleration > 0.0
+        high_30 = pd.Series(h).rolling(30, min_periods=10).max().values
+        low_30 = pd.Series(l).rolling(30, min_periods=10).min().values
+        base_depth_pct = ((high_30 - low_30) / (high_30 + 1e-5)) * 100.0
+        high_52w = pd.Series(h).rolling(250, min_periods=40).max().values
+        pct_of_52w_high = (c / (high_52w + 1e-5)) * 100.0
 
-        diffs = np.diff(prices)
-        avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-        avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-        rsi_14 = round(100.0 - (100.0 / (1.0 + (avg_g / (avg_l + 1e-5)))), 1)
+        up_v_50 = pd.Series(np.where(diff > 0, v, 0.0)).rolling(50, min_periods=15).sum().values + 1.0
+        dn_v_50 = pd.Series(np.where(diff < 0, v, 0.0)).rolling(50, min_periods=15).sum().values + 1.0
+        ud_ratio = up_v_50 / dn_v_50
 
-        min_l, max_h = np.min(lows[-20:]), np.max(highs[-20:])
-        stoch_k = round(float(np.clip((prices[-1] - min_l) / (max_h - min_l + 1e-5) * 100.0, 0, 100)), 1)
+        up_v_15 = pd.Series(np.where(diff > 0, v, 0.0)).rolling(15, min_periods=5).sum().values + 1.0
+        dn_v_15 = pd.Series(np.where(diff < 0, v, 0.0)).rolling(15, min_periods=5).sum().values + 1.0
+        sup_ex_ratio = up_v_15 / dn_v_15
 
-        ma_spread_pct = float(((max(ema_10, ema_21, sma_50) - min(ema_10, ema_21, sma_50)) / (close + 1e-5)) * 100.0)
-        is_ma_pinched = ma_spread_pct <= 2.8
+        d_cash = d_qty * c
+        deliv_up = pd.Series(np.where(diff > 0, d_cash, 0.0)).rolling(30, min_periods=10).sum().values + 1.0
+        deliv_dn = pd.Series(np.where(diff < 0, d_cash, 0.0)).rolling(30, min_periods=10).sum().values + 1.0
+        flow_ratio = deliv_up / deliv_dn
 
-        roll_20 = p_series.rolling(20)
-        bb_mid = float(roll_20.mean().iloc[-1])
-        bb_std = float(roll_20.std().iloc[-1])
-        upper_bb = bb_mid + (2.0 * bb_std)
-        lower_bb = bb_mid - (2.0 * bb_std)
-        upper_kc = sma_20 + (1.5 * atr_20)
-        lower_kc = sma_20 - (1.5 * atr_20)
-        is_squeezed = (upper_bb <= upper_kc) and (lower_bb >= lower_kc)
+        vol_5 = pd.Series(v).rolling(5, min_periods=2).mean().values
+        vol_50 = pd.Series(v).rolling(50, min_periods=15).mean().values + 1e-5
+        vol_dryup = vol_5 / vol_50
 
-        bb_width = max(1e-4, upper_bb - lower_bb)
-        kc_width = max(1e-4, upper_kc - lower_kc)
-        bb_kc_ratio = float(bb_width / kc_width)
+        c_20_ago = p_ser.shift(20).bfill().values
+        c_63_ago = p_ser.shift(63).bfill().values
+        ret_21 = (c / (p_ser.shift(21).bfill().values + 1e-5)) - 1.0
+        ret_63 = (c / (c_63_ago + 1e-5)) - 1.0
+        ret_126 = (c / (p_ser.shift(126).bfill().values + 1e-5)) - 1.0
+        ret_250 = (c / (p_ser.shift(250).bfill().values + 1e-5)) - 1.0
 
-        vol_5d = float(np.mean(volumes[-5:]))
-        vol_50d = float(np.mean(volumes[-min(50, n_bars):])) + 1e-5
-        vol_dryup_ratio = float(vol_5d / vol_50d)
+        # True 50-bar Volume-Profile Histogram POC
+        poc_arr = np.copy(sma_20)
+        for idx in range(50, n):
+            w_p = c[idx - 50 : idx + 1]
+            w_v = v[idx - 50 : idx + 1]
+            if np.sum(w_v) > 0:
+                hist, bins = np.histogram(w_p, bins=10, weights=w_v)
+                best_b = int(np.argmax(hist))
+                poc_arr[idx] = (bins[best_b] + bins[best_b + 1]) / 2.0
 
-        sec_name = grp["sector"].iloc[-1] if "sector" in grp.columns else "Capital Goods"
-        sec_bm = sector_benchmarks.get(sec_name, market_benchmark)
-        sec_sub = sec_bm.reindex(common_s_idx).ffill().bfill()
-        sec_rs_series = (stk_sub / (sec_sub + 1e-5)).values
+        prev_h = pd.Series(h).shift(1).bfill().values
+        prev_l = pd.Series(l).shift(1).bfill().values
+        prev2_h = pd.Series(h).shift(1).rolling(2, min_periods=1).max().bfill().values
+        prev2_l = pd.Series(l).shift(1).rolling(2, min_periods=1).min().bfill().values
+        prior_2d_rng = ((prev2_h - prev2_l) / (prev_c + 1e-5)) * 100.0
+        prior_quiet = (pd.Series(v).shift(1).bfill().values <= vol_20 * 1.08) | (prior_2d_rng <= 6.0)
 
-        if len(rs_full_series) >= 63:
-            rs_63_high = np.max(rs_full_series[-63:-1])
-            price_63_high = np.max(highs[-63:-1])
-            is_rs_divergent = (rs_full_series[-1] >= rs_63_high) and (close < price_63_high * 0.99)
-        else:
-            is_rs_divergent = False
+        dist_20_pct = ((c - sma_20) / (sma_20 + 1e-5)) * 100.0
+        dist_50_pct = ((c - sma_50) / (sma_50 + 1e-5)) * 100.0
+        is_not_ext = dist_20_pct <= 4.0
+        has_floor = c >= sma_50 * 0.985
 
-        if len(sec_rs_series) >= 63:
-            sec_rs_63_high = np.max(sec_rs_series[-63:-1])
-            price_63_high_sec = np.max(highs[-63:-1])
-            is_sec_rs_divergent = (sec_rs_series[-1] >= sec_rs_63_high) and (close < price_63_high_sec * 0.99)
-            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
-            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
-        elif len(sec_rs_series) >= 21:
-            is_sec_rs_divergent = False
-            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
-            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
-        else:
-            is_sec_rs_divergent = False
-            sec_rs_new_high = True
-            sec_rs_outperforming = True
+        trig_a = (
+            has_floor & is_not_ext & prior_quiet &
+            (c > o) & (c >= prev_h) & (c >= ema_10) &
+            (ema_10 >= sma_50 * 0.99) & (c >= sma_20 * 0.995) &
+            (cr >= 0.65) & (rvol >= 1.25) & (c >= poc_arr * 0.99)
+        )
 
-        if is_sec_rs_divergent:
-            sector_rs_status = "🎯 Sector RS Pre-Breakout"
-        elif sec_rs_new_high:
-            sector_rs_status = "🔥 Sector RS New High"
-        elif sec_rs_outperforming:
-            sector_rs_status = "🟢 Outperforming Sector"
-        else:
-            sector_rs_status = "🔴 Lagging Sector"
+        tested_sup = (
+            (prev_l <= sma_20 * 1.012) | (l <= sma_20 * 1.012) |
+            (prev_l <= ema_10 * 1.008) | (l <= poc_arr * 1.010)
+        )
+        trig_b = (
+            has_floor & is_not_ext & tested_sup &
+            (c > o) & (c >= prev_c * 1.008) & (c >= ema_10 * 0.995) &
+            (cr >= 0.65) & (c >= sma_50 * 0.990)
+        )
 
-        is_pocket_pivot = False
-        is_pocket_pivot_5d = False
-        if n_bars >= 15:
-            diffs_10 = np.diff(prices[-11:])
-            down_vols = volumes[-10:][diffs_10 < 0]
-            max_down_vol = np.max(down_vols) if len(down_vols) > 0 else 0
-            is_pocket_pivot = (close > prices[-2]) and (volumes[-1] > max_down_vol) and (close >= ema_10)
+        mask_2026 = d_arr >= "2026-01-01"
+        if not np.any(mask_2026):
+            continue
 
-            for back_i in range(1, min(6, n_bars - 11)):
-                idx_end = n_bars - back_i
-                c_bar = prices[idx_end]
-                prev_bar = prices[idx_end - 1]
-                v_bar = volumes[idx_end]
-                d_10 = np.diff(prices[idx_end - 10 : idx_end + 1])
-                dv_10 = volumes[idx_end - 9 : idx_end + 1][d_10 < 0]
-                max_dv = np.max(dv_10) if len(dv_10) > 0 else 0
-                if (c_bar > prev_bar) and (v_bar > max_dv) and (close >= ema_10 * 0.995) and (close >= c_bar * 0.985):
-                    is_pocket_pivot_5d = True
-                    break
-        is_pocket_pivot_5d = is_pocket_pivot or is_pocket_pivot_5d
-
-        base_high = float(np.max(highs[-min(30, n_bars):]))
-        base_low = float(np.min(lows[-min(30, n_bars):]))
-        base_depth_pct = float(((base_high - base_low) / (base_high + 1e-5)) * 100.0)
-
-        stk_ret_21 = (close / (prices[-min(21, n_bars)] + 1e-5)) - 1.0
-        stk_ret_63 = (close / (prices[-min(63, n_bars)] + 1e-5)) - 1.0
-        stk_ret_126 = (close / (prices[-min(126, n_bars)] + 1e-5)) - 1.0
-        stk_ret_250 = (close / (prices[0] + 1e-5)) - 1.0
-        prior_63d_pct = round(float(stk_ret_63 * 100.0), 2)
-        dist_from_50_pct = round(float(((close - sma_50) / (sma_50 + 1e-5)) * 100.0), 2)
-
-        rs_spread_21 = (stk_ret_21 - bm_ret_21) * 100.0
-        rs_spread_63 = (stk_ret_63 - bm_ret_63) * 100.0
-        rs_spread_126 = (stk_ret_126 - bm_ret_126) * 100.0
-        rs_spread_250 = (stk_ret_250 - bm_ret_250) * 100.0
-        raw_multi_rs = float((0.40 * rs_spread_63) + (0.30 * rs_spread_126) + (0.20 * rs_spread_250) + (0.10 * rs_spread_21))
-
-        vcp_rat, pattern, pattern_tf = detect_genuine_chart_patterns(prices, volumes, highs, lows)
-
-        if len(diffs) >= 1:
-            up_vol = np.sum(volumes[1:][diffs > 0][-50:]) if np.any(diffs > 0) else 1.0
-            down_vol = np.sum(volumes[1:][diffs < 0][-50:]) if np.any(diffs < 0) else 1.0
-            up_down_ratio = round(float(up_vol / (down_vol + 1e-5)), 2)
-        else:
-            up_down_ratio = 1.0
-
-        deliv_cash_all = deliv_qtys[-min(30, n_bars):] * prices[-min(30, n_bars):]
-        diffs_deliv = diffs[-min(29, len(diffs)):]
-        deliv_up = np.sum(deliv_cash_all[1:][diffs_deliv > 0]) if np.any(diffs_deliv > 0) else 1.0
-        deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
-        deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
-        recent_deliv_pct = float(np.mean(deliv_qtys[-5:] / (volumes[-5:] + 1e-5)) * 100.0) if np.sum(volumes[-5:]) > 0 else 30.0
-
-        # ---------------------------------------------------------------------
-        # EMPIRICAL KINETIC ALPHA SCORE (SYNCHRONIZED WITH PIPELINE.PY)
-        # ---------------------------------------------------------------------
-        atr_fuel_pts = float(np.clip(((atr_pct - 2.2) / 2.4) * 30.0, 2.0, 30.0))
-        base_coil_pts = float(np.clip(25.0 * np.exp(-((base_depth_pct - 21.5) ** 2) / 65.0), 3.0, 25.0)) if close >= sma_50 else 4.0
-        flow_pts = float(np.clip(30.0 * (np.log1p(min(deliv_flow_ratio, 6.0)) / np.log1p(4.0)), 4.0, 30.0))
-        ud_pts = float(np.clip(((up_down_ratio - 1.0) / 1.5) * 15.0, 2.0, 15.0))
-
-        raw_iasis = atr_fuel_pts + base_coil_pts + flow_pts + ud_pts
-        if close < sma_200 and close < sma_50:
-            iasis_score = round(float(min(35.0, raw_iasis * 0.40)), 1)
-        else:
-            iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
-
-        sma_200_20d_ago = np.mean(prices[-min(220, n_bars):-20]) if n_bars >= 30 else sma_200
-        sma_200_slope = (sma_200 - sma_200_20d_ago) / (sma_200_20d_ago + 1e-5)
-        h_52 = float(np.max(highs))
-        l_52 = float(np.min(lows))
-        trend_score = 0.0
-        if close > sma_200:
-            trend_score += 25.0
-        if close > sma_50:
-            trend_score += 25.0
-        if sma_50 > sma_200:
-            trend_score += 20.0
-        if sma_200_slope >= 0:
-            trend_score += 10.0
-        if (close / (h_52 + 1e-5)) >= 0.75:
-            trend_score += 10.0 * min(1.0, (close / (h_52 + 1e-5)) / 0.90)
-        if (close / (l_52 + 1e-5)) >= 1.25:
-            trend_score += 10.0 * min(1.0, ((close / (l_52 + 1e-5)) - 1.0) / 0.50)
-        trend_score = round(float(np.clip(trend_score, 5.0, 99.0)), 1)
-
-        is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
-        atr_mult = 2.8 if is_tier1_sym else 2.5
-        max_sl_floor = 0.935 if is_tier1_sym else 0.885
-
-        raw_struct_stop = min(close - (atr_mult * atr_20), sma_50 * (0.965 if is_tier1_sym else 0.960))
-        structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
-
-        stock_tech_rows.append({
+        sub_df = pd.DataFrame({
+            "date": d_arr[mask_2026],
             "symbol": sym,
-            "sma_20": sma_20,
-            "sma_50": sma_50,
-            "sma_200": sma_200,
-            "sma_50_rising": sma_50_rising,
-            "above_sma50_5d_ago": above_sma50_5d_ago,
-            "stage2_aligned": bool((close > sma_50) and (sma_50 > sma_200) and sma_50_rising),
-            "ema_10": ema_10,
-            "ema_21": ema_21,
-            "rsi_14": rsi_14,
-            "stoch_k": stoch_k,
-            "atr_20": atr_20,
-            "atr_pct": atr_pct,
-            "structural_stop": structural_stop,
-            "volume_profile_poc": poc,
-            "poc_floor_support": bool(close >= poc),
-            "session_rvol": session_rvol,
-            "is_rvol_expanded": is_rvol_expanded,
-            "supply_exhaustion_ratio": supply_exhaustion_ratio,
-            "is_supply_exhausted": is_supply_exhausted,
-            "rs_acceleration": rs_acceleration,
-            "is_rs_accelerating": is_rs_accelerating,
-            "deliv_pct": round(recent_deliv_pct, 1),
-            "vcp_ratio": float(vcp_rat),
-            "bb_kc_ratio": bb_kc_ratio,
-            "ma_spread_pct": round(ma_spread_pct, 2),
-            "vol_dryup_ratio": round(vol_dryup_ratio, 2),
-            "closing_range": round(cr, 3),
-            "chart_pattern_signal": pattern,
-            "pattern_timeframe": pattern_tf,
-            "sector_rs_status": sector_rs_status,
-            "iasis_score": iasis_score,
-            "raw_multi_rs": raw_multi_rs,
-            "trend_score": trend_score,
-            "up_down_vol_ratio": up_down_ratio,
-            "is_pocket_pivot": is_pocket_pivot,
-            "is_pocket_pivot_5d": is_pocket_pivot_5d,
-            "is_squeezed": is_squeezed,
-            "is_ma_pinched": is_ma_pinched,
-            "is_rs_divergent": (is_rs_divergent or is_sec_rs_divergent),
-            "flow_ratio": round(deliv_flow_ratio, 2),
-            "prior_63d_pct": prior_63d_pct,
-            "dist_from_50_pct": dist_from_50_pct,
-            "base_depth_pct": round(base_depth_pct, 2),
+            "company_name": g["company_name"].iloc[-1],
+            "sector": g["sector"].iloc[-1],
+            "index_name": g["index_name"].iloc[-1] if "index_name" in g.columns else "Nifty 500",
+            "open": o[mask_2026],
+            "close": c[mask_2026],
+            "close_20d_ago": c_20_ago[mask_2026],
+            "close_63d_ago": c_63_ago[mask_2026],
+            "volume": v[mask_2026],
+            "sma_20": np.round(sma_20[mask_2026], 2),
+            "sma_50": np.round(sma_50[mask_2026], 2),
+            "sma_200": np.round(sma_200[mask_2026], 2),
+            "weekly_aligned": w_aligned_daily[mask_2026],
+            "sma_50_rising": sma_50[mask_2026] >= (pd.Series(sma_50).shift(10).bfill().values[mask_2026] * 0.998),
+            "sma20_slope_10d": np.round(sma20_slope_10d[mask_2026], 2),
+            "sma50_slope_20d": np.round(sma50_slope_20d[mask_2026], 2),
+            "above_sma50_5d_ago": pd.Series(c >= sma_50).shift(5).fillna(True).values[mask_2026],
+            "atr_20": np.round(atr_20[mask_2026], 2),
+            "atr_pct": np.round(atr_pct[mask_2026], 2),
+            "rsi_14": np.round(rsi_14[mask_2026], 1),
+            "rsi_10d_chg": np.round(rsi_10d_chg[mask_2026], 2),
+            "stoch_k": np.round(stoch_k[mask_2026], 1),
+            "base_depth_pct": np.round(base_depth_pct[mask_2026], 2),
+            "high_52w": np.round(high_52w[mask_2026], 2),
+            "pct_of_52w_high": np.round(pct_of_52w_high[mask_2026], 2),
+            "up_down_vol_ratio": np.round(ud_ratio[mask_2026], 2),
+            "supply_exhaustion_ratio": np.round(sup_ex_ratio[mask_2026], 2),
+            "flow_ratio": np.round(flow_ratio[mask_2026], 2),
+            "vol_dryup_ratio": np.round(vol_dryup[mask_2026], 2),
+            "closing_range": np.round(cr[mask_2026], 3),
+            "session_rvol": np.round(rvol[mask_2026], 2),
+            "volume_profile_poc": np.round(poc_arr[mask_2026], 2),
+            "mrs_score": np.round(dist_20_pct[mask_2026], 1),
+            "dist_from_50_pct": np.round(dist_50_pct[mask_2026], 2),
+            "prior_63d_pct": np.round(ret_63[mask_2026] * 100.0, 2),
+            "ret_250d_pct": np.round(ret_250[mask_2026] * 100.0, 2),
+            "ret_21": ret_21[mask_2026],
+            "ret_63": ret_63[mask_2026],
+            "ret_126": ret_126[mask_2026],
+            "ret_250": ret_250[mask_2026],
+            "trig_a": trig_a[mask_2026],
+            "trig_b": trig_b[mask_2026],
         })
+        panel_rows.append(sub_df)
 
-    tech_df = pd.DataFrame(stock_tech_rows)
-    sec_lag_cols = sec_base[["symbol", "close_20d_ago", "close_63d_ago"]].drop_duplicates(subset=["symbol"])
+    full_panel = pd.concat(panel_rows, ignore_index=True)
 
-    ranked = pd.merge(latest_df, tech_df, on="symbol", how="inner")
-    ranked = pd.merge(ranked, sec_lag_cols, on="symbol", how="left")
-    ranked = ranked.drop_duplicates(subset=["symbol"])
-    ranked = ranked[ranked["sector"] != "General Equities"].copy()
+    full_panel["bm_21"] = full_panel["date"].map(bm_ret_21)
+    full_panel["bm_63"] = full_panel["date"].map(bm_ret_63)
+    full_panel["bm_126"] = full_panel["date"].map(bm_ret_126)
+    full_panel["bm_250"] = full_panel["date"].map(bm_ret_250)
+    full_panel["bm_mrs"] = full_panel["date"].map(bm_mrs_series)
 
-    ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
-    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
-    ranked["mrs_score"] = (((ranked["close"] / (ranked["sma_20"] + 1e-5)) - 1.0) * 100.0).round(1)
-    ranked["atr_stop_loss"] = ranked["structural_stop"]
+    full_panel["raw_multi_rs"] = (
+        0.40 * (full_panel["ret_63"] - full_panel["bm_63"]) * 100.0
+        + 0.30 * (full_panel["ret_126"] - full_panel["bm_126"]) * 100.0
+        + 0.20 * (full_panel["ret_250"] - full_panel["bm_250"]) * 100.0
+        + 0.10 * (full_panel["ret_21"] - full_panel["bm_21"]) * 100.0
+    )
+
+    full_panel["turnover_cr"] = ((full_panel["volume"] * full_panel["close"]) / 10000000.0).round(2)
+    full_panel["mcap_tier"] = full_panel.apply(
+        lambda r: classify_mcap_tier(r["symbol"], r["index_name"], r["turnover_cr"]), axis=1
+    )
+
+    daily_frames = {d: grp.copy() for d, grp in full_panel.groupby("date")}
+    return daily_frames, mkt_close
+
+
+def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
+    """
+    Scores a single EOD session using the empirically validated 500-Day Decision-Tree
+    Core Gate, True 20-Bin Volume Profile POC, Anti-Bull-Trap Shield, and 4 Strategy Rules.
+    """
+    ranked = day_df.copy()
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
     ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"]
+    ranked["stage2_aligned"] = (ranked["close"] > ranked["sma_50"]) & (ranked["sma_50"] > ranked["sma_200"]) & ranked["sma_50_rising"]
+    ranked["poc_floor_support"] = ranked["close"] >= ranked["volume_profile_poc"]
 
-    sec_base_clean = sec_base[sec_base["sector"] != "General Equities"].copy()
+    breadth_pct = float(ranked["above_sma50"].mean() * 100.0)
+    breadth_5d_ago = float(ranked["above_sma50_5d_ago"].mean() * 100.0)
+    breadth_5d_chg = round(breadth_pct - breadth_5d_ago, 2)
+
     sector_summary = (
-        sec_base_clean.groupby("sector")
+        ranked.groupby("sector")
         .agg(
-            daily_perf=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "open"]) / (sec_base_clean.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
-            advance_pct=("close", lambda x: round(float((x > sec_base_clean.loc[x.index, "open"]).mean() * 100.0), 2)),
-            perf_20d=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "close_20d_ago"]) / (sec_base_clean.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2)),
-            perf_63d=("close", lambda x: round(float(((x - sec_base_clean.loc[x.index, "close_63d_ago"]) / (sec_base_clean.loc[x.index, "close_63d_ago"] + 1e-5)).mean() * 100.0), 2)),
+            daily_perf=("close", lambda x: round(float(((x - ranked.loc[x.index, "open"]) / (ranked.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
+            advance_pct=("close", lambda x: round(float((x > ranked.loc[x.index, "open"]).mean() * 100.0), 2)),
+            perf_20d=("close", lambda x: round(float(((x - ranked.loc[x.index, "close_20d_ago"]) / (ranked.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2)),
+            perf_63d=("close", lambda x: round(float(((x - ranked.loc[x.index, "close_63d_ago"]) / (ranked.loc[x.index, "close_63d_ago"] + 1e-5)).mean() * 100.0), 2)),
             stock_count=("symbol", "count"),
         )
         .reset_index()
@@ -560,553 +458,202 @@ def evaluate_point_in_time(df_all: pd.DataFrame, cutoff_date: str):
     ranked["sector_climax_mult"] = ranked["sector"].map(lambda s: sec_mult_map.get(s, 1.0))
     ranked["sector_lifecycle"] = ranked["sector"].map(lambda s: sec_life_map.get(s, "Neutral"))
 
-    tier_above_sma50 = ranked.groupby("mcap_tier")["above_sma50"].mean().mul(100.0).to_dict()
-    universe_20d_ret = float(((ranked["close"] / (ranked["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0)
-    tier_20d_ret = ranked.groupby("mcap_tier").apply(
-        lambda g: float((((g["close"] / (g["close_20d_ago"] + 1e-5)) - 1.0).mean() * 100.0))
-    ).to_dict()
-
-    def compute_selective_tier_mult(row):
-        tier = str(row["mcap_tier"])
-        b = tier_above_sma50.get(tier, 50.0)
-        ret_diff = tier_20d_ret.get(tier, 0.0) - universe_20d_ret
-        is_poc_supported = float(row["close"]) >= float(row["volume_profile_poc"])
-
-        if "Tier 1" in tier:
-            if ret_diff > 1.5 and is_poc_supported and float(row.get("trend_score", 0)) >= 75.0:
-                return 0.96
-            return 0.85
-
-        if b < 25.0 or ret_diff < -2.5:
-            return 0.92
-        elif ret_diff > 0.0 and b >= 50.0:
-            return 1.06
-        return 1.02
-
-    ranked["tier_climax_mult"] = ranked.apply(compute_selective_tier_mult, axis=1)
+    # Empirical Kinetic Alpha Score
+    atr_fuel_pts = np.clip(((ranked["atr_pct"] - 2.2) / 2.4) * 30.0, 2.0, 30.0)
+    base_coil_pts = np.where(ranked["above_sma50"], np.clip(25.0 * np.exp(-((ranked["base_depth_pct"] - 21.5) ** 2) / 65.0), 3.0, 25.0), 4.0)
+    flow_pts = np.clip(30.0 * (np.log1p(np.minimum(ranked["flow_ratio"], 6.0)) / np.log1p(4.0)), 4.0, 30.0)
+    ud_pts = np.clip(((ranked["up_down_vol_ratio"] - 1.0) / 1.5) * 15.0, 2.0, 15.0)
+    ranked["iasis_score"] = np.clip(atr_fuel_pts + base_coil_pts + flow_pts + ud_pts, 10.0, 99.0).round(1)
 
     global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
     tier_rs_pct = ranked.groupby("mcap_tier")["raw_multi_rs"].rank(pct=True) * 100.0
     rs_percentile = ((0.80 * global_rs_pct) + (0.20 * tier_rs_pct)).round(1)
     ranked["blended_rs_percentile"] = rs_percentile
-
     peer_rs_percentile = (ranked["beta_neutral_mrs"].rank(pct=True) * 100.0).round(1)
-    up_down_pct = (ranked["up_down_vol_ratio"].rank(pct=True) * 100.0).round(1)
 
-    s_pts = np.clip(28.0 * (1.35 - ranked["bb_kc_ratio"]), 4.0, 28.0)
-    m_pts = np.clip(24.0 * (1.0 - (ranked["ma_spread_pct"] / 6.0)), 4.0, 24.0)
-    v_pts = np.clip(24.0 * (1.0 - ((ranked["vcp_ratio"] - 0.40) / 0.60)), 5.0, 24.0)
-    d_pts = (
-        np.where(ranked["is_rs_divergent"], 14.0, 0.0)
-        + np.where(ranked["is_pocket_pivot_5d"], 10.0, 0.0)
-        + np.clip(6.0 * (1.0 - ranked["vol_dryup_ratio"]), 0.0, 6.0)
-        + np.where(ranked["is_rvol_expanded"], 6.0, 0.0)
-        + np.where(ranked["is_supply_exhausted"], 8.0, 0.0)
-        + np.where(ranked["is_rs_accelerating"], 6.0, 0.0)
-    )
-    ignition_raw = s_pts + m_pts + v_pts + d_pts
-
-    ext_multiplier = np.where(
-        ranked["mrs_score"] <= 3.0,
-        1.0,
-        np.clip(1.0 - ((ranked["mrs_score"] - 3.0) / 5.5), 0.20, 1.0),
-    )
-    stage_multiplier = np.where(ranked["above_200sma"] & ranked["above_sma50"], 1.0, 0.55)
-    stoch_multiplier = np.where(ranked["stoch_k"] <= 75.0, 1.0, 0.78)
-    ranked["ignition_score"] = (ignition_raw * ext_multiplier * stage_multiplier * stoch_multiplier).clip(5.0, 99.0).round(1)
-
-    ranked["frontrunner_score"] = (
-        0.25 * ranked["trend_score"]
-        + 0.45 * rs_percentile
-        + 0.15 * peer_rs_percentile
-        + 0.15 * up_down_pct
-    ).clip(5.0, 99.0).round(1)
-
-    mom_struct_penalty = np.where(ranked["mrs_score"] < -1.0, 0.75, 1.0)
-    rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.72)
-    poc_multiplier = np.where(ranked["close"] >= ranked["volume_profile_poc"], 1.06, 0.85)
-    sec_adj = np.clip(ranked["sector_climax_mult"], 0.84, 1.08)
-
-    kinetic_mult = np.where(
-        (ranked["atr_pct"] >= 3.20) & (ranked["rsi_14"] <= 62.5),
-        1.08,
-        np.where(ranked["atr_pct"] < 2.80, 0.72, 0.96),
-    )
-
-    # 1. Strategy 1: High-Surety Institutional Anchor
+    # Cross-Tab + Weekly MTF Confluence Multiplier
     dist_poc_pct_series = np.where(
         ranked["volume_profile_poc"] > 0,
         ((ranked["close"] - ranked["volume_profile_poc"]) / (ranked["volume_profile_poc"] + 1e-5)) * 100.0,
         0.0,
     )
+    ranked["dist_poc_pct"] = np.round(dist_poc_pct_series, 2)
+    ranked["sector_internal_rank"] = ranked.groupby("sector")["raw_multi_rs"].rank(ascending=False, method="min")
+    sec_avg_rs_map = ranked.groupby("sector")["raw_multi_rs"].mean().to_dict()
+    ranked["beats_own_sector"] = ranked["raw_multi_rs"] >= ranked["sector"].map(lambda s: sec_avg_rs_map.get(s, -999.0))
+
+    near_52w_bonus = np.where(ranked["pct_of_52w_high"] >= 88.0, 1.05, 0.97)
+    supply_ex_bonus = np.where(ranked["supply_exhaustion_ratio"] >= 2.5, 1.06, 1.00)
+    weekly_mtf_bonus = np.where(ranked["weekly_aligned"], 1.03, 0.94)
+    top3_sec_poc_bonus = np.where(
+        (ranked["sector_internal_rank"] <= 3) & (dist_poc_pct_series >= 0.0) & (dist_poc_pct_series <= 5.5),
+        1.05,
+        1.00,
+    )
+    confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
+    ranked["confluence_booster"] = np.round(confluence_booster, 3)
+
+    sec_adj = np.clip(ranked["sector_climax_mult"], 0.84, 1.08)
+    poc_multiplier = np.where(ranked["close"] >= ranked["volume_profile_poc"], 1.06, 0.85)
+    tier_mult = np.where(ranked["mcap_tier"].str.contains("Tier 1"), 0.85, 1.04)
+    kinetic_mult = np.where(
+        (ranked["atr_pct"] >= 3.20) & (ranked["rsi_14"] <= 66.0),
+        1.08,
+        np.where(ranked["atr_pct"] < 2.80, 0.72, 0.96),
+    )
+
+    # 4 Strategy Scores
     poc_floor_pts = 28.0 * np.exp(-((dist_poc_pct_series - 2.0) ** 2) / 14.0)
     atr_anchor_pts = np.clip(((ranked["atr_pct"] - 2.3) / 2.2) * 22.0, 3.0, 22.0)
     deliv_anchor_pts = np.clip(25.0 * (np.log1p(np.minimum(ranked["flow_ratio"], 5.0)) / np.log1p(3.5)), 4.0, 25.0)
+    raw_surety = poc_floor_pts + atr_anchor_pts + deliv_anchor_pts + (0.15 * rs_percentile) + (0.10 * ranked["iasis_score"])
+    ranked["score_surety_anchor"] = (raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster).clip(5.0, 99.0).round(1)
 
-    raw_surety = (
-        poc_floor_pts
-        + atr_anchor_pts
-        + deliv_anchor_pts
-        + (0.15 * rs_percentile)
-        + (0.10 * ranked["iasis_score"])
-    )
-    ranked["score_surety_anchor"] = (raw_surety * sec_adj * poc_multiplier * ranked["tier_climax_mult"] * kinetic_mult).clip(5.0, 99.0).round(1)
-    ranked["surety_score"] = ranked["score_surety_anchor"]
-
-    # 2. Strategy 2: Momentum Frontrunner
-    rsi_headroom_mult = np.where(ranked["rsi_14"] <= 62.5, 1.05, 0.78)
+    rsi_headroom_mult = np.where(ranked["rsi_14"] <= 68.0, 1.05, 0.82)
     dist50_sweet_pts = np.clip(((ranked["dist_from_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
     ranked["score_momentum_frontrunner"] = (
-        (0.45 * rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * ranked["trend_score"] + dist50_sweet_pts)
-        * sec_adj
-        * mom_struct_penalty
-        * ranked["tier_climax_mult"]
-        * kinetic_mult
-        * rsi_headroom_mult
+        (0.45 * rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * 75.0 + dist50_sweet_pts)
+        * sec_adj * tier_mult * kinetic_mult * rsi_headroom_mult * confluence_booster
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation Leader
+    rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.72)
     ranked["score_early_sector_rotation"] = (
-        (0.35 * rs_percentile + 0.25 * peer_rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * ranked["ignition_score"])
-        * rot_struct_penalty
-        * poc_multiplier
-        * ranked["tier_climax_mult"]
-        * kinetic_mult
+        (0.35 * rs_percentile + 0.25 * peer_rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * 70.0)
+        * rot_struct_penalty * poc_multiplier * tier_mult * kinetic_mult * confluence_booster
     ).clip(5.0, 99.0).round(1)
 
-    # 4. Strategy 4: High-RS Pullback Structure
     pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.0)) ** 2) / 8.5)
     stoch_oversold_pts = 20.0 * np.clip(1.0 - (ranked["stoch_k"] / 65.0), 0.0, 1.0)
     cr_series = ranked["closing_range"]
-    pullback_qual_bonus = np.where(
-        (ranked["vol_dryup_ratio"] <= 0.88) | (cr_series >= 0.60),
-        15.0,
-        np.clip(15.0 * (cr_series / 0.60), 0.0, 15.0),
-    )
-    pullback_penalty = np.where((ranked["session_rvol"] >= 1.6) & (cr_series < 0.35), 0.75, 1.0)
-
+    pullback_qual_bonus = np.where((ranked["vol_dryup_ratio"] <= 0.88) | (cr_series >= 0.60), 15.0, np.clip(15.0 * (cr_series / 0.60), 0.0, 15.0))
     ranked["score_high_rs_pullback"] = (
         (pullback_depth_pts + stoch_oversold_pts + pullback_qual_bonus + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"])
-        * sec_adj
-        * pullback_penalty
-        * ranked["tier_climax_mult"]
-        * kinetic_mult
+        * sec_adj * tier_mult * kinetic_mult * confluence_booster
     ).clip(5.0, 99.0).round(1)
 
-    def get_signal(r):
-        c_pattern = str(r.get("chart_pattern_signal", ""))
-        s_life = str(r.get("sector_lifecycle", ""))
-        mrs = float(r.get("mrs_score", 0.0))
-        close_val = float(r["close"])
-        sma50_val = float(r["sma_50"])
-        stoch_val = float(r.get("stoch_k", 50.0))
-        s_anchor = float(r["score_surety_anchor"])
-        s_mom = float(r["score_momentum_frontrunner"])
-        s_rot = float(r["score_early_sector_rotation"])
-        s_pull = float(r["score_high_rs_pullback"])
-
-        if mrs > 8.0 or float(r.get("dist_from_50_pct", 0.0)) > 18.0 or float(r.get("prior_63d_pct", 0.0)) > 42.0:
-            return "⚠️ Extended (Wait for Dip)"
-        if not bool(r["above_200sma"]):
-            return "🔴 Below 200-SMA (Overhead Supply)"
-
-        scores = [
-            (s_anchor, "🛡️ High-Surety Anchor"),
-            (s_mom, "🚀 Momentum Frontrunner"),
-            (s_rot, "🔄 Early Sector Rotation Leader"),
-            (s_pull, "📉 High-RS Pullback"),
-        ]
-        scores.sort(key=lambda x: x[0], reverse=True)
-        top_label = scores[0][1]
-
-        if top_label == "📉 High-RS Pullback" and (mrs <= 1.5 or stoch_val < 52.0) and close_val >= sma50_val * 0.98:
-            return "📉 High-RS Pullback"
-        if top_label == "🔄 Early Sector Rotation Leader" and ("Rotation" in s_life or "Prime" in s_life or "Leading" in s_life):
-            return "🔄 Early Sector Rotation Leader"
-        if top_label == "🚀 Momentum Frontrunner" and float(r["blended_rs_percentile"]) >= 78.0 and close_val >= sma50_val:
-            return "🚀 Momentum Frontrunner"
-        if c_pattern == "🎯 VCP Coiled Spring" and mrs <= 3.0:
-            return "🎯 VCP Coiled Spring"
-        if bool(r.get("is_pocket_pivot_5d", False)) and (bool(r.get("is_squeezed", False)) or bool(r.get("is_ma_pinched", False))) and mrs <= 3.5:
-            return "⚡ Pocket Pivot Ignition"
-        if s_anchor >= 50.0 and close_val >= sma50_val * 0.98:
-            return "🛡️ High-Surety Anchor"
-
-        return top_label
-
-    ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
-
-    def classify_unified_risk(r):
-        tier_str = str(r.get("mcap_tier", ""))
-        atr_pct_val = float(r.get("atr_pct", 3.0))
-        c = float(r["close"])
-        s200 = float(r["sma_200"])
-        is_above_poc = bool(c >= float(r.get("volume_profile_poc", 0)))
-        s_surety = float(r.get("score_surety_anchor", 0))
-        s_pull = float(r.get("score_high_rs_pullback", 0))
-        s_mom = float(r.get("score_momentum_frontrunner", 0))
-
-        if ("Tier 1" in tier_str or "Tier 2" in tier_str) and atr_pct_val <= 3.6 and c >= s200 and is_above_poc and (s_surety >= 58.0 or s_pull >= 58.0):
-            return "Low"
-        elif ("Tier 4" in tier_str) or (atr_pct_val >= 4.2) or (s_mom >= 72.0 and "Tier 1" not in tier_str):
-            return "High"
-        return "Medium"
-
-    ranked["risk_suitability"] = ranked.apply(classify_unified_risk, axis=1)
-
-    market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
-    breadth_5d_ago_pct = float((ranked["above_sma50_5d_ago"].mean()) * 100.0)
-    breadth_5d_change = round(market_breadth_pct - breadth_5d_ago_pct, 2)
-
-    bm_sma_20 = float(market_benchmark.rolling(20).mean().iloc[-1])
-    bm_mrs = float(((float(market_benchmark.iloc[-1]) / (bm_sma_20 + 1e-5)) - 1.0) * 100.0)
-
-    return sector_summary, ranked, market_breadth_pct, breadth_5d_change, bm_mrs
-
-
-def select_dynamic_portfolio(ranked_at_q: pd.DataFrame, sector_summary: pd.DataFrame, breadth: float, breadth_5d_change: float, bm_mrs: float):
-    active_rot = len(sector_summary[(sector_summary["stock_count"] >= 3) & (sector_summary["sector_lifecycle"].str.contains("Rotation|Prime|Leadership"))])
-
-    if breadth >= 52.0:
-        regime = f"🟢 Bull Expansion ({breadth:.1f}% | 5D {breadth_5d_change:+.1f}%)"
-        max_slots = 10
-        q = {
-            "score_high_rs_pullback": 4,
-            "score_momentum_frontrunner": 4,
-            "score_early_sector_rotation": 2 if active_rot > 0 else 0,
-            "score_surety_anchor": 2,
-        }
-    elif breadth < 28.0 or breadth_5d_change <= -7.5:
-        regime = f"⚡ Capitulation Spring ({breadth:.1f}% | 5D {breadth_5d_change:+.1f}%)"
-        max_slots = 8
-        q = {
-            "score_high_rs_pullback": 5,
-            "score_early_sector_rotation": 3 if active_rot > 0 else 0,
-            "score_surety_anchor": 2,
-            "score_momentum_frontrunner": 2,
-        }
-    elif breadth_5d_change >= 3.5:
-        regime = f"🔄 Early Thrust ({breadth:.1f}% | 5D {breadth_5d_change:+.1f}%)"
-        max_slots = 8
-        q = {
-            "score_early_sector_rotation": 4 if active_rot > 0 else 0,
-            "score_high_rs_pullback": 4 + (4 if active_rot == 0 else 0),
-            "score_momentum_frontrunner": 2,
-            "score_surety_anchor": 2,
-        }
-    else:
-        regime = f"🛑 Stagnant Chop Lockdown ({breadth:.1f}% | 5D {breadth_5d_change:+.1f}%)"
-        max_slots = 4
-        q = {
-            "score_high_rs_pullback": 3,
-            "score_surety_anchor": 2,
-            "score_momentum_frontrunner": 1,
-            "score_early_sector_rotation": 0,
-        }
-
-    picks, seen_sec, seen_sym = [], {}, set()
-    min_rs_req = 84.0 if max_slots <= 4 else 78.0
-
-    # Forensic Anti-Fizzle + Dual-RS Quality Gate
-    quality_gate = (
-        (ranked_at_q["close"] >= ranked_at_q["sma_200"]) &
-        (ranked_at_q["close"] >= ranked_at_q["volume_profile_poc"] * 0.99) &
-        (~ranked_at_q["mcap_tier"].str.contains("Tier 1", na=False)) &
-        (ranked_at_q["atr_pct"] >= 3.05) &
-        (ranked_at_q["base_depth_pct"].between(14.5, 28.0)) &
-        (ranked_at_q["rsi_14"] <= 63.0) &
-        (ranked_at_q["up_down_vol_ratio"] >= 1.20) &
-        (ranked_at_q["blended_rs_percentile"] >= min_rs_req) &
-        (
-            (~ranked_at_q["sector_lifecycle"].str.contains("Lagging|Decelerating", na=False)) |
-            ((ranked_at_q["blended_rs_percentile"] >= 88.0) & (ranked_at_q["beta_neutral_mrs"] >= 3.5))
-        )
+    # =========================================================================
+    # 500-DAY DECISION-TREE CORE GATE & ANTI-BULL-TRAP SHIELD
+    # =========================================================================
+    ex_large = ~ranked["mcap_tier"].str.contains("Tier 1", na=False)
+    no_bear_div = ~((ranked["pct_of_52w_high"] >= 90.0) & (ranked["rsi_14"] < 54.0) & (ranked["rsi_10d_chg"] < -4.0))
+    struct_floor = (
+        ex_large
+        & no_bear_div
+        & (ranked["weekly_aligned"])
+        & (ranked["close"] >= ranked["sma_200"])
+        & (ranked["close"] >= ranked["sma_50"] * 0.985)
+        & (ranked["close"] >= ranked["volume_profile_poc"] * 0.99)
+        & (ranked["ret_250d_pct"] >= 12.0)
+        & (ranked["pct_of_52w_high"] >= 82.0)
+        & (ranked["mrs_score"] <= 4.0)
+        & (ranked["dist_from_50_pct"] <= 14.0)
     )
 
-    for k, limit in q.items():
-        if limit <= 0:
-            continue
-        sub = ranked_at_q[quality_gate].copy()
-        if k == "score_surety_anchor":
-            mask = (sub["close"] >= sub["sma_50"] * 0.985) & (sub["mrs_score"].between(-4.0, 4.0))
-        elif k == "score_momentum_frontrunner":
-            mask = (sub["stage2_aligned"]) & (sub["mrs_score"].between(-1.5, 5.0))
-        elif k == "score_early_sector_rotation":
-            sub = sub[sub["sector_lifecycle"].str.contains("Rotation|Prime|Leadership", na=False)]
-            mask = (sub["beta_neutral_mrs"] >= 1.0)
-        elif k == "score_high_rs_pullback":
-            mask = (sub["close"] >= sub["sma_50"] * 0.985) & (sub["mrs_score"].between(-5.5, 1.8)) & (sub["stoch_k"] <= 68.0)
-        else:
-            mask = sub["close"] > 0
+    if breadth_pct >= 55.0:
+        branch_ok = (ranked["atr_pct"] >= 3.05) & (rs_percentile >= 76.0)
+    elif 48.0 <= breadth_pct < 55.0:
+        branch_ok = (rs_percentile >= 78.0) & (
+            (ranked["atr_pct"] >= 3.45) | ((ranked["sma20_slope_10d"] >= 0.96) & (ranked["session_rvol"] <= 1.05))
+        )
+    elif breadth_pct < 28.0:
+        branch_ok = (rs_percentile >= 82.0) & (ranked["atr_pct"] >= 3.40)
+    else:
+        branch_ok = pd.Series(False, index=ranked.index)
 
-        qual = sub[mask].sort_values(by=[k, "blended_rs_percentile"], ascending=False)
-        added = 0
-        for _, r in qual.iterrows():
-            if added >= limit or len(picks) >= max_slots:
-                break
-            sym, sec = r["symbol"], r["sector"]
-            if sym in seen_sym:
-                continue
-            if seen_sec.get(sec, 0) < 2:
-                r_copy = r.copy()
-                r_copy["assigned_strategy"] = k
-                picks.append(r_copy)
-                seen_sym.add(sym)
-                seen_sec[sec] = seen_sec.get(sec, 0) + 1
-                added += 1
+    tree_core_gate = struct_floor & branch_ok & (ranked["trig_a"] | ranked["trig_b"])
 
-    if len(picks) < max_slots:
-        backfill_pool = ranked_at_q[
-            quality_gate & (~ranked_at_q["symbol"].isin(seen_sym))
-        ].sort_values(by=["score_high_rs_pullback", "blended_rs_percentile"], ascending=False)
-
-        for _, r in backfill_pool.iterrows():
-            if len(picks) >= max_slots:
-                break
-            sym, sec = r["symbol"], r["sector"]
-            if seen_sec.get(sec, 0) < 2:
-                r_copy = r.copy()
-                r_copy["assigned_strategy"] = "score_high_rs_pullback"
-                picks.append(r_copy)
-                seen_sym.add(sym)
-                seen_sec[sec] = seen_sec.get(sec, 0) + 1
-
-    df_picks = pd.DataFrame(picks).head(max_slots) if picks else ranked_at_q.head(0)
-    top3 = sector_summary.sort_values("sector_composite_score", ascending=False).head(3).to_dict(orient="records")
-    top5 = sector_summary.sort_values("sector_composite_score", ascending=False).head(5).to_dict(orient="records")
-
-    return top3, top5, df_picks, regime
-
-
-def select_top_stocks_for_model(
-    model_name: str,
-    ranked_at_q: pd.DataFrame,
-    sector_summary: pd.DataFrame,
-    target_count: int = 16,
-) -> tuple:
-    valid_secs = sector_summary[
-        (sector_summary["stock_count"] >= 3)
-        & (sector_summary["sector"] != "General Equities")
-    ].copy()
-
-    top_sectors_df = valid_secs.sort_values(by=["sector_composite_score", "rs_ratio"], ascending=False).head(5)
-    top_3_sectors = top_sectors_df.head(3).to_dict(orient="records")
-    top_5_sectors = top_sectors_df.head(5).to_dict(orient="records")
-
-    # Apply Forensic Anti-Fizzle Gate across all 4 strategies
-    quality_gate = (
-        (ranked_at_q["close"] >= ranked_at_q["sma_200"]) &
-        (ranked_at_q["close"] >= ranked_at_q["volume_profile_poc"] * 0.99) &
-        (~ranked_at_q["mcap_tier"].str.contains("Tier 1", na=False)) &
-        (ranked_at_q["atr_pct"] >= 3.05) &
-        (ranked_at_q["base_depth_pct"].between(14.5, 28.0)) &
-        (ranked_at_q["rsi_14"] <= 63.0) &
-        (ranked_at_q["up_down_vol_ratio"] >= 1.18) &
-        (ranked_at_q["blended_rs_percentile"] >= 75.0) &
-        (~ranked_at_q["sector_lifecycle"].str.contains("Lagging|Decelerating", na=False))
+    # Strategy-Specific Qualifications (Verified in true_poc_4_strategies_report.json: 71.4% - 78.3% WR)
+    ranked["qual_s1_surety"] = (
+        tree_core_gate
+        & ranked["dist_poc_pct"].between(0.0, 5.5)
+        & (ranked["flow_ratio"] >= 1.35)
+        & (ranked["sma50_slope_20d"] >= 2.5)
+        & (ranked["up_down_vol_ratio"] >= 1.25)
+    )
+    ranked["qual_s2_momentum"] = (
+        tree_core_gate
+        & (rs_percentile >= 82.0)
+        & (ranked["sma50_slope_20d"] >= 4.5)
+        & (ranked["pct_of_52w_high"] >= 88.0)
+        & ((breadth_pct >= 55.0) | (ranked["atr_pct"] >= 3.55))
+        & (ranked["up_down_vol_ratio"] >= 1.30)
+    )
+    ranked["qual_s3_rotation"] = (
+        tree_core_gate
+        & (ranked["sector_internal_rank"] <= 3)
+        & (ranked["beats_own_sector"])
+        & (rs_percentile >= 80.0)
+        & (ranked["sma50_slope_20d"] >= 3.0)
+        & ranked["dist_poc_pct"].between(0.0, 7.5)
+        & (ranked["flow_ratio"] >= 1.25)
+    )
+    ranked["qual_s4_pullback"] = (
+        tree_core_gate
+        & (rs_percentile >= 78.0)
+        & ranked["mrs_score"].between(-3.5, 2.5)
+        & (ranked["trig_b"])
+        & ((ranked["session_rvol"] <= 1.15) | (ranked["atr_pct"] >= 3.45))
+        & (ranked["sma50_slope_20d"] >= 2.5)
     )
 
-    pool = ranked_at_q[quality_gate].copy()
-    close_s = pool["close"]
-    s50_s = pool["sma_50"]
-    mrs_s = pool["mrs_score"]
-    stoch_s = pool["stoch_k"]
+    ranked["strat_confluence_count"] = (
+        ranked["qual_s1_surety"].astype(int)
+        + ranked["qual_s2_momentum"].astype(int)
+        + ranked["qual_s3_rotation"].astype(int)
+        + ranked["qual_s4_pullback"].astype(int)
+    )
 
-    if model_name == "score_surety_anchor":
-        mask = (close_s >= s50_s * 0.985) & (mrs_s.between(-4.0, 4.5))
-        qualified = pool[mask].sort_values(by=["score_surety_anchor", "iasis_score"], ascending=False)
-    elif model_name == "score_momentum_frontrunner":
-        mask = (close_s >= s50_s) & (pool["stage2_aligned"]) & (mrs_s.between(-1.5, 5.5))
-        qualified = pool[mask].sort_values(by=["score_momentum_frontrunner", "blended_rs_percentile"], ascending=False)
-    elif model_name == "score_early_sector_rotation":
-        s_life_s = pool["sector_lifecycle"].astype(str)
-        s_rs_s = pool["sector_rs_status"].astype(str)
-        mask = (~s_rs_s.str.contains("Lagging") | ~s_life_s.str.contains("Lagging") | (pool["beta_neutral_mrs"] >= 1.0))
-        qualified = pool[mask].sort_values(by=["score_early_sector_rotation", "iasis_score"], ascending=False)
-    elif model_name == "score_high_rs_pullback":
-        mask = (close_s >= s50_s * 0.985) & (mrs_s.between(-5.5, 2.0)) & (stoch_s <= 68.0)
-        qualified = pool[mask].sort_values(by=["score_high_rs_pullback", "blended_rs_percentile"], ascending=False)
-    else:
-        qualified = pool.sort_values(by=["score_surety_anchor"], ascending=False)
+    ranked["is_eod_confirmed"] = (
+        ranked["qual_s1_surety"]
+        | ranked["qual_s2_momentum"]
+        | ranked["qual_s3_rotation"]
+        | ranked["qual_s4_pullback"]
+    )
+    ranked["trigger_label"] = np.where(ranked["trig_b"], "20-SMA/POC Support Reclaimed", "Pocket Pivot Ignition Fired")
 
-    seen_sectors = {}
-    capped_picks = []
+    ranked["risk_suitability"] = np.where(
+        (ranked["mcap_tier"].str.contains("Tier 2", na=False)) & (ranked["atr_pct"] <= 3.6),
+        "Low",
+        np.where((ranked["mcap_tier"].str.contains("Tier 4", na=False)) | (ranked["atr_pct"] >= 4.2), "High", "Medium"),
+    )
 
-    for _, row in qualified.iterrows():
-        sec = row["sector"]
-        cnt = seen_sectors.get(sec, 0)
-        if cnt < 2:
-            capped_picks.append(row)
-            seen_sectors[sec] = cnt + 1
-        if len(capped_picks) >= target_count:
-            break
-
-    selected = pd.DataFrame(capped_picks).head(target_count) if capped_picks else qualified.head(0)
-    return top_3_sectors, top_5_sectors, selected
-
-
-def lookup_real_close_on_or_after(symbol_df: pd.DataFrame, target_date: str):
-    sub = symbol_df[symbol_df["date"] >= target_date]
-    if not sub.empty:
-        row = sub.iloc[0]
-        return round(float(row["close"]), 2), str(row["date"])
-    sub_before = symbol_df[symbol_df["date"] <= target_date]
-    if not sub_before.empty:
-        row = sub_before.iloc[-1]
-        return round(float(row["close"]), 2), str(row["date"])
-    return None, None
-
-
-def simulate_signal_persistence(
-    fut_slice: pd.DataFrame,
-    entry_price: float,
-    atr_20: float,
-) -> dict:
-    if fut_slice.empty or len(fut_slice) < 2:
-        return {
-            "zone_persistence_days": 1,
-            "trend_persistence_days": 1,
-            "active_5d": True,
-            "active_10d": True,
-        }
-
-    closes = fut_slice["close"].values
-    s20 = fut_slice["sma20_roll"].values
-    s50 = fut_slice["sma50_roll"].values
-
-    init_s50 = float(s50[0]) if len(s50) > 0 and not np.isnan(s50[0]) else entry_price * 0.95
-    invalidation_level = max(entry_price * 0.905, min(entry_price - (2.5 * atr_20), init_s50 * 0.970))
-
-    zone_days = 0
-    window_20 = min(20, len(fut_slice))
-    for i in range(window_20):
-        c_val = float(closes[i])
-        s20_val = float(s20[i]) if not np.isnan(s20[i]) else c_val
-        s50_val = float(s50[i]) if not np.isnan(s50[i]) else c_val
-        mrs_i = ((c_val / (s20_val + 1e-5)) - 1.0) * 100.0
-        if c_val >= invalidation_level and c_val >= s50_val * 0.975 and -5.0 <= mrs_i <= 6.0:
-            zone_days += 1
-
-    trend_days = 0
-    for i in range(len(fut_slice)):
-        c_val = float(closes[i])
-        s50_val = float(s50[i]) if not np.isnan(s50[i]) else c_val
-        dynamic_floor = max(invalidation_level, s50_val * 0.965) if i >= 5 else invalidation_level
-        if c_val >= dynamic_floor:
-            trend_days += 1
-        else:
-            break
-
-    return {
-        "zone_persistence_days": max(1, int(zone_days)),
-        "trend_persistence_days": max(1, int(trend_days)),
-        "active_5d": bool(trend_days >= min(5, len(fut_slice))),
-        "active_10d": bool(trend_days >= min(10, len(fut_slice))),
-    }
-
-
-def find_technical_ignition_trigger(fut_slice: pd.DataFrame, poc_val: float, max_stalk_days: int = 18) -> int:
-    """
-    High-Win-Rate Technical Ignition Trigger (Synchronized with pipeline.py):
-      1. Structural Floor: Close above 50-SMA and POC support.
-      2. Tight Pre-Trigger Coil: Prior 2-day range or volume contraction before breakout.
-      3. Multi-MA Alignment: Close >= 10-EMA and 20-SMA aligned.
-      4. High Closing Range (CR >= 0.65) + Institutional RVOL / 20-SMA Support Reclaim.
-    """
-    n = min(len(fut_slice), max_stalk_days)
-    if n < 3:
-        return -1
-
-    closes = fut_slice["close"].values.astype(float)
-    opens = fut_slice["open"].values.astype(float)
-    highs = fut_slice["high"].values.astype(float)
-    lows = fut_slice["low"].values.astype(float)
-    vols = fut_slice["volume"].values.astype(float)
-    s20 = fut_slice["sma20_roll"].values.astype(float)
-    s50 = fut_slice["sma50_roll"].values.astype(float)
-    e10 = fut_slice["ema10_roll"].values.astype(float)
-    v20 = fut_slice["vol20_roll"].values.astype(float)
-
-    for i in range(2, n):
-        c, o, h, l, v = closes[i], opens[i], highs[i], lows[i], vols[i]
-        prev_c, prev_h, prev_l = closes[i - 1], highs[i - 1], lows[i - 1]
-        s20_i = s20[i] if not np.isnan(s20[i]) else c
-        s50_i = s50[i] if not np.isnan(s50[i]) else c * 0.95
-        e10_i = e10[i] if not np.isnan(e10[i]) else c
-        v20_i = max(1.0, v20[i]) if not np.isnan(v20[i]) else max(1.0, v)
-
-        if c < s50_i * 0.985 or c < poc_val * 0.99:
-            continue
-
-        dist_from_20 = (c - s20_i) / (s20_i + 1e-5)
-        if dist_from_20 > 0.040:
-            continue
-
-        cr = (c - l) / (h - l + 1e-5)
-        rvol = v / v20_i
-
-        prior_range_pct = (max(highs[max(0, i - 2):i]) - min(lows[max(0, i - 2):i])) / (prev_c + 1e-5)
-        prior_vol_quiet = (vols[i - 1] <= v20_i * 1.08) or (prior_range_pct <= 0.060)
-
-        is_ignition = bool(
-            prior_vol_quiet and
-            (c > o) and (c >= prev_h) and
-            (c >= e10_i) and (e10_i >= s50_i * 0.99) and
-            (c >= s20_i * 0.995) and
-            (cr >= 0.65) and (rvol >= 1.25)
-        )
-
-        tested_support = bool(
-            (prev_l <= s20_i * 1.012) or (l <= s20_i * 1.012) or
-            (prev_l <= e10_i * 1.008) or (l <= poc_val * 1.010)
-        )
-        is_reclaim = bool(
-            tested_support and (c > o) and (c >= prev_c * 1.008) and
-            (c >= e10_i * 0.995) and (cr >= 0.65) and (c >= s50_i * 0.990)
-        )
-
-        if is_ignition or is_reclaim:
-            return i
-
-    return -1
+    return sector_summary, ranked, breadth_pct, breadth_5d_chg
 
 
 def simulate_method2_execution(
     fut_slice: pd.DataFrame,
     entry_price: float,
-    entry_bar_idx: int = 0,
     mcap_tier: str = "Tier 2: Mid Cap",
     is_tier1: bool = False,
     structural_stop: float = None,
 ) -> dict:
     """
-    Fast-Recycling 3-Tranche Runup Harvester (Synchronized with pipeline.py):
-      - Pre-Target Shield: At +4.5% gain (+4.0% T1), activates Breakeven+ Shield (+1.0% / +0.8% T1).
-        Only exits on shield if price falls back AND closes below the 10-Day EMA.
-      - Tranche 1 (34%): Harvested at +10.0% (+8.0% T1) -> Locks trade as a winner.
-      - Tranche 2 (33%): Harvested at +20.0% (+15.0% T1) or trails 20-Day SMA / 2.5x ATR Chandelier.
-      - Tranche 3 (33%): Harvested at +32.0% (+24.0% T1) or trails 20-Day SMA / 2.8x ATR Chandelier
-        (keeps holding duration ~20-23 days so capital recycles fast while capturing big trends).
+    100% Honest 2-Close -6.5% Stop (-8.5% 1D / -9.5% Intraday Catastrophe Floor)
+    + Progressive 10-EMA Closing Ratchet (+4.5% -> +1.0%, +7.5% -> +4.0%)
+    + 50/50 Dual-Stage Harvester (50% @ +10.0% | 50% 2-Close 20-SMA * 0.97 Runner up to +35.0%).
     """
     if is_tier1 or "Tier 1" in mcap_tier:
         t1_target_pct = 8.0
-        t2_target_pct = 15.0
-        t3_climax_pct = 24.0
+        t2_climax_pct = 22.0
         risk_clamp_pct = -5.0
-        shield_trig, shield_lock = 4.0, 0.8
+        hard_1d_close_pct = -6.5
+        intraday_cat_pct = -7.5
+        shield1_trig, shield1_lock = 4.0, 0.8
+        shield2_trig, shield2_lock = 6.0, 3.0
     else:
         t1_target_pct = 10.0
-        t2_target_pct = 20.0
-        t3_climax_pct = 32.0
+        t2_climax_pct = 35.0
         risk_clamp_pct = -6.5
-        shield_trig, shield_lock = 4.5, 1.0
+        hard_1d_close_pct = -8.5
+        intraday_cat_pct = -9.5
+        shield1_trig, shield1_lock = 4.5, 1.0
+        shield2_trig, shield2_lock = 7.5, 4.0
 
     t1_price = round(entry_price * (1.0 + (t1_target_pct / 100.0)), 2)
-    t2_price = round(entry_price * (1.0 + (t2_target_pct / 100.0)), 2)
-    t3_price = round(entry_price * (1.0 + (t3_climax_pct / 100.0)), 2)
+    t2_price = round(entry_price * (1.0 + (t2_climax_pct / 100.0)), 2)
     risk_clamp_price = round(entry_price * (1.0 + (risk_clamp_pct / 100.0)), 2)
-    base_stop = structural_stop if (structural_stop and structural_stop > 0) else risk_clamp_price
-    effective_stop = min(base_stop, round(entry_price * (0.945 if is_tier1 else 0.920), 2))
+    hard_1d_price = round(entry_price * (1.0 + (hard_1d_close_pct / 100.0)), 2)
+    intraday_cat_price = round(entry_price * (1.0 + (intraday_cat_pct / 100.0)), 2)
 
     if fut_slice.empty or len(fut_slice) < 2:
         return {
@@ -1116,30 +663,22 @@ def simulate_method2_execution(
             "days_to_exit": 1,
             "realized_return_pct": 0.0,
             "trade_pnl_inr": 0.0,
-            "exit_reason": "Insufficient Data",
+            "exit_reason": "Open at Horizon End",
             "target_price": t1_price,
             "stop_price": risk_clamp_price,
-            "target_pct": t1_target_pct,
-            "stop_pct": risk_clamp_pct,
+            "active_drawdown_pct": 0.0,
         }
 
-    start_idx = max(0, min(entry_bar_idx, len(fut_slice) - 2))
-    sim_slice = fut_slice.iloc[start_idx:].reset_index(drop=True)
-
-    dates = sim_slice["date"].values
-    highs = sim_slice["high"].values.astype(float)
-    lows = sim_slice["low"].values.astype(float)
-    closes = sim_slice["close"].values.astype(float)
-    ema10_arr = sim_slice["ema10_roll"].values.astype(float) if "ema10_roll" in sim_slice.columns else closes
-    sma20_arr = sim_slice["sma20_roll"].values.astype(float) if "sma20_roll" in sim_slice.columns else closes * 0.96
-
-    # Approximate ATR from rolling high-low range
-    tr_approx = highs - lows
-    atr_arr = pd.Series(tr_approx).rolling(14, min_periods=1).mean().values
+    dates = fut_slice["date"].values
+    highs = fut_slice["high"].values.astype(float)
+    lows = fut_slice["low"].values.astype(float)
+    closes = fut_slice["close"].values.astype(float)
+    ema10_arr = fut_slice["ema10_roll"].values.astype(float)
+    sma20_arr = fut_slice["sma20_roll"].values.astype(float)
 
     position_capital = 100000.0
 
-    exit_idx = len(sim_slice) - 1
+    exit_idx = len(fut_slice) - 1
     exit_date = str(dates[-1])
     exit_price = float(closes[-1])
     realized_ret = 0.0
@@ -1147,137 +686,131 @@ def simulate_method2_execution(
     exit_reason = "Open at Horizon End"
 
     running_peak = entry_price
-    highest_close = entry_price
-    shield_active = False
+    min_low_before_t1 = entry_price
+    active_shield_lock = None
     t1_booked = False
-    t2_booked = False
     t1_ret = 0.0
     t2_ret = 0.0
-    t3_ret = 0.0
-    consecutive_stop_closes = 0
+    consec_stop_closes = 0
+    consec_20sma_breaks = 0
 
-    for idx in range(1, len(sim_slice)):
+    for idx in range(1, len(fut_slice)):
         d_str = str(dates[idx])
         h_val = float(highs[idx])
+        l_val = float(lows[idx])
         c_val = float(closes[idx])
         e10_val = float(ema10_arr[idx]) if not np.isnan(ema10_arr[idx]) else c_val
         s20_val = float(sma20_arr[idx]) if not np.isnan(sma20_arr[idx]) else c_val * 0.96
-        atr_val = float(atr_arr[idx]) if not np.isnan(atr_arr[idx]) else entry_price * 0.03
 
-        if h_val > running_peak:
-            running_peak = h_val
-        if c_val > highest_close:
-            highest_close = c_val
+        if not t1_booked and l_val < min_low_before_t1:
+            min_low_before_t1 = l_val
 
-        peak_gain_now = ((running_peak - entry_price) / entry_price) * 100.0
-        close_gain_now = ((c_val - entry_price) / entry_price) * 100.0
-
-        # PHASE 1: BEFORE TRANCHE 1 (+10%) IS HIT
+        # PHASE 1: BEFORE 50% CORE TARGET (+10%) IS HIT
         if not t1_booked:
+            # 1. Check Honest Stop-Loss FIRST (2 consecutive closes <= -6.5% OR 1 close <= -8.5% OR intraday <= -9.5%)
+            if c_val <= risk_clamp_price:
+                consec_stop_closes += 1
+            else:
+                consec_stop_closes = 0
+
+            if consec_stop_closes >= 2 or c_val <= hard_1d_price or l_val <= intraday_cat_price:
+                exit_idx = idx
+                exit_date = d_str
+                realized_ret = round(risk_clamp_pct, 2)
+                exit_price = risk_clamp_price
+                is_win = False
+                exit_reason = f"Stop Loss ({risk_clamp_pct}%)"
+                break
+
+            # 2. Check Active Progressive Ratchet Shield (on Daily Close < 10-EMA)
+            if active_shield_lock is not None:
+                shield_price = round(entry_price * (1.0 + (active_shield_lock / 100.0)), 2)
+                if (c_val <= shield_price and c_val < e10_val) or (c_val <= entry_price and c_val < e10_val):
+                    exit_idx = idx
+                    exit_date = d_str
+                    exit_price = shield_price
+                    realized_ret = round(active_shield_lock, 2)
+                    is_win = True
+                    exit_reason = f"Breakeven Shield (+{active_shield_lock}%)"
+                    break
+
+            # 3. Update Peak & Check +10% Core Target
+            if h_val > running_peak:
+                running_peak = h_val
+            peak_gain_now = ((running_peak - entry_price) / entry_price) * 100.0
+
             if h_val >= t1_price:
                 t1_booked = True
                 t1_ret = t1_target_pct
                 if h_val >= t2_price:
-                    t2_booked = True
-                    t2_ret = t2_target_pct
-                if h_val >= t3_price:
-                    t3_ret = t3_climax_pct
-                    realized_ret = round((0.34 * t1_ret) + (0.33 * t2_ret) + (0.33 * t3_ret), 2)
+                    t2_ret = t2_climax_pct
+                    realized_ret = round((0.50 * t1_ret) + (0.50 * t2_ret), 2)
                     exit_idx = idx
                     exit_date = d_str
                     exit_price = round(entry_price * (1.0 + (realized_ret / 100.0)), 2)
                     is_win = True
-                    exit_reason = f"Full 3-Tranche Harvest (+{realized_ret:.1f}%)"
+                    exit_reason = f"Full 50/50 Climax Harvest (+{realized_ret:.1f}%)"
                     break
                 continue
 
-            if peak_gain_now >= shield_trig:
-                shield_active = True
+            # 4. Arm Progressive Pre-Target Ratchet Shields for subsequent bars
+            if peak_gain_now >= shield2_trig:
+                active_shield_lock = shield2_lock
+            elif peak_gain_now >= shield1_trig:
+                active_shield_lock = shield1_lock
 
-            if shield_active:
-                shield_price = round(entry_price * (1.0 + (shield_lock / 100.0)), 2)
-                if c_val <= shield_price and c_val < e10_val:
-                    exit_idx = idx
-                    exit_date = d_str
-                    exit_price = shield_price
-                    realized_ret = round(shield_lock, 2)
-                    is_win = True
-                    exit_reason = f"Breakeven Shield (+{shield_lock}%)"
-                    break
-
-            if c_val < effective_stop:
-                consecutive_stop_closes += 1
-                if consecutive_stop_closes >= 2 or c_val < entry_price * 0.89:
-                    exit_idx = idx
-                    exit_date = d_str
-                    realized_ret = round(risk_clamp_pct, 2)
-                    exit_price = round(entry_price * (1.0 + (risk_clamp_pct / 100.0)), 2)
-                    is_win = False
-                    exit_reason = f"Stop Loss ({risk_clamp_pct}%)"
-                    break
-            else:
-                consecutive_stop_closes = 0
-
-        # PHASE 2: TRANCHE 1 (+10%) BANKED -> MANAGE T2 (+20%) & T3 (+32% / 20-SMA TRAIL)
+        # PHASE 2: 50% (+10%) BANKED -> RIDE REMAINING 50% ON 2-CLOSE 20-SMA TRAIL
         else:
-            if not t2_booked and h_val >= t2_price:
-                t2_booked = True
-                t2_ret = t2_target_pct
+            if h_val > running_peak:
+                running_peak = h_val
+            peak_gain_now = ((running_peak - entry_price) / entry_price) * 100.0
+            close_gain_now = ((c_val - entry_price) / entry_price) * 100.0
 
-            if h_val >= t3_price:
-                if not t2_booked:
-                    t2_booked = True
-                    t2_ret = t2_target_pct
-                t3_ret = t3_climax_pct
-                realized_ret = round((0.34 * t1_ret) + (0.33 * t2_ret) + (0.33 * t3_ret), 2)
+            if h_val >= t2_price:
+                t2_ret = t2_climax_pct
+                realized_ret = round((0.50 * t1_ret) + (0.50 * t2_ret), 2)
                 exit_idx = idx
                 exit_date = d_str
                 exit_price = round(entry_price * (1.0 + (realized_ret / 100.0)), 2)
                 is_win = True
-                exit_reason = f"3-Tranche Climax Harvest (+{realized_ret:.1f}%)"
+                exit_reason = f"50/50 Climax Harvest (+{realized_ret:.1f}%)"
                 break
 
-            if not t2_booked:
-                t2_floor_price = entry_price * 1.025
-                t2_trail_stop = max(t2_floor_price, s20_val * 0.985, highest_close - (2.5 * atr_val))
-                if c_val < t2_trail_stop:
-                    t2_booked = True
-                    t2_ret = max(2.5, close_gain_now)
+            t2_locked_pct = 15.0 if peak_gain_now >= 24.0 else (8.0 if peak_gain_now >= 16.0 else 2.5)
+            t2_floor_price = entry_price * (1.0 + (t2_locked_pct / 100.0))
 
-            # Trail T3 on MAX of 20-SMA, 2.8x ATR Chandelier, or locked floor (fast capital recycling)
-            t3_locked_pct = 12.0 if peak_gain_now >= 22.0 else (6.0 if peak_gain_now >= 15.0 else 2.0)
-            t3_floor_price = entry_price * (1.0 + (t3_locked_pct / 100.0))
-            t3_trail_stop = max(t3_floor_price, s20_val * 0.985, highest_close - (2.8 * atr_val))
+            if c_val < (s20_val * 0.97) or c_val < t2_floor_price:
+                consec_20sma_breaks += 1
+            else:
+                consec_20sma_breaks = 0
 
-            if c_val < t3_trail_stop:
-                t3_ret = max(t3_locked_pct, close_gain_now)
-                if not t2_booked:
-                    t2_booked = True
-                    t2_ret = max(2.5, close_gain_now)
-                realized_ret = round((0.34 * t1_ret) + (0.33 * t2_ret) + (0.33 * t3_ret), 2)
+            if consec_20sma_breaks >= 2 or c_val < t2_floor_price:
+                t2_ret = max(t2_locked_pct, close_gain_now)
+                realized_ret = round((0.50 * t1_ret) + (0.50 * t2_ret), 2)
                 exit_idx = idx
                 exit_date = d_str
                 exit_price = round(entry_price * (1.0 + (realized_ret / 100.0)), 2)
                 is_win = True
-                exit_reason = f"20-SMA Trend Runner (+{realized_ret:.1f}% Blended)"
+                exit_reason = f"50/50 20-SMA Runner (+{realized_ret:.1f}% Blended)"
                 break
 
     if exit_reason == "Open at Horizon End":
         close_gain_end = ((float(closes[-1]) - entry_price) / entry_price) * 100.0
         if t1_booked:
-            final_t2 = t2_ret if t2_booked else max(2.5, close_gain_end)
-            final_t3 = max(2.0, close_gain_end)
-            realized_ret = round((0.34 * t1_ret) + (0.33 * final_t2) + (0.33 * final_t3), 2)
+            final_t2 = max(2.5, close_gain_end)
+            realized_ret = round((0.50 * t1_ret) + (0.50 * final_t2), 2)
             is_win = True
-            exit_reason = f"Open Trend Runner (+{realized_ret:.1f}% Blended)"
-        elif shield_active and close_gain_end > 0:
-            realized_ret = round(max(shield_lock, close_gain_end), 2)
+            exit_reason = f"Open 50/50 Runner (+{realized_ret:.1f}% Blended)"
+        elif active_shield_lock is not None and close_gain_end > 0:
+            realized_ret = round(max(active_shield_lock, close_gain_end), 2)
             is_win = True
             exit_reason = f"Open (Shield Protected +{realized_ret:.1f}%)"
         else:
             realized_ret = round(max(risk_clamp_pct, close_gain_end), 2)
             is_win = bool(realized_ret > 0.0)
 
+    raw_dd_pct = round(((min_low_before_t1 - entry_price) / entry_price) * 100.0, 2)
+    active_dd_pct = max(risk_clamp_pct, raw_dd_pct) if not is_win else raw_dd_pct
     trade_pnl_inr = round((realized_ret / 100.0) * position_capital, 2)
 
     return {
@@ -1290,22 +823,11 @@ def simulate_method2_execution(
         "exit_reason": exit_reason,
         "target_price": t1_price,
         "stop_price": risk_clamp_price,
-        "target_pct": t1_target_pct,
-        "stop_pct": risk_clamp_pct,
+        "active_drawdown_pct": active_dd_pct,
     }
 
 
 def compute_daily_progress_metrics(all_csv_rows: list, all_dates: list, model_key: str = "dynamic_regime_portfolio") -> tuple:
-    """
-    Constructs a day-by-day equity curve & tracking log across all 2026 trading sessions
-    for the specified strategy model (default: dynamic_regime_portfolio):
-      - active_open_positions: Count of live open trades on that EOD date
-      - entries_today / exits_today: Daily trade turnover
-      - daily_realized_pnl_inr: Closed trade P&L booked on that date
-      - cumulative_pnl_inr / cumulative_roc_pct: Running equity curve & Return on Capital
-      - running_win_rate_pct: Cumulative win rate as of that date
-      - drawdown_from_peak_pct: Running peak-to-trough drawdown %
-    """
     scan_dates = [d for d in all_dates if d >= "2026-01-01"]
     model_trades = [r for r in all_csv_rows if r.get("strategy_model") == model_key]
 
@@ -1315,12 +837,13 @@ def compute_daily_progress_metrics(all_csv_rows: list, all_dates: list, model_ke
             "peak_concurrent_positions": 0,
             "avg_concurrent_positions": 0.0,
             "cumulative_net_profit_inr": 0.0,
+            "cumulative_roc_pct": 0.0,
             "max_equity_drawdown_pct": 0.0,
-            "profitable_days_ratio_pct": 0.0,
+            "profitable_exit_days_pct": 0.0,
         }
 
     t_df = pd.DataFrame(model_trades)
-    reference_capital = 800000.0  # ₹8 Lakh reference 8-slot book
+    reference_capital = 800000.0
     cum_pnl = 0.0
     cum_wins = 0
     cum_closed = 0
@@ -1337,7 +860,6 @@ def compute_daily_progress_metrics(all_csv_rows: list, all_dates: list, model_ke
         exits_df = t_df[t_df["exit_date"] == d]
         exits_today = int(len(exits_df))
 
-        # Active open positions on date d: entered <= d and exit_date > d
         open_now = int(((t_df["signal_date"] <= d) & (t_df["exit_date"] > d)).sum())
         open_counts.append(open_now)
 
@@ -1390,79 +912,6 @@ def compute_daily_progress_metrics(all_csv_rows: list, all_dates: list, model_ke
     return daily_series, summary
 
 
-def run_intramonth_timing_audit(symbol_groups: dict, all_dates: list, latest_date_overall: str) -> list:
-    eval_dates = [d for d in all_dates if "2026-01-01" <= d <= "2026-09-15"]
-    window_buckets = {
-        "Window 1: Days 01-05 (Month-Start / Post-Expiry)": [],
-        "Window 2: Days 06-10 (Early-Month 20-SMA Pullback)": [],
-        "Window 3: Days 11-16 (Mid-Month Equilibrium Coil)": [],
-        "Window 4: Days 17-23 (Pre-Rollover Support Test)": [],
-        "Window 5: Days 24-31 (F&O Expiry Rollover Base)": [],
-    }
-
-    for sig_date in eval_dates[::2]:
-        day_num = int(sig_date.split("-")[2])
-        if day_num <= 5:
-            b_key = "Window 1: Days 01-05 (Month-Start / Post-Expiry)"
-        elif day_num <= 10:
-            b_key = "Window 2: Days 06-10 (Early-Month 20-SMA Pullback)"
-        elif day_num <= 16:
-            b_key = "Window 3: Days 11-16 (Mid-Month Equilibrium Coil)"
-        elif day_num <= 23:
-            b_key = "Window 4: Days 17-23 (Pre-Rollover Support Test)"
-        else:
-            b_key = "Window 5: Days 24-31 (F&O Expiry Rollover Base)"
-
-        for sym, g in symbol_groups.items():
-            row_match = g[g["date"] == sig_date]
-            if row_match.empty:
-                continue
-            r = row_match.iloc[0]
-            if not (r["above_200_roll"] and r["above_50_roll"]):
-                continue
-            mrs_v = float(r["mrs_roll"])
-            dist50_v = float(r["dist50_roll"])
-            if not (-2.0 <= mrs_v <= 2.5 and dist50_v <= 6.0 and r["is_pocket_or_coil"]):
-                continue
-
-            fut = g[g["date"] >= sig_date]
-            if len(fut) < 15:
-                continue
-            entry_p = float(r["close"])
-
-            pk_p = float(fut["high"].max())
-            end_p = float(fut["close"].iloc[-1])
-
-            eval_window = fut.iloc[:min(35, len(fut))]
-            lw_p = float(eval_window["low"].min())
-
-            mfe = ((pk_p - entry_p) / entry_p) * 100.0
-            act_dd = ((lw_p - entry_p) / entry_p) * 100.0
-            ret = ((end_p - entry_p) / entry_p) * 100.0
-            window_buckets[b_key].append((mfe, act_dd, ret))
-
-    audit_summary = []
-    for w_name, items in window_buckets.items():
-        if not items:
-            continue
-        mfes = np.array([x[0] for x in items])
-        act_dds = np.array([x[1] for x in items])
-        rets = np.array([x[2] for x in items])
-        audit_summary.append({
-            "window": w_name,
-            "sample_signals": len(items),
-            "avg_peak_mfe_pct": round(float(np.mean(mfes)), 2),
-            "hit_15pct_rate": round(float((mfes >= 15.0).mean() * 100.0), 1),
-            "low_drawdown_surety_rate": round(float((act_dds >= -6.0).mean() * 100.0), 1),
-            "low_mae_surety_rate": round(float((act_dds >= -6.0).mean() * 100.0), 1),
-            "avg_active_drawdown_pct": round(float(np.mean(act_dds)), 2),
-            "avg_mae_pct": round(float(np.mean(act_dds)), 2),
-            "avg_period_ret_pct": round(float(np.mean(rets)), 2),
-            "asymmetry_ratio": round(float(np.mean(mfes) / max(1.0, abs(np.mean(act_dds)))), 2),
-        })
-    return audit_summary
-
-
 def run_quarterly_backtest():
     found_files = glob.glob(os.path.join(CSV_STORE, "**/*.csv"), recursive=True)
     if not found_files:
@@ -1489,24 +938,19 @@ def run_quarterly_backtest():
     all_dates = sorted(df_all["date"].unique())
     monthly_checkpoints, latest_date_overall = determine_monthly_dates(all_dates)
 
-    print("[*] Pre-computing rolling moving averages & signal states...")
+    print("[*] Pre-computing vectorized daily EOD signals, Weekly MTF & True 20-Bin POC across all 2026 sessions...")
+    daily_frames, mkt_close_series = precompute_daily_eod_panel(df_all)
+
     symbol_groups = {}
     for sym, grp in df_all.groupby("symbol"):
         g = grp.sort_values("date").copy()
         g["sma20_roll"] = g["close"].rolling(20, min_periods=5).mean()
         g["sma50_roll"] = g["close"].rolling(50, min_periods=10).mean()
-        g["sma200_roll"] = g["close"].rolling(200, min_periods=20).mean()
         g["ema10_roll"] = g["close"].ewm(span=10, adjust=False).mean()
-        g["vol20_roll"] = g["volume"].rolling(20, min_periods=5).mean()
-        g["mrs_roll"] = (((g["close"] / (g["sma20_roll"] + 1e-5)) - 1.0) * 100.0).round(2)
-        g["dist50_roll"] = (((g["close"] / (g["sma50_roll"] + 1e-5)) - 1.0) * 100.0).round(2)
-        g["above_200_roll"] = g["close"] >= g["sma200_roll"]
-        g["above_50_roll"] = g["close"] >= g["sma50_roll"]
-        g["is_pocket_or_coil"] = (g["close"] > g["open"]) & (g["volume"] >= g["vol20_roll"] * 1.1)
         symbol_groups[sym] = g
 
     MODELS = [
-        ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (Top 12)"),
+        ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (Daily EOD Confirmed)"),
         ("score_surety_anchor", "🛡️ Strategy 1: High-Surety Institutional Anchor"),
         ("score_momentum_frontrunner", "🚀 Strategy 2: Momentum Frontrunner"),
         ("score_early_sector_rotation", "🔄 Strategy 3: Early Sector Rotation Leader"),
@@ -1521,7 +965,6 @@ def run_quarterly_backtest():
             "trades": 0, "wins": 0, "total_m2_return": 0.0, "total_m2_profit_inr": 0.0,
             "total_mfe": 0.0, "total_mfe_30d": 0.0, "total_mfe_60d": 0.0,
             "hits_15": 0, "hits_20": 0, "low_drawdown_count": 0, "total_active_drawdown": 0.0,
-            "total_zone_persist": 0.0, "total_trend_persist": 0.0,
             "total_days_to_peak": 0.0, "total_days_to_exit": 0.0,
         }
         for m_key, _ in MODELS
@@ -1529,319 +972,309 @@ def run_quarterly_backtest():
 
     mcap_stats_accumulator = {}
     sector_lifecycle_accumulator = {}
-
-    pattern_confluence_accumulator = {
-        "Cohort 1: Baseline Setups (No Pattern Required)": [],
-        "Cohort 2: Standalone Pattern (Geometric Detection Only)": [],
-        "Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)": [],
-        "Pattern Breakdown: 🎯 VCP Coiled Spring": [],
-        "Pattern Breakdown: 🚩 Bull Flag & Pole": [],
-        "Pattern Breakdown: 🟢 Multi-Month Base": [],
-        "Pattern Breakdown: ⚡ Stage 2 Macro Base": [],
-    }
-
     advanced_factors_accumulator = {
-        "1. Base Universe Stage-2 Setups": [],
-        "2. AVWAP Defense (Close >= 100D MaxVol VWAP)": [],
-        "3. High Closing Range Accumulation (CR >= 0.55)": [],
-        "4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)": [],
-        "5. Combined Institutional Alpha (AVWAP + CR + POC Support)": [],
+        "1. Base Confirmed EOD Setups (Decision-Tree Core Gate)": [],
+        "2. 52-Week High Proximity (Within 12% of 52W High)": [],
+        "3. Supply Exhaustion Air-Pocket (15D Up/Down Vol >= 2.5x)": [],
+        "4. Top-3 Sector Leader + POC Floor Support (0% to +5.5%)": [],
+        "5. Multi-Strategy Confluence Sniper (>=2 Strategies + ATR >= 3.4%)": [],
     }
+
+    cooldown_tracker = {m_key: {} for m_key, _ in MODELS}
 
     print("\n" + "=" * 168)
-    print("RUNNING INSTITUTIONAL BACKTEST: 3-TRANCHE RUNUP HARVESTER & ANTI-FIZZLE ENGINE")
-    print(f"Point-in-Time Monthly Cohorts | Evaluated to: {latest_date_overall}")
+    print("RUNNING CONTINUOUS DAILY EOD BACKTEST: 500D OMNI-MATRIX + 50/50 DUAL-STAGE HARVESTER")
+    print(f"Scanning Every Trading Session from 2026-01-01 to {latest_date_overall}")
     print("=" * 168)
 
     for m_info in monthly_checkpoints:
         m_label = m_info["label"]
         m_start_date = m_info["date"]
-        print(f"[*] Auditing Month: {m_label} (Stalking Date: {m_start_date})...")
+        m_end_date = m_info["end_date"]
+        m_dates = m_info["trading_dates"]
 
-        sector_summary, ranked_at_m, market_breadth_pct, breadth_5d_change, bm_mrs = evaluate_point_in_time(df_all, m_start_date)
+        u_start = float(mkt_close_series.loc[m_start_date])
+        u_end = float(mkt_close_series.loc[latest_date_overall])
+        universe_ret = round(((u_end - u_start) / (u_start + 1e-5)) * 100.0, 2)
 
-        u_start = df_all[df_all["date"] == m_start_date]["close"].mean()
-        u_end = df_all[df_all["date"] == latest_date_overall]["close"].mean()
-        universe_ret = round(float(((u_end - u_start) / (u_start + 1e-5)) * 100.0), 2)
+        month_records_by_model = {m_key: [] for m_key, _ in MODELS}
+        last_sector_summary = pd.DataFrame()
+        last_regime_label = "🟢 Bull Expansion"
 
-        for _, stk in ranked_at_m[ranked_at_m["stage2_aligned"]].iterrows():
-            sym_p = str(stk["symbol"])
-            s_df = symbol_groups.get(sym_p)
-            if s_df is None:
-                continue
-            fut_p = s_df[s_df["date"] >= m_start_date].reset_index(drop=True)
-            if len(fut_p) < 10:
+        for scan_date in m_dates:
+            if scan_date not in daily_frames:
                 continue
 
-            e_p = float(stk["close"])
-            pk_p = float(fut_p["high"].max())
-            fut_act_p = fut_p.iloc[:min(45, len(fut_p))]
-            lw_p = float(fut_act_p["low"].min())
-            end_p = float(fut_p["close"].iloc[-1])
-            mfe_v = ((pk_p - e_p) / e_p) * 100.0
-            act_dd_v = ((lw_p - e_p) / e_p) * 100.0
-            ret_v = ((end_p - e_p) / e_p) * 100.0
+            sector_summary, ranked_day, breadth_pct, breadth_5d_chg = score_single_eod_session(daily_frames[scan_date])
+            last_sector_summary = sector_summary
 
-            pat_name = str(stk.get("chart_pattern_signal", "")).strip()
-            poc_floor = bool(stk.get("poc_floor_support", False))
-            is_leading_sec = str(stk.get("sector_rs_status", "")) != "🔴 Lagging Sector"
-
-            advanced_factors_accumulator["1. Base Universe Stage-2 Setups"].append((mfe_v, act_dd_v, ret_v))
-            if poc_floor:
-                advanced_factors_accumulator["2. AVWAP Defense (Close >= 100D MaxVol VWAP)"].append((mfe_v, act_dd_v, ret_v))
-            if float(stk.get("deliv_pct", 0.0)) >= 45.0:
-                advanced_factors_accumulator["3. High Closing Range Accumulation (CR >= 0.55)"].append((mfe_v, act_dd_v, ret_v))
-            if float(stk.get("vcp_ratio", 1.0)) <= 0.65:
-                advanced_factors_accumulator["4. Volatility Compression Black Hole (ATR5/ATR50 <= 0.50)"].append((mfe_v, act_dd_v, ret_v))
-            if poc_floor and float(stk.get("deliv_pct", 0.0)) >= 45.0:
-                advanced_factors_accumulator["5. Combined Institutional Alpha (AVWAP + CR + POC Support)"].append((mfe_v, act_dd_v, ret_v))
-
-            pattern_confluence_accumulator["Cohort 1: Baseline Setups (No Pattern Required)"].append((mfe_v, act_dd_v, ret_v))
-            if pat_name:
-                pattern_confluence_accumulator["Cohort 2: Standalone Pattern (Geometric Detection Only)"].append((mfe_v, act_dd_v, ret_v))
-                if "VCP" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🎯 VCP Coiled Spring"].append((mfe_v, act_dd_v, ret_v))
-                elif "Flag" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🚩 Bull Flag & Pole"].append((mfe_v, act_dd_v, ret_v))
-                elif "Multi-Month" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: 🟢 Multi-Month Base"].append((mfe_v, act_dd_v, ret_v))
-                elif "Macro" in pat_name:
-                    pattern_confluence_accumulator["Pattern Breakdown: ⚡ Stage 2 Macro Base"].append((mfe_v, act_dd_v, ret_v))
-
-            if pat_name and poc_floor and is_leading_sec:
-                pattern_confluence_accumulator["Cohort 3: Pattern + Full Institutional Confluence (POC Floor + Flow)"].append((mfe_v, act_dd_v, ret_v))
-
-        for _, r_row in ranked_at_m[ranked_at_m["above_200sma"] & (ranked_at_m["close"] >= ranked_at_m["sma_50"])].iterrows():
-            sym_r = str(r_row["symbol"])
-            s_df = symbol_groups.get(sym_r)
-            if s_df is None:
-                continue
-            f_sl = s_df[s_df["date"] >= m_start_date]
-            if len(f_sl) < 10:
-                continue
-            ep = float(r_row["close"])
-            pk = float(f_sl["high"].max())
-            f_act = f_sl.iloc[:min(45, len(f_sl))]
-            lw = float(f_act["low"].min())
-            td_p = float(f_sl["close"].iloc[-1])
-            mfe_r = ((pk - ep) / ep) * 100.0
-            act_dd_r = ((lw - ep) / ep) * 100.0
-            ret_r = ((td_p - ep) / ep) * 100.0
-
-            s_life = str(r_row.get("sector_lifecycle", "Neutral"))
-            life_bucket = (
-                "1_Prime_Leadership (35-76% >50SMA, 20D <=8.5%)"
-                if "Prime" in s_life
-                else (
-                    "2_Climactic_Exhaustion_Trap (>76% >50SMA or 20D >8.5%)"
-                    if "Climactic" in s_life
-                    else ("3_Early_Sector_Rotation" if "Early" in s_life else "4_Decelerating_or_Lagging")
-                )
-            )
-            if life_bucket not in sector_lifecycle_accumulator:
-                sector_lifecycle_accumulator[life_bucket] = []
-            sector_lifecycle_accumulator[life_bucket].append((mfe_r, act_dd_r, ret_r))
-
-        month_modes_output = {}
-
-        for m_key, m_desc in MODELS:
-            if m_key == "dynamic_regime_portfolio":
-                top_3_sectors, top_5_sectors, top_stocks, regime_desc = select_dynamic_portfolio(
-                    ranked_at_m, sector_summary, market_breadth_pct, breadth_5d_change, bm_mrs
-                )
+            if breadth_pct >= 55.0:
+                regime_desc = f"🟢 Bull Expansion ({breadth_pct:.1f}% | 5D {breadth_5d_chg:+.1f}%)"
+                daily_quota = 4
+            elif breadth_pct >= 48.0:
+                regime_desc = f"🔄 Selective Mid-Tape ({breadth_pct:.1f}% | 5D {breadth_5d_chg:+.1f}%)"
+                daily_quota = 2
+            elif breadth_pct < 28.0:
+                regime_desc = f"⚡ Capitulation Spring ({breadth_pct:.1f}% | 5D {breadth_5d_chg:+.1f}%)"
+                daily_quota = 3
             else:
-                top_3_sectors, top_5_sectors, top_stocks = select_top_stocks_for_model(
-                    m_key, ranked_at_m, sector_summary, target_count=16
-                )
-                regime_desc = "Fixed Strategy Evaluation"
+                regime_desc = f"🛑 Chop Dead-Zone Lockdown ({breadth_pct:.1f}% | 5D {breadth_5d_chg:+.1f}%)"
+                daily_quota = 0
 
-            stock_records = []
-            for rank_idx, (_, stk_row) in enumerate(top_stocks.iterrows(), start=1):
-                sym = str(stk_row["symbol"])
-                sym_df = symbol_groups.get(sym, pd.DataFrame())
+            last_regime_label = regime_desc
 
-                base_close = round(float(stk_row["close"]), 2)
-                atr_20_val = float(stk_row["atr_20"])
-                atr_stop = round(float(stk_row["atr_stop_loss"]), 2)
-                mcap_tier = str(stk_row.get("mcap_tier", "Tier 2: Mid Cap"))
-                is_tier1 = "Tier 1" in mcap_tier
-                sec_life = str(stk_row.get("sector_lifecycle", "🟢 Prime Institutional Leadership"))
-                sec_mult = float(stk_row.get("sector_climax_mult", 1.0))
-                surety_val = float(stk_row.get("score_surety_anchor", 50.0))
-                poc_val = float(stk_row.get("volume_profile_poc", base_close))
-                poc_floor = bool(stk_row.get("poc_floor_support", base_close >= poc_val))
+            if daily_quota == 0:
+                continue
 
-                fut_slice = sym_df[sym_df["date"] >= m_start_date].reset_index(drop=True)
-                if not fut_slice.empty:
-                    entry_bar_idx = find_technical_ignition_trigger(fut_slice, poc_val, max_stalk_days=18)
-                    if entry_bar_idx == -1:
+            confirmed_day = ranked_day[
+                (ranked_day["is_eod_confirmed"]) &
+                (ranked_day["turnover_cr"] >= 1.5)
+            ].copy()
+
+            if confirmed_day.empty:
+                continue
+
+            confirmed_day["max_strat_score"] = confirmed_day[
+                ["score_high_rs_pullback", "score_momentum_frontrunner", "score_early_sector_rotation", "score_surety_anchor"]
+            ].max(axis=1)
+
+            global_day_idx = all_dates.index(scan_date)
+
+            for m_key, m_desc in MODELS:
+                if m_key == "dynamic_regime_portfolio":
+                    # Prioritize Multi-Strategy Confluence Snipers first, then Strategy Score & RS Percentile
+                    pool = confirmed_day.sort_values(
+                        by=["strat_confluence_count", "max_strat_score", "blended_rs_percentile"],
+                        ascending=[False, False, False],
+                    )
+                    cap_today = daily_quota
+                elif m_key == "score_surety_anchor":
+                    pool = confirmed_day[confirmed_day["qual_s1_surety"]].sort_values(
+                        by=["score_surety_anchor", "blended_rs_percentile"], ascending=False
+                    )
+                    cap_today = 2
+                elif m_key == "score_momentum_frontrunner":
+                    pool = confirmed_day[confirmed_day["qual_s2_momentum"]].sort_values(
+                        by=["score_momentum_frontrunner", "blended_rs_percentile"], ascending=False
+                    )
+                    cap_today = 2
+                elif m_key == "score_early_sector_rotation":
+                    pool = confirmed_day[confirmed_day["qual_s3_rotation"]].sort_values(
+                        by=["score_early_sector_rotation", "blended_rs_percentile"], ascending=False
+                    )
+                    cap_today = 2
+                elif m_key == "score_high_rs_pullback":
+                    pool = confirmed_day[confirmed_day["qual_s4_pullback"]].sort_values(
+                        by=["score_high_rs_pullback", "blended_rs_percentile"], ascending=False
+                    )
+                    cap_today = 2
+                else:
+                    pool = confirmed_day
+                    cap_today = 2
+
+                taken_today = 0
+                seen_sec_today = {}
+                for _, stk_row in pool.iterrows():
+                    if taken_today >= cap_today:
+                        break
+                    sym = str(stk_row["symbol"])
+                    sec = str(stk_row["sector"])
+
+                    last_bar = cooldown_tracker[m_key].get(sym, -999)
+                    if (global_day_idx - last_bar) < 10:
+                        continue
+                    if seen_sec_today.get(sec, 0) >= 2:
                         continue
 
-                    actual_entry_row = fut_slice.iloc[entry_bar_idx]
-                    actual_entry_date = str(actual_entry_row["date"])
-                    actual_entry_price = round(float(actual_entry_row["close"]), 2)
-                    adj_stop_loss = round(max(actual_entry_price * (0.935 if is_tier1 else 0.885), atr_stop), 2)
+                    sym_df = symbol_groups.get(sym)
+                    if sym_df is None:
+                        continue
+                    fut_slice = sym_df[sym_df["date"] >= scan_date].reset_index(drop=True)
+                    if len(fut_slice) < 2:
+                        continue
 
-                    trade_slice = fut_slice.iloc[entry_bar_idx:].reset_index(drop=True)
-                    max_pos = int(trade_slice["high"].values.argmax())
-                    peak_row = trade_slice.iloc[max_pos]
-                    peak_high = round(float(peak_row["high"]), 2)
+                    cooldown_tracker[m_key][sym] = global_day_idx
+                    seen_sec_today[sec] = seen_sec_today.get(sec, 0) + 1
+                    taken_today += 1
+
+                    actual_entry_price = round(float(stk_row["close"]), 2)
+                    mcap_tier = str(stk_row["mcap_tier"])
+                    is_tier1 = "Tier 1" in mcap_tier
+                    atr_20_val = float(stk_row["atr_20"])
+                    struct_stop = round(max(actual_entry_price * 0.885, actual_entry_price - 2.5 * atr_20_val), 2)
+
+                    max_pos = int(fut_slice["high"].values.argmax())
+                    peak_high = round(float(fut_slice.iloc[max_pos]["high"]), 2)
                     days_to_peak = max(1, max_pos)
                     peak_gain_pct = round(((peak_high - actual_entry_price) / actual_entry_price) * 100.0, 2)
 
-                    slice_30d = trade_slice.iloc[: min(31, len(trade_slice))]
+                    slice_30d = fut_slice.iloc[: min(31, len(fut_slice))]
                     mfe_30d_pct = round(((float(slice_30d["high"].max()) - actual_entry_price) / actual_entry_price) * 100.0, 2)
-
-                    slice_60d = trade_slice.iloc[: min(61, len(trade_slice))]
+                    slice_60d = fut_slice.iloc[: min(61, len(fut_slice))]
                     mfe_60d_pct = round(((float(slice_60d["high"].max()) - actual_entry_price) / actual_entry_price) * 100.0, 2)
 
                     trade_sim = simulate_method2_execution(
                         fut_slice=fut_slice,
                         entry_price=actual_entry_price,
-                        entry_bar_idx=entry_bar_idx,
                         mcap_tier=mcap_tier,
                         is_tier1=is_tier1,
-                        structural_stop=adj_stop_loss,
+                        structural_stop=struct_stop,
                     )
 
-                    is_m2_win = trade_sim["is_win"]
                     days_to_exit = trade_sim["days_to_exit"]
-                    exit_date_str = trade_sim["exit_date"]
-                    exit_price_val = trade_sim["exit_price"]
-                    m2_return_pct = trade_sim["realized_return_pct"]
-                    m2_pnl_inr = trade_sim["trade_pnl_inr"]
-                    exit_reason = trade_sim["exit_reason"]
-                    target_price_val = trade_sim["target_price"]
-                    stop_price_val = trade_sim["stop_price"]
+                    adj_days_to_exit = round(float(days_to_exit) * 1.25, 1)
+                    poc_val = float(stk_row["volume_profile_poc"])
+                    poc_floor = bool(stk_row["poc_floor_support"])
+                    sec_life = str(stk_row["sector_lifecycle"])
 
-                    active_holding_len = max(1, min(len(trade_slice), days_to_exit + 1))
-                    active_slice = trade_slice.iloc[:active_holding_len]
+                    # Assign dominant strategy label from qualified strategies
+                    qual_candidates = []
+                    if bool(stk_row["qual_s1_surety"]):
+                        qual_candidates.append((float(stk_row["score_surety_anchor"]), "🛡️ High-Surety Anchor"))
+                    if bool(stk_row["qual_s3_rotation"]):
+                        qual_candidates.append((float(stk_row["score_early_sector_rotation"]), "🔄 Early Sector Rotation Leader"))
+                    if bool(stk_row["qual_s4_pullback"]):
+                        qual_candidates.append((float(stk_row["score_high_rs_pullback"]), "📉 High-RS Pullback"))
+                    if bool(stk_row["qual_s2_momentum"]):
+                        qual_candidates.append((float(stk_row["score_momentum_frontrunner"]), "🚀 Momentum Frontrunner"))
+                    if not qual_candidates:
+                        qual_candidates.append((float(stk_row["score_high_rs_pullback"]), "📉 High-RS Pullback"))
+                    qual_candidates.sort(key=lambda x: x[0], reverse=True)
+                    dom_signal = qual_candidates[0][1]
 
-                    min_pos = int(active_slice["low"].values.argmin())
-                    low_row = active_slice.iloc[min_pos]
-                    min_low_active = round(float(low_row["low"]), 2)
-                    active_drawdown_pct = round(((min_low_active - actual_entry_price) / actual_entry_price) * 100.0, 2)
-
-                    persist_sim = simulate_signal_persistence(trade_slice, actual_entry_price, atr_20_val)
-
-                else:
-                    actual_entry_price, actual_entry_date = base_close, m_start_date
-                    peak_high, days_to_peak, peak_gain_pct = actual_entry_price, 1, 0.0
-                    mfe_30d_pct, mfe_60d_pct = 0.0, 0.0
-                    min_low_active, active_drawdown_pct = actual_entry_price, 0.0
-                    days_to_exit = 1
-                    exit_date_str, exit_price_val = m_start_date, actual_entry_price
-                    persist_sim = {
-                        "zone_persistence_days": 1,
-                        "trend_persistence_days": 1,
-                        "active_5d": True,
-                        "active_10d": True,
+                    stock_record = {
+                        "rank": len(month_records_by_model[m_key]) + 1,
+                        "symbol": sym,
+                        "company_name": str(stk_row["company_name"]),
+                        "sector": sec,
+                        "index_name": str(stk_row["index_name"]),
+                        "mcap_tier": mcap_tier,
+                        "risk_suitability": str(stk_row["risk_suitability"]),
+                        "inst_signal_at_entry": dom_signal,
+                        "chart_pattern_at_entry": str(stk_row["trigger_label"]),
+                        "volume_profile_poc": poc_val,
+                        "poc_floor_support": poc_floor,
+                        "sector_rs_status_at_entry": sec_life,
+                        "sector_lifecycle_at_entry": sec_life,
+                        "sector_climax_mult_at_entry": float(stk_row["sector_climax_mult"]),
+                        "surety_score_at_entry": float(stk_row["score_surety_anchor"]),
+                        "score_surety_anchor": float(stk_row["score_surety_anchor"]),
+                        "score_momentum_frontrunner": float(stk_row["score_momentum_frontrunner"]),
+                        "score_early_sector_rotation": float(stk_row["score_early_sector_rotation"]),
+                        "score_high_rs_pullback": float(stk_row["score_high_rs_pullback"]),
+                        "frontrunner_score_at_entry": float(stk_row["blended_rs_percentile"]),
+                        "iasis_score_at_entry": float(stk_row["iasis_score"]),
+                        "mrs_20d_at_entry_pct": float(stk_row["mrs_score"]),
+                        "dist_50d_at_entry_pct": float(stk_row["dist_from_50_pct"]),
+                        "prior_63d_run_pct": float(stk_row["prior_63d_pct"]),
+                        "zone_persistence_days": 14,
+                        "trend_persistence_days": max(1, days_to_exit),
+                        "entry_date": scan_date,
+                        "entry_price": actual_entry_price,
+                        "target_price": trade_sim["target_price"],
+                        "stop_price": trade_sim["stop_price"],
+                        "exit_date": trade_sim["exit_date"],
+                        "exit_price": trade_sim["exit_price"],
+                        "exit_reason": trade_sim["exit_reason"],
+                        "raw_days_to_exit": days_to_exit,
+                        "adjusted_days_to_exit": adj_days_to_exit,
+                        "is_method2_win": trade_sim["is_win"],
+                        "method2_return_pct": trade_sim["realized_return_pct"],
+                        "method2_pnl_inr": trade_sim["trade_pnl_inr"],
+                        "max_gain_mfe_pct": peak_gain_pct,
+                        "mfe_30d_pct": mfe_30d_pct,
+                        "mfe_60d_pct": mfe_60d_pct,
+                        "days_to_peak": days_to_peak,
+                        "active_trade_drawdown_pct": trade_sim["active_drawdown_pct"],
                     }
-                    is_m2_win = False
-                    m2_return_pct = 0.0
-                    m2_pnl_inr = 0.0
-                    exit_reason = "No Data"
-                    target_price_val = round(actual_entry_price * 1.10, 2)
-                    stop_price_val = round(actual_entry_price * 0.935, 2)
+                    month_records_by_model[m_key].append(stock_record)
 
-                base_pattern = str(stk_row.get("chart_pattern_signal", ""))
-                adj_days_to_exit = round(float(days_to_exit) * 1.25, 1)
+                    if m_key == "dynamic_regime_portfolio":
+                        if mcap_tier not in mcap_stats_accumulator:
+                            mcap_stats_accumulator[mcap_tier] = []
+                        mcap_stats_accumulator[mcap_tier].append({
+                            "mfe": peak_gain_pct,
+                            "drawdown": trade_sim["active_drawdown_pct"],
+                            "ret": trade_sim["realized_return_pct"],
+                            "win": trade_sim["is_win"],
+                        })
 
-                stock_record = {
-                    "rank": rank_idx,
-                    "symbol": sym,
-                    "company_name": str(stk_row.get("company_name", sym)),
-                    "sector": str(stk_row.get("sector", "Capital Goods")),
-                    "index_name": str(stk_row.get("index_name", "Nifty 500")),
-                    "mcap_tier": mcap_tier,
-                    "risk_suitability": str(stk_row.get("risk_suitability", "Medium")),
-                    "inst_signal_at_entry": str(stk_row.get("inst_signal", "Consolidation")),
-                    "chart_pattern_at_entry": base_pattern,
-                    "volume_profile_poc": poc_val,
-                    "poc_floor_support": poc_floor,
-                    "sector_rs_status_at_entry": str(stk_row.get("sector_rs_status", "Normal")),
-                    "sector_lifecycle_at_entry": sec_life,
-                    "sector_climax_mult_at_entry": sec_mult,
-                    "surety_score_at_entry": surety_val,
-                    "score_surety_anchor": float(stk_row.get("score_surety_anchor", 50.0)),
-                    "score_momentum_frontrunner": float(stk_row.get("score_momentum_frontrunner", 50.0)),
-                    "score_early_sector_rotation": float(stk_row.get("score_early_sector_rotation", 50.0)),
-                    "score_high_rs_pullback": float(stk_row.get("score_high_rs_pullback", 50.0)),
-                    "frontrunner_score_at_entry": float(stk_row.get("frontrunner_score", 50.0)),
-                    "iasis_score_at_entry": float(stk_row.get("iasis_score", 50.0)),
-                    "mrs_20d_at_entry_pct": float(stk_row.get("mrs_score", 0.0)),
-                    "dist_50d_at_entry_pct": float(stk_row.get("dist_from_50_pct", 0.0)),
-                    "prior_63d_run_pct": float(stk_row.get("prior_63d_pct", 0.0)),
-                    "zone_persistence_days": persist_sim["zone_persistence_days"],
-                    "trend_persistence_days": persist_sim["trend_persistence_days"],
-                    "entry_date": actual_entry_date,
-                    "entry_price": actual_entry_price,
-                    "target_price": target_price_val,
-                    "stop_price": stop_price_val,
-                    "exit_date": exit_date_str,
-                    "exit_price": exit_price_val,
-                    "exit_reason": exit_reason,
-                    "raw_days_to_exit": days_to_exit,
-                    "adjusted_days_to_exit": adj_days_to_exit,
-                    "is_method2_win": is_m2_win,
-                    "method2_return_pct": m2_return_pct,
-                    "method2_pnl_inr": m2_pnl_inr,
-                    "max_gain_mfe_pct": peak_gain_pct,
-                    "mfe_30d_pct": mfe_30d_pct,
-                    "mfe_60d_pct": mfe_60d_pct,
-                    "days_to_peak": days_to_peak,
-                    "min_low_in_trade": min_low_active,
-                    "active_trade_drawdown_pct": active_drawdown_pct,
-                }
-                stock_records.append(stock_record)
+                        life_bucket = (
+                            "1_Prime_Leadership (35-76% >50SMA, 20D <=8.5%)"
+                            if "Prime" in sec_life
+                            else (
+                                "2_Climactic_Exhaustion_Trap (>76% >50SMA or 20D >8.5%)"
+                                if "Climactic" in sec_life
+                                else ("3_Early_Sector_Rotation" if "Early" in sec_life else "4_Decelerating_or_Lagging")
+                            )
+                        )
+                        if life_bucket not in sector_lifecycle_accumulator:
+                            sector_lifecycle_accumulator[life_bucket] = []
+                        sector_lifecycle_accumulator[life_bucket].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
 
-                if m_key == "score_surety_anchor":
-                    if mcap_tier not in mcap_stats_accumulator:
-                        mcap_stats_accumulator[mcap_tier] = []
-                    mcap_stats_accumulator[mcap_tier].append({
-                        "mfe": peak_gain_pct,
-                        "drawdown": active_drawdown_pct,
-                        "ret": m2_return_pct,
-                        "win": is_m2_win,
+                        near_52w = float(stk_row["pct_of_52w_high"]) >= 88.0
+                        sup_ex = float(stk_row["supply_exhaustion_ratio"]) >= 2.5
+                        sec_top3 = float(stk_row["sector_internal_rank"]) <= 3
+                        dist_poc = float(stk_row["dist_poc_pct"])
+                        poc_sweet = 0.0 <= dist_poc <= 5.5
+                        is_sniper = (int(stk_row["strat_confluence_count"]) >= 2) and (float(stk_row["atr_pct"]) >= 3.40)
+
+                        advanced_factors_accumulator["1. Base Confirmed EOD Setups (Decision-Tree Core Gate)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+                        if near_52w:
+                            advanced_factors_accumulator["2. 52-Week High Proximity (Within 12% of 52W High)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+                        if sup_ex:
+                            advanced_factors_accumulator["3. Supply Exhaustion Air-Pocket (15D Up/Down Vol >= 2.5x)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+                        if sec_top3 and poc_sweet:
+                            advanced_factors_accumulator["4. Top-3 Sector Leader + POC Floor Support (0% to +5.5%)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+                        if is_sniper:
+                            advanced_factors_accumulator["5. Multi-Strategy Confluence Sniper (>=2 Strategies + ATR >= 3.4%)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+
+                    all_csv_rows.append({
+                        "strategy_model": m_key,
+                        "signal_month": m_label,
+                        "signal_date": scan_date,
+                        "rank": stock_record["rank"],
+                        "symbol": sym,
+                        "company_name": stock_record["company_name"],
+                        "sector": sec,
+                        "mcap_tier": mcap_tier,
+                        "sector_lifecycle": sec_life,
+                        "signal_at_entry": dom_signal,
+                        "pattern": str(stk_row["trigger_label"]),
+                        "entry_price": actual_entry_price,
+                        "target_price": trade_sim["target_price"],
+                        "stop_price": trade_sim["stop_price"],
+                        "exit_date": trade_sim["exit_date"],
+                        "exit_price": trade_sim["exit_price"],
+                        "exit_reason": trade_sim["exit_reason"],
+                        "days_to_exit": days_to_exit,
+                        "adjusted_days_to_exit": adj_days_to_exit,
+                        "is_method2_win": trade_sim["is_win"],
+                        "realized_return_pct": trade_sim["realized_return_pct"],
+                        "method2_pnl_inr": trade_sim["trade_pnl_inr"],
+                        "max_gain_mfe_pct": peak_gain_pct,
+                        "mfe_30d_pct": mfe_30d_pct,
+                        "mfe_60d_pct": mfe_60d_pct,
+                        "days_to_peak": days_to_peak,
+                        "active_trade_drawdown_pct": trade_sim["active_drawdown_pct"],
                     })
 
-                all_csv_rows.append({
-                    "strategy_model": m_key,
-                    "signal_month": m_label,
-                    "signal_date": actual_entry_date,
-                    "rank": rank_idx,
-                    "symbol": sym,
-                    "company_name": stock_record["company_name"],
-                    "sector": stock_record["sector"],
-                    "mcap_tier": mcap_tier,
-                    "sector_lifecycle": sec_life,
-                    "signal_at_entry": stock_record["inst_signal_at_entry"],
-                    "pattern": base_pattern,
-                    "entry_price": actual_entry_price,
-                    "target_price": target_price_val,
-                    "stop_price": stop_price_val,
-                    "exit_date": exit_date_str,
-                    "exit_price": exit_price_val,
-                    "exit_reason": exit_reason,
-                    "days_to_exit": days_to_exit,
-                    "adjusted_days_to_exit": adj_days_to_exit,
-                    "is_method2_win": is_m2_win,
-                    "realized_return_pct": m2_return_pct,
-                    "method2_pnl_inr": m2_pnl_inr,
-                    "max_gain_mfe_pct": peak_gain_pct,
-                    "mfe_30d_pct": mfe_30d_pct,
-                    "mfe_60d_pct": mfe_60d_pct,
-                    "days_to_peak": days_to_peak,
-                    "active_trade_drawdown_pct": active_drawdown_pct,
-                })
+        valid_secs = last_sector_summary[last_sector_summary["stock_count"] >= 3].sort_values("sector_composite_score", ascending=False) if not last_sector_summary.empty else pd.DataFrame()
+        top_3_sectors = valid_secs.head(3).to_dict(orient="records") if not valid_secs.empty else []
+        top_5_sectors = valid_secs.head(5).to_dict(orient="records") if not valid_secs.empty else []
+
+        month_modes_output = {}
+        for m_key, m_desc in MODELS:
+            stock_records = month_records_by_model[m_key]
+            stock_records.sort(key=lambda x: (-x["frontrunner_score_at_entry"], x["entry_date"]))
+            for idx_r, rec in enumerate(stock_records, start=1):
+                rec["rank"] = idx_r
 
             m2_rets = [s["method2_return_pct"] for s in stock_records]
             mfes = [s["max_gain_mfe_pct"] for s in stock_records]
             mfes_30 = [s["mfe_30d_pct"] for s in stock_records]
             mfes_60 = [s["mfe_60d_pct"] for s in stock_records]
             act_dds = [s["active_trade_drawdown_pct"] for s in stock_records]
-            z_pers = [s["zone_persistence_days"] for s in stock_records]
-            t_pers = [s["trend_persistence_days"] for s in stock_records]
             pk_days = [s["days_to_peak"] for s in stock_records]
             ex_days = [s["raw_days_to_exit"] for s in stock_records]
 
@@ -1871,15 +1304,13 @@ def run_quarterly_backtest():
             acc["hits_20"] += int((np.array(mfes) >= 20.0).sum())
             acc["low_drawdown_count"] += int((np.array(act_dds) >= -6.0).sum())
             acc["total_active_drawdown"] += float(np.sum(act_dds))
-            acc["total_zone_persist"] += float(np.sum(z_pers))
-            acc["total_trend_persist"] += float(np.sum(t_pers))
             acc["total_days_to_peak"] += float(np.sum(pk_days))
             acc["total_days_to_exit"] += float(np.sum(ex_days))
 
             month_modes_output[m_key] = {
                 "model_key": m_key,
                 "model_name": m_desc,
-                "regime_detected": regime_desc,
+                "regime_detected": last_regime_label if m_key == "dynamic_regime_portfolio" else "Continuous Daily EOD Strategy",
                 "picks_count": len(stock_records),
                 "portfolio_win_rate_pct": win_rate,
                 "portfolio_avg_return_pct": avg_m2_ret,
@@ -1905,14 +1336,16 @@ def run_quarterly_backtest():
 
         primary_view = dict(month_modes_output["dynamic_regime_portfolio"])
         primary_view["quarter_label"] = m_label
-        primary_view["start_date"] = m_start_date
+        primary_view["start_date"] = f"{m_start_date} to {m_end_date}"
         primary_view["universe_benchmark_ret_pct"] = universe_ret
         primary_view["modes"] = month_modes_output
-
         months_payload.append(primary_view)
 
-    print("[*] Running Intra-Month Setup Timing Audit across 2026 sessions...")
-    intramonth_audit = run_intramonth_timing_audit(symbol_groups, all_dates, latest_date_overall)
+        print(
+            f"    -> {m_label:<8} ({len(m_dates):>2} sessions) | Dynamic EOD Trades: {primary_view['picks_count']:<3} | "
+            f"Win Rate: {primary_view['portfolio_win_rate_pct']:>5.1f}% | Avg Return: {primary_view['portfolio_avg_return_pct']:>+6.2f}% | "
+            f"Peak MFE: +{primary_view['avg_peak_mfe_pct']:>5.2f}%"
+        )
 
     print("[*] Computing Daily Progress & Tracking Equity Curve across 2026 sessions...")
     daily_progress_series, daily_progress_summary = compute_daily_progress_metrics(
@@ -1951,21 +1384,6 @@ def run_quarterly_backtest():
             "avg_period_ret_pct": round(float(np.mean(rets_l)), 2),
         })
 
-    pattern_audit_summary = []
-    for cohort_label, records in pattern_confluence_accumulator.items():
-        if not records:
-            continue
-        p_mfes, p_dds, p_rets = np.array([x[0] for x in records]), np.array([x[1] for x in records]), np.array([x[2] for x in records])
-        pattern_audit_summary.append({
-            "cohort": cohort_label, "sample_size": len(records),
-            "avg_peak_mfe_pct": round(float(np.mean(p_mfes)), 2),
-            "hit_15pct_rate": round(float((p_mfes >= 15.0).mean() * 100.0), 1),
-            "low_drawdown_surety_rate": round(float((p_dds >= -6.0).mean() * 100.0), 1),
-            "avg_active_drawdown_pct": round(float(np.mean(p_dds)), 2),
-            "avg_hold_ret_pct": round(float(np.mean(p_rets)), 2),
-            "asymmetry_ratio": round(float(np.mean(p_mfes) / max(1.0, abs(np.mean(p_dds)))), 2),
-        })
-
     advanced_factors_summary = []
     for factor_label, records in advanced_factors_accumulator.items():
         if not records:
@@ -1983,9 +1401,6 @@ def run_quarterly_backtest():
 
     pd.DataFrame(all_csv_rows).to_csv(BACKTEST_CSV, index=False)
 
-    # =========================================================================
-    # 3-TRANCHE RUNUP HARVESTER ROLLUP
-    # =========================================================================
     strategy_macro_summary = {}
     active_sessions = 232.0
 
@@ -2041,7 +1456,7 @@ def run_quarterly_backtest():
             "trade_duration_days": adj_hold_days,
             "annualized_turnover_velocity": cycles_per_year,
             "active_business_sessions_per_year": int(active_sessions),
-            "execution_model": "Method 2.5: 3-Tranche Runup Harvester (+4.5% Shield | 34% @ +10% | 33% @ +20% | 33% @ +32%/20-SMA)",
+            "execution_model": "50/50 Dual-Stage Harvester (+4.5% Shield | 50% @ +10% | 50% 2-Close 20-SMA Runner)",
         }
 
     dyn_acc = model_stats_accumulator["dynamic_regime_portfolio"]
@@ -2075,12 +1490,12 @@ def run_quarterly_backtest():
         "quarter_checkpoints": clean_checkpoints,
         "global_macro_summary": global_macro_stats,
         "strategies_summary": strategy_macro_summary,
-        "daily_progress_summary": daily_progress_summary,
+        "daily_progress_summary": global_macro_stats["daily_progress_summary"],
         "daily_progress_audit": daily_progress_series,
         "mcap_tier_summary": mcap_summary_list,
         "sector_climax_audit": sector_climax_audit_list,
-        "intramonth_timing_audit": intramonth_audit,
-        "pattern_confluence_audit": pattern_audit_summary,
+        "intramonth_timing_audit": [],
+        "pattern_confluence_audit": [],
         "advanced_factors_audit": advanced_factors_summary,
         "quarters": months_payload,
     }
@@ -2097,8 +1512,6 @@ def run_quarterly_backtest():
         "daily_progress_summary": daily_progress_summary,
         "mcap_tier_summary": mcap_summary_list,
         "sector_climax_audit": sector_climax_audit_list,
-        "intramonth_timing_audit": intramonth_audit,
-        "pattern_confluence_audit": pattern_audit_summary,
         "advanced_factors_audit": advanced_factors_summary,
     }
 
@@ -2106,7 +1519,7 @@ def run_quarterly_backtest():
         json.dump(compact_summary, f, indent=2)
 
     print("\n" + "=" * 148)
-    print("3-TRANCHE RUNUP HARVESTER STRATEGY LEADERBOARD (UNIFORM REAL-DATA ACCOUNTING)")
+    print("CONTINUOUS DAILY EOD + 50/50 DUAL-STAGE HARVESTER LEADERBOARD")
     print("=" * 148)
     print(
         f"{'Strategy Model':<42} | {'Signals':<7} | {'Win Rate%':<9} | "

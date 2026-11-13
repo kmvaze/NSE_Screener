@@ -34,7 +34,7 @@
     <div class="brand-container">
       <div class="brand-text-block">
         <h1 class="brand-title">NSE Alpha Pro <span class="brand-tag">| Institutional Terminal</span></h1>
-        <span class="brand-subtitle">Daily EOD Quantitative Screening &amp; 3-Tranche Runup Engine</span>
+        <span class="brand-subtitle">Daily EOD Quantitative Screening &amp; 50/50 Dual-Stage Runup Engine</span>
       </div>
     </div>
 
@@ -85,7 +85,7 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
       <div>
         <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin: 0 0 4px 0;">Daily EOD Market Leadership Command Grid</h2>
-        <p style="font-size: 0.8rem; color: var(--muted); margin: 0;">Updated after every NSE EOD close. Filters out low-beta fizzles via the Kinetic Alpha Gate and dynamically allocates slots based on U-Shaped Market Breadth.</p>
+        <p style="font-size: 0.8rem; color: var(--muted); margin: 0;">Updated after every NSE EOD close. Filters out low-beta fizzles via the Kinetic Alpha Gate &amp; Weekly MTF Alignment, dynamically allocating slots via U-Shaped Market Breadth.</p>
       </div>
       
       <!-- Right Action Toolbar: 4 Core Strategy Buttons & Risk Dropdown -->
@@ -115,7 +115,7 @@
         </div>
         <span style="color: var(--card-border);">|</span>
         <span style="font-size: 0.72rem; color: var(--muted); font-weight: 700;">
-          Execution: <strong style="color: var(--green);">+4.5% Shield • 34% @ +10% • 33% @ +20% • 33% @ +32% / 20-SMA</strong>
+          Execution: <strong style="color: var(--green);">+4.5% Shield • 50% @ +12% • 50% @ +35% / 2-Close 20-SMA</strong>
         </span>
       </div>
 
@@ -139,7 +139,7 @@
           </h3>
           <span class="badge" id="activeTradesCountBadge" style="background: rgba(16, 185, 129, 0.1); color: var(--green); font-size: 0.7rem;">0 Actionable</span>
         </div>
-        <span style="font-size: 0.72rem; color: var(--muted); font-weight: 600;">Elite RS &ge; 80 Leaders • ATR &ge; 3.1% Fuel • Ready for Next Open</span>
+        <span style="font-size: 0.72rem; color: var(--muted); font-weight: 600;">Elite RS &ge; 80 Leaders • Weekly MTF Aligned • ATR &ge; 3.1% Fuel</span>
       </div>
       <div class="landing-hero-grid" id="landingActiveHeroGrid"></div>
     </div>
@@ -440,16 +440,16 @@
     </div>
 
     <div id="btContentWrapper" style="display: none;">
-      <!-- Execution Model Header Banner (3-Tranche Runup Harvester) -->
+      <!-- Execution Model Header Banner (50/50 Dual-Stage Harvester) -->
       <div id="btDualMethodCard" style="background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 14px; padding: 18px; margin-bottom: 20px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
           <div>
-            <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 3-Tranche Runup Harvester &amp; Capital Expectancy Engine</h3>
-            <span style="font-size:0.75rem; color:var(--muted);">Anti-Fizzle Kinetic Gate + Breakeven Shield (+4.5% &rarr; +1.0%) + 3-Tranche Trend Harvest (34% @ +10% | 33% @ +20% | 33% @ +32% / 20-SMA)</span>
+            <h3 style="margin:0; font-size:1.05rem; color:var(--text);">🎯 50/50 Dual-Stage Runup Harvester &amp; Capital Expectancy Engine</h3>
+            <span style="font-size:0.75rem; color:var(--muted);">Anti-Fizzle Gate + Weekly MTF + Breakeven Shield (+4.5% &rarr; +1.0%) + 50% @ +12% Core Target + 50% 2-Close 20-SMA Runner</span>
           </div>
           <div style="display:flex; gap:8px;">
             <div class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--green); border-color: rgba(16, 185, 129, 0.4); font-weight: 800;">
-              ⚡ Method 2.5: 3-Tranche Runup Harvester
+              ⚡ 50/50 Dual-Stage Harvester
             </div>
           </div>
         </div>
@@ -476,9 +476,9 @@
           <div id="btStatBmRetSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">Benchmark Return: --</div>
         </div>
         <div class="bt-stat-card">
-          <div class="bt-stat-label" title="Blended return captured by the 3-Tranche Runup Harvester rule">⚡ Realized Strategy Return</div>
+          <div class="bt-stat-label" title="Blended return captured by the 50/50 Dual-Stage Harvester rule">⚡ Realized Strategy Return</div>
           <div class="bt-stat-value" id="btStatPortfolioRet" style="color: var(--green);">--</div>
-          <div id="btStatExitSimSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">3-Tranche Runup Harvest Return</div>
+          <div id="btStatExitSimSub" style="font-size: 0.68rem; color: var(--muted); margin-top: 4px;">50/50 Dual-Stage Harvest Return</div>
         </div>
         <div class="bt-stat-card" style="border-color: rgba(192, 132, 252, 0.4);">
           <div class="bt-stat-label">⏳ Signal Persistence</div>
@@ -519,11 +519,11 @@
       </details>
 
       <details class="bt-forensic-details" id="btForensicSection" style="display: none;">
-        <summary>🔬 View 11-Month Quantitative Forensic Audits (Patterns • Factors • Cap Tiers • Sector Lifecycle • Timing)</summary>
+        <summary>🔬 View 11-Month Quantitative Forensic Audits (Factors • Cap Tiers • Sector Lifecycle)</summary>
         <div class="bt-forensic-grid">
           <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--accent); border-bottom: 1px solid var(--card-border);">
-              📐 Chart Pattern &amp; Confluence Confirmation Audit (Cohorts &amp; Specific Geometries)
+              📐 Chart Pattern &amp; Confluence Confirmation Audit
             </div>
             <table>
               <thead>
@@ -544,7 +544,7 @@
 
           <div class="table-container" style="margin-bottom: 0; grid-column: 1 / -1;">
             <div style="padding: 8px 12px; font-weight: 700; font-size: 0.76rem; color: var(--teal); border-bottom: 1px solid var(--card-border);">
-              ⚡ Advanced Institutional Factors Ablation (100D AVWAP • Closing Range • Volatility Black Hole)
+              ⚡ Cross-Tab Confluence Factor Ablation (52W High Proximity • Supply Exhaustion • Top-3 Sector + POC Floor)
             </div>
             <table>
               <thead>
@@ -634,8 +634,8 @@
               <th class="tip-trigger" data-tip="The setup type identified on the signal date.">Setup Signal</th>
               <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
               <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
-              <th class="peak-highlight-cell tip-trigger" data-tip="Maximum upside expansion achieved and the date/trading days taken to reach peak.">🚀 Peak MFE &amp; Date</th>
-              <th class="tip-trigger" data-tip="3-Tranche Runup Harvester Resolution: Breakeven Shield, Target Harvest, or 20-SMA Trail.">3-Tranche Trade Exit</th>
+              <th class="peak-highlight-cell tip-trigger" data-tip="Maximum upside expansion achieved and trading days taken to reach peak.">🚀 Peak MFE &amp; Days</th>
+              <th class="tip-trigger" data-tip="50/50 Dual-Stage Harvester Resolution: Breakeven Shield, 50% @ +12% Target, or 2-Close 20-SMA Runner.">50/50 Trade Exit</th>
               <th class="tip-trigger" data-tip="Maximum interim adverse dip experienced while the position was active.">In-Trade Max Dip</th>
               <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
             </tr>
@@ -702,7 +702,7 @@
       <div style="background: rgba(56, 189, 248, 0.08); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
         <strong style="color: var(--accent);">Two-Pool Continuous Daily EOD Architecture:</strong>
         <p style="margin: 6px 0 0 0; font-size: 0.85rem; color: var(--text);">
-          <strong>🎯 Confirmed Actionable Trades (Upper Section):</strong> Elite leaders (RS &ge; 80) that pass the <strong>Anti-Fizzle Kinetic Gate</strong> (ATR &ge; 3.1%, Coil Depth 15%–28%, RSI &le; 62.5, Up/Down Vol &ge; 1.25) and fired an exact EOD <strong>20-SMA/POC Reclaim</strong> or <strong>Pocket Pivot Ignition</strong> today.
+          <strong>🎯 Confirmed Actionable Trades (Upper Section):</strong> Elite leaders (RS &ge; 80) that pass the <strong>Anti-Fizzle Kinetic Gate</strong> (ATR &ge; 3.1%, Coil Depth 15%–28%, RSI &le; 62.5, Up/Down Vol &ge; 1.25), <strong>Weekly MTF Alignment</strong>, and fired an exact EOD <strong>20-SMA/POC Reclaim</strong> or <strong>Pocket Pivot Ignition</strong> today.
           <br><strong>🔭 Shortlisted Stalking Pool (Lower Section):</strong> Coiling institutional leaders across your 4 core strategies that satisfy structural support and kinetic requirements, refreshed daily at EOD and promoted automatically upon trigger confirmation.
         </p>
       </div>
@@ -712,7 +712,7 @@
       <!-- SECTION 2 -->
       <h3>2. 🎯 The 4 Complementary Quant Strategies (Forensically Refined)</h3>
       <p>
-        Every stock in the universe is scored daily across four specialized institutional strategies, powered by the <strong>Empirical Kinetic Alpha Score</strong>:
+        Every stock in the universe is scored daily across four specialized institutional strategies, powered by the <strong>Empirical Kinetic Alpha Score</strong> and <strong>Cross-Tab Confluence Boosters</strong> (52-Week High Proximity, Supply Exhaustion Air-Pocket, and Top-3 Sector Leader + POC Floor):
       </p>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 16px 0;">
@@ -728,7 +728,7 @@
           <h4 style="margin: 0 0 6px 0; color: var(--accent);">🚀 Strategy 2: Momentum Frontrunner</h4>
           <p style="font-size: 0.82rem; margin: 0; color: var(--muted);">
             <strong>Purpose:</strong> Maximum trend velocity and rapid expansion.<br><br>
-            <strong>Mechanism:</strong> Targets top-decile Stage-2 market leaders (RS Percentile &ge; 80, +6% to +18% above rising 50-SMA) with high daily range fuel (ATR &ge; 3.2%) and unstretched oscillators (RSI &le; 62.5) before their next leg higher.
+            <strong>Mechanism:</strong> Targets top-decile Stage-2 market leaders (RS Percentile &ge; 80, +6% to +18% above rising 50-SMA) within 12% of 52-week highs, with high daily range fuel (ATR &ge; 3.2%) and unstretched oscillators (RSI &le; 62.5).
           </p>
         </div>
 
@@ -736,7 +736,7 @@
           <h4 style="margin: 0 0 6px 0; color: var(--purple);">🔄 Strategy 3: Early Sector Rotation Leader</h4>
           <p style="font-size: 0.82rem; margin: 0; color: var(--muted);">
             <strong>Purpose:</strong> Dual-RS wave riding in emerging industry leaders.<br><br>
-            <strong>Mechanism:</strong> Combines broader market leadership with peer-group outperformance (Beta-Neutral MRS &gt; 0) inside sectors transitioning into Early Rotation or Prime Institutional Leadership.
+            <strong>Mechanism:</strong> Combines broader market leadership with peer-group outperformance (Beta-Neutral MRS &gt; 0, Top-3 Rank within sector) inside sectors transitioning into Early Rotation or Prime Institutional Leadership.
           </p>
         </div>
 
@@ -752,14 +752,14 @@
       <hr style="border: none; border-top: 1px solid var(--card-border); margin: 24px 0;" />
 
       <!-- SECTION 3 -->
-      <h3>3. 🛡️ The 3-Tranche Runup Harvester Execution Blueprint</h3>
+      <h3>3. 🛡️ The 50/50 Dual-Stage Execution Blueprint</h3>
       <p>
-        To achieve both an <strong>85%+ win rate</strong> and capture <strong>+20% to +32%+ medium-term runups</strong> without tying up capital in slow sideways consolidations, every actionable trade follows a disciplined 3-step path:
+        To achieve both an <strong>80%–93% win rate</strong> and capture <strong>+20% to +35%+ multi-week trends</strong> without diluting standard swing winners or getting shaken out on 1-day dips, every actionable trade follows a disciplined 3-step path:
       </p>
       <ul>
-        <li><strong>Step 1 — Pre-Target Breakeven Shield (+4.5% &rarr; Lock +1.0%):</strong> Once a trade advances +4.5% (+4.0% Large Cap), the stop floor ratchets to +1.0% (+0.8% Large Cap) on a close below the 10-EMA—eliminating near-miss round-trip losses while letting normal bull flags breathe.</li>
-        <li><strong>Step 2 — Tranche 1 &amp; Tranche 2 Profit Locks:</strong> Harvest <strong>34% at +10.0%</strong> (+8.0% Large Cap) to lock in a guaranteed win, and <strong>33% at +20.0%</strong> (+15.0% Large Cap).</li>
-        <li><strong>Step 3 — Tranche 3 Trend Runner (+32.0% / 20-SMA Trail):</strong> The final 33% rides the rising 20-Day SMA / 2.8x ATR Chandelier stop up to +32.0% (+24.0% Large Cap), capturing big multi-week trends while recycling capital every ~20–23 trading days.</li>
+        <li><strong>Step 1 — Pre-Target Breakeven Shield (+4.5% &rarr; Lock +1.0%):</strong> Once a trade advances +4.5% (+4.0% Large Cap), the stop floor ratchets to +1.0% (+0.8% Large Cap) on a daily close below the 10-EMA—eliminating near-miss round-trip losses while letting normal bull flags breathe.</li>
+        <li><strong>Step 2 — 50% Core Harvest (+12.0% / +9.0% Tier 1):</strong> Books profit on half the position at +12.0% (+9.0% Large Cap), locking in immediate cash flow and recycling capital rapidly without diluting winners.</li>
+        <li><strong>Step 3 — 50% Trend Runner (2-Close 20-SMA Trail up to +35.0%):</strong> The remaining 50% rides the rising 20-Day SMA and only exits upon <strong>2 consecutive daily closes below 20-SMA * 0.97</strong> (or +35.0% / +22.0% Tier 1 climax target), surviving 1-day shakeouts on major institutional trends.</li>
       </ul>
 
       <hr style="border: none; border-top: 1px solid var(--card-border); margin: 24px 0;" />
@@ -775,7 +775,7 @@
       <!-- SECTION 5 -->
       <h3>5. ⏪ Quantitative Backtest &amp; Daily Progress Tab</h3>
       <p>
-        Audits point-in-time cohorts across 2026 using split/bonus-adjusted NSE Bhavcopy &amp; MTO delivery data with zero lookahead bias, complete with a session-by-session <strong>Daily Progress &amp; Equity Tracking Log</strong> monitoring open slots, cumulative ROC%, running win rate, and peak-to-trough drawdown.
+        Audits continuous daily EOD triggers across 2026 using split/bonus-adjusted NSE Bhavcopy &amp; MTO delivery data with zero lookahead bias, complete with a session-by-session <strong>Daily Progress &amp; Equity Tracking Log</strong> monitoring open slots, cumulative ROC%, running win rate, and peak-to-trough drawdown.
       </p>
     </div>
   </div>
@@ -855,7 +855,7 @@
           <div class="factor-val" id="modalStoch">--</div>
         </div>
         <div class="factor-box">
-          <div class="factor-title">Tranche 1 Target (₹)</div>
+          <div class="factor-title">50% Core Target (₹)</div>
           <div class="factor-val" id="modalTargetPrice" style="color:var(--green);">--</div>
         </div>
         <div class="factor-box">
@@ -891,7 +891,7 @@
           <div class="factor-val" id="modalSectorRs">--</div>
         </div>
         <div class="factor-box" style="grid-column: span 2;">
-          <div class="factor-title">3-Tranche Runup Harvester Execution Blueprint</div>
+          <div class="factor-title">50/50 Dual-Stage Execution Blueprint</div>
           <div class="factor-val" id="modalOrderBlock">--</div>
         </div>
       </div>
@@ -954,7 +954,7 @@
       <div class="auth-gate-icon">🔐</div>
       <h2 class="auth-gate-title">Institutional Quant Terminal</h2>
       <p class="auth-gate-desc">
-        Sign in with Google to access daily EOD National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 3-Tranche Runup quantitative trade plans.
+        Sign in with Google to access daily EOD National Stock Exchange (NSE) Bhavcopy feeds, multi-horizon RS matrices, and 50/50 Dual-Stage quantitative trade plans.
       </p>
       <button class="auth-google-btn" onclick="loginWithGoogle()">
         <svg width="18" height="18" viewBox="0 0 24 24">
@@ -977,7 +977,7 @@
       <strong>Not a SEBI Registered Entity:</strong> NSE Alpha Pro is a quantitative technology platform and is <strong>NOT</strong> registered with the Securities and Exchange Board of India (SEBI) as an Investment Adviser or Research Analyst.
     </p>
     <p style="margin: 0 0 8px 0;">
-      <strong>No Investment Advice or Trade Promotion:</strong> The algorithms, setup labels, volatility compression ratios, and 3-Tranche Runup entry/exit price plans are purely technical computations derived from historical and EOD NSE Bhavcopy data feeds. They do not constitute financial advice, trade solicitations, or recommendations to buy or sell any security.
+      <strong>No Investment Advice or Trade Promotion:</strong> The algorithms, setup labels, volatility compression ratios, and 50/50 Dual-Stage entry/exit price plans are purely technical computations derived from historical and EOD NSE Bhavcopy data feeds. They do not constitute financial advice, trade solicitations, or recommendations to buy or sell any security.
     </p>
     <p style="margin: 0;">
       Securities investments are subject to market risks. Past simulated performance or backtested win rates do not assure future returns. Always consult a certified SEBI-registered financial advisor before making financial decisions.

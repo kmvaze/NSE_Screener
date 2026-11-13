@@ -3,7 +3,7 @@
 // ============================================================================
 let sectorRsChartInstance = null;
 let stockRsChartInstance = null;
-let activeBacktestMethod = 2.5; // Standardized to 3-Tranche Runup Harvester
+let activeBacktestMethod = 2.5; // Standardized to 50/50 Dual-Stage Runup Harvester
 
 let selectedRiskAppetite = "ALL";
 let selectedBacktestRisk = "ALL";
@@ -111,7 +111,7 @@ function renderBacktestMethodCard() {
     ? strat.win_rate_pct 
     : (strat.method2_win_rate_pct != null ? strat.method2_win_rate_pct : '--');
 
-  const avgMfe = strat.overall_avg_mfe_pct != null ? Number(strat.overall_avg_mfe_pct).toFixed(1) : '29.8';
+  const avgMfe = strat.overall_avg_mfe_pct != null ? Number(strat.overall_avg_mfe_pct).toFixed(1) : '32.1';
 
   const netExp = strat.net_expectancy_pct != null 
     ? Number(strat.net_expectancy_pct).toFixed(2) 
@@ -130,12 +130,12 @@ function renderBacktestMethodCard() {
 
   const durationTip = "Trade duration includes a +25% execution cushion added to the raw average holding period to reflect real-world execution friction and liquidity absorption.";
   const xirrTip = "Annualized XIRR calculated using 232 active business trading sessions per year.";
-  const clampSubText = "+4.5% Shield | 34% @ +10% | 33% @ +20% | 33% @ +32% / 20-SMA";
+  const clampSubText = "+4.5% Shield | 50% @ +12% | 50% 2-Close 20-SMA Runner";
   
   container.innerHTML = `
     <!-- 1. Win Rate -->
     <div style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
-      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">3-Tranche Win Rate</div>
+      <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; font-weight:700;">50/50 Strategy Win Rate</div>
       <div style="font-size:1.35rem; font-weight:800; color:var(--green); margin-top:2px;">${winRate}${winRate !== '--' ? '%' : ''}</div>
       <div style="font-size:0.68rem; color:var(--muted); margin-top:4px;">${clampSubText}</div>
     </div>
@@ -446,16 +446,14 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
 
   const closeP = Number(st.close);
   const isTier1 = (st.mcap_tier || "").includes("Tier 1");
-  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
-  const t2Pct = isTier1 ? 15.0 : 20.0;
-  const t3Pct = isTier1 ? 24.0 : 32.0;
+  const t1Pct = st.target_pct || (isTier1 ? 9.0 : 12.0);
+  const t2Pct = isTier1 ? 22.0 : 35.0;
   const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
   const shieldTrigPct = isTier1 ? 4.0 : 4.5;
   const shieldLockPct = isTier1 ? 0.8 : 1.0;
 
   const t1Price = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
   const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
-  const t3Price = (closeP * (1.0 + (t3Pct / 100.0))).toFixed(2);
   const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
   const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
   const triggerPrice = st.trigger_price ? Number(st.trigger_price).toFixed(2) : (closeP * 1.01).toFixed(2);
@@ -528,9 +526,9 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
           </div>
         `}
         <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-          <span style="color: var(--muted);">3-Tranche Targets:</span>
+          <span style="color: var(--muted);">50/50 Targets:</span>
           <span style="font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums;">
-            ₹${t1Price} (+${t1Pct}%) &bull; ₹${t2Price} (+${t2Pct}%) &bull; ₹${t3Price}
+            50% @ ₹${t1Price} (+${t1Pct}%) &bull; 50% @ ₹${t2Price} (+${t2Pct}%)
           </span>
         </div>
         <div style="display: flex; justify-content: space-between;">
@@ -544,7 +542,7 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
       <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
         <span class="pill pill-buyzone">${st.inst_signal}</span>
         <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-          <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 3.1}:1</span>
+          <span style="font-size: 0.74rem; font-weight: 800; color: var(--green);">RRR ${st.risk_reward_ratio || 2.0}:1</span>
           <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
         </div>
       </div>
@@ -570,7 +568,6 @@ function renderLandingDashboard() {
   const selectedSymbols = new Set();
 
   if (mode === 'dynamic') {
-    // Upper Section: Confirmed Actionable Trades directly flagged by pipeline.py EOD Engine
     const confirmedRaw = appState.stocks
       .filter(st => Boolean(st.is_active_trade))
       .sort((a, b) => {
@@ -586,7 +583,6 @@ function renderLandingDashboard() {
       }
     }
 
-    // Lower Section: Shortlisted Stalking Pool flagged by pipeline.py EOD Engine
     const stalkingRaw = appState.stocks
       .filter(st => !selectedSymbols.has(st.symbol) && (Boolean(st.balanced_pick) || Boolean(st.is_potential_stalking)))
       .sort((a, b) => {
@@ -612,7 +608,6 @@ function renderLandingDashboard() {
     if (rl) rl.textContent = appState.marketRegimeLabel || "Dynamic EOD Regime";
 
   } else {
-    // Strategy-Specific View (Surety, Momentum, Rotation, or Pullback)
     const qualified = appState.stocks
       .filter(st => matchesStrategyCriteria(st, mode))
       .sort((a, b) => getStrategyScore(b, mode) - getStrategyScore(a, mode));
@@ -635,13 +630,11 @@ function renderLandingDashboard() {
     if (rl) rl.textContent = `${mode.toUpperCase()} STRATEGY POOL`;
   }
 
-  // Apply Risk Appetite Filter if selected
   if (typeof selectedRiskAppetite !== 'undefined' && selectedRiskAppetite !== "ALL") {
     activePool = activePool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
     stalkingPool = stalkingPool.filter(st => getStockRiskSuitability(st) === selectedRiskAppetite);
   }
 
-  // Update header badges
   const trigBadge = document.getElementById('landingTriggeredCountBadge');
   const stalkBadge = document.getElementById('landingStalkingCountBadge');
   const actCountBadge = document.getElementById('activeTradesCountBadge');
@@ -652,7 +645,6 @@ function renderLandingDashboard() {
   if (actCountBadge) actCountBadge.textContent = `${activePool.length} Actionable`;
   if (stlkCountBadge) stlkCountBadge.textContent = `${stalkingPool.length} Watchlist`;
 
-  // Render Dual Containers
   if (activeGrid && stalkingGrid) {
     activeGrid.innerHTML = activePool.length > 0 
       ? activePool.map((st, idx) => generateLandingCardHtml(st, idx, false)).join('')
@@ -707,7 +699,7 @@ function renderTablePage() {
       <td><b>${st.iasis_score ?? 'N/A'}</b></td>
       <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
       <td><span style="color:var(--green); font-weight:600;">${rsStatusText}</span></td>
-      <td><b>${st.risk_reward_ratio || 3.1}:1</b></td>
+      <td><b>${st.risk_reward_ratio || 2.0}:1</b></td>
       <td style="font-size:0.73rem; color:var(--muted); max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${st.reasons_to_avoid || ''}">
         ${st.reasons_to_avoid ? st.reasons_to_avoid.split('; ')[0] : 'Constructive structure'}
       </td>
@@ -840,7 +832,7 @@ function renderPatternsTable() {
         </td>
         <td>
           <span style="color:var(--red); font-weight:600; font-size:0.74rem;">SL: ₹${atrStop.toFixed(2)}</span><br>
-          <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 3.1}:1</span>
+          <span style="font-size:0.68rem; color:var(--green); font-weight:700;">RRR: ${st.risk_reward_ratio || 2.0}:1</span>
         </td>
         <td onclick="event.stopPropagation()">
           <a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a>
@@ -914,7 +906,6 @@ function renderDailyProgressAudit() {
     </div>
   `;
 
-  // Render latest sessions first so most recent daily tracking appears at top
   const reversedRows = [...dailyRows].reverse();
   tbody.innerHTML = reversedRows.map(r => {
     const dayPnl = Number(r.daily_realized_pnl_inr || 0);
@@ -990,7 +981,7 @@ function renderBacktestForensicTables() {
   const factorTbody = document.getElementById('btAdvancedFactorsAuditTableBody');
   if (factorTbody) {
     factorTbody.innerHTML = factorAudit.map(fa => {
-      const isTopTier = fa.factor.includes('Combined') || fa.factor.includes('AVWAP');
+      const isTopTier = fa.factor.includes('Combined') || fa.factor.includes('52-Week');
       const inTradeDip = Number(fa.avg_active_drawdown_pct ?? fa.avg_mae_pct ?? 0);
       const lowDipRate = Number(fa.low_drawdown_surety_rate ?? fa.low_mae_surety_rate ?? 0);
       return `
@@ -1194,7 +1185,7 @@ function renderBacktestView() {
   }
   const elExit = document.getElementById('btStatExitSimSub');
   if (elExit) {
-    elExit.textContent = `3-Tranche Runup Harvest Return`;
+    elExit.textContent = `50/50 Dual-Stage Harvest Return`;
   }
 
   const elPers = document.getElementById('btStatPersistence');
@@ -1235,7 +1226,7 @@ function renderBacktestView() {
   }
 
   // ============================================================================
-  // 3-TRANCHE EXECUTION PROGRESSION TABLE RENDERER
+  // 50/50 DUAL-STAGE EXECUTION PROGRESSION TABLE RENDERER
   // ============================================================================
   const thead = document.getElementById('btProgressionTableHead');
   const tbody = document.getElementById('btProgressionTableBody');
@@ -1249,7 +1240,7 @@ function renderBacktestView() {
         <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
         <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
         <th class="peak-highlight-cell tip-trigger" data-tip="Highest price reached, peak gain percentage, and days taken.">🚀 Peak MFE &amp; Days</th>
-        <th class="tip-trigger" data-tip="3-Tranche Runup Harvester Resolution: Breakeven Shield, Target Harvest, or 20-SMA Trail.">3-Tranche Trade Exit</th>
+        <th class="tip-trigger" data-tip="50/50 Dual-Stage Harvester Resolution: Breakeven Shield, 50% @ +12% Target, or 2-Close 20-SMA Runner.">50/50 Trade Exit</th>
         <th class="tip-trigger" data-tip="Maximum price dip experienced strictly while the position was active.">In-Trade Max Dip</th>
         <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
       </tr>
@@ -1275,7 +1266,7 @@ function renderBacktestView() {
       const m2Ret = Number(pick.method2_return_pct ?? pick.realized_return_pct ?? 0);
       const isM2Win = Boolean(pick.is_method2_win ?? (m2Ret > 0));
       const inTradeDip = Number(pick.active_trade_drawdown_pct ?? pick.max_drawdown_mae_pct ?? 0);
-      const exitReason = pick.exit_reason || (isM2Win ? "Target Harvest" : "Stop Loss (-6.5%)");
+      const exitReason = pick.exit_reason || (isM2Win ? "50/50 Target Harvest" : "Stop Loss (-6.5%)");
 
       let exitDateLabel = pick.exit_date;
       if (!exitDateLabel && pick.entry_date) {
@@ -1610,7 +1601,7 @@ function renderSectorDrilldown(sectorName) {
         <td><span style="color:var(--purple); font-weight:600;">${patternText}</span></td>
         <td><span style="color:var(--green); font-weight:600;">${sectorRsText}</span></td>
         <td><span style="color:var(--accent); font-weight:600;">${marketRsText}</span></td>
-        <td>${st.risk_reward_ratio || 3.1}:1</td>
+        <td>${st.risk_reward_ratio || 2.0}:1</td>
         <td onclick="event.stopPropagation()"><a class="ext-chart-btn" href="https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}" target="_blank" rel="noopener noreferrer">TV ↗</a></td>
       </tr>
     `;
@@ -1723,16 +1714,14 @@ window.addEventListener('keydown', (e) => {
 function openStockModal(st) {
   const closeP = Number(st.close);
   const isTier1 = (st.mcap_tier || "").includes("Tier 1");
-  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
-  const t2Pct = isTier1 ? 15.0 : 20.0;
-  const t3Pct = isTier1 ? 24.0 : 32.0;
+  const t1Pct = st.target_pct || (isTier1 ? 9.0 : 12.0);
+  const t2Pct = isTier1 ? 22.0 : 35.0;
   const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
   const shieldTrigPct = isTier1 ? 4.0 : 4.5;
   const shieldLockPct = isTier1 ? 0.8 : 1.0;
 
   const targetPrice = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
   const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
-  const t3Price = (closeP * (1.0 + (t3Pct / 100.0))).toFixed(2);
   const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
   const shieldFloorPrice = (closeP * (1.0 + (shieldLockPct / 100.0))).toFixed(2);
   const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
@@ -1741,7 +1730,7 @@ function openStockModal(st) {
   document.getElementById('modalCompanyName').textContent = st.company_name || st.symbol;
   document.getElementById('modalTags').textContent = `${st.sector} • ${st.index_name || 'Nifty 500'} • ATR: ${st.atr_pct ?? '--'}%`;
   document.getElementById('modalSignalPill').innerHTML = `<span class="pill pill-buyzone">${st.inst_signal}</span>`;
-  document.getElementById('modalStrengthsText').innerHTML = `Entry: ₹${closeP.toFixed(2)} | Free-Roll Shield (+${shieldTrigPct}%): @ ₹${shieldTrigPrice} &rarr; Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | 3-Tranche Targets: 34% @ ₹${targetPrice} (+${t1Pct}%), 33% @ ₹${t2Price} (+${t2Pct}%), 33% @ ₹${t3Price} (+${t3Pct}% / 20-SMA Trail) | Risk Clamp Stop: ₹${stopPrice} (${stopPct}% 2D Close)`;
+  document.getElementById('modalStrengthsText').innerHTML = `Entry: ₹${closeP.toFixed(2)} | Free-Roll Shield (+${shieldTrigPct}%): @ ₹${shieldTrigPrice} &rarr; Lock ₹${shieldFloorPrice} (+${shieldLockPct}% if &lt;10EMA) | 50/50 Targets: 50% @ ₹${targetPrice} (+${t1Pct}%), 50% Runner @ ₹${t2Price} (+${t2Pct}% / 2-Close 20-SMA) | Risk Clamp Stop: ₹${stopPrice} (${stopPct}% 2D Close)`;
   document.getElementById('modalAvoidText').innerHTML = st.reasons_to_avoid || 'None. Technical structure & kinetic fuel remain constructive.';
   document.getElementById('modalClose').textContent = `₹${closeP.toFixed(2)}`;
   document.getElementById('modalSma20').textContent = `₹${Number(st.sma_20).toFixed(2)}`;
@@ -1752,13 +1741,13 @@ function openStockModal(st) {
   document.getElementById('modalAtrStop').textContent = `₹${stopPrice} (${stopPct}%)`;
   document.getElementById('modalPoc').textContent = `₹${Number(st.volume_profile_poc).toFixed(2)}`;
   document.getElementById('modalIasis').textContent = st.iasis_score ?? 'N/A';
-  document.getElementById('modalRrr').textContent = `${st.risk_reward_ratio || 3.1}:1`;
+  document.getElementById('modalRrr').textContent = `${st.risk_reward_ratio || 2.0}:1`;
   if (document.getElementById('modalIgnition')) document.getElementById('modalIgnition').textContent = st.score_surety_anchor ?? st.surety_score ?? '--';
   if (document.getElementById('modalFrontrunner')) document.getElementById('modalFrontrunner').textContent = st.score_momentum_frontrunner ?? st.frontrunner_score ?? '--';
   if (document.getElementById('modalPattern')) document.getElementById('modalPattern').textContent = st.chart_pattern_signal || 'Consolidation';
   if (document.getElementById('modalSectorRs')) document.getElementById('modalSectorRs').textContent = st.sector_lifecycle || st.sector_rs_status || '';
   if (document.getElementById('modalOrderBlock')) {
-    document.getElementById('modalOrderBlock').textContent = st.order_block_status || `3-Tranche Plan: Buy @ ₹${closeP.toFixed(2)} | Shield @ ₹${shieldTrigPrice} (+${shieldTrigPct}%) -> Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | Harvest 34% @ ₹${targetPrice}, 33% @ ₹${t2Price}, 33% @ ₹${t3Price} (20-SMA Trail) | Stop @ ₹${stopPrice} (${stopPct}%)`;
+    document.getElementById('modalOrderBlock').textContent = st.order_block_status || `50/50 Dual-Stage Plan: Buy @ ₹${closeP.toFixed(2)} | Shield @ ₹${shieldTrigPrice} (+${shieldTrigPct}%) -> Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | Harvest 50% @ ₹${targetPrice} (+${t1Pct}%), 50% @ ₹${t2Price} (2-Close 20-SMA Trail) | Stop @ ₹${stopPrice} (${stopPct}%)`;
   }
   document.getElementById('modalTvLink').href = `https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}`;
   document.getElementById('quantModal').style.display = 'flex';
@@ -1775,14 +1764,14 @@ const TOUR_STEPS = [
     tab: 'landing',
     selector: '#landingActiveHeroGrid',
     title: '1. Daily EOD Two-Pool Command Grid',
-    desc: 'Updated after every NSE close. The Upper Section isolates Confirmed Actionable Trades that passed the Anti-Fizzle Kinetic Gate, while the Lower Section tracks coiling leaders awaiting breakout triggers.',
+    desc: 'Updated after every NSE close. The Upper Section isolates Confirmed Actionable Trades that passed the Anti-Fizzle Kinetic Gate & Weekly MTF Alignment, while the Lower Section tracks coiling leaders awaiting breakout triggers.',
     beforeAction: () => { closeModal(); }
   },
   {
     tab: 'landing',
     selector: '#quantModalCard',
-    title: '2. 3-Tranche Runup Harvester Execution Blueprint',
-    desc: 'Clicking any stock card opens this diagnostic modal showing the +4.5% Free-Roll Breakeven Shield, 3-Tranche profit targets (+10% / +20% / +32% 20-SMA Trail), and structural Risk Clamp stop.',
+    title: '2. 50/50 Dual-Stage Execution Blueprint',
+    desc: 'Clicking any stock card opens this diagnostic modal showing the +4.5% Free-Roll Breakeven Shield, 50% Core Target (+12%), 50% 2-Close 20-SMA Runner (+35%), and structural Risk Clamp stop.',
     beforeAction: () => {
       if (appState.stocks.length > 0) openStockModal(appState.stocks[0]);
     }
@@ -1833,7 +1822,7 @@ const TOUR_STEPS = [
     tab: 'backtest',
     selector: '#btDailyProgressSection',
     title: '8. Quantitative Backtest & Daily Progress Tracker',
-    desc: 'Audit real Bhavcopy performance across the 3-Tranche Runup Harvester, including the session-by-session Daily Equity Curve, Market-Cap Tiers, and Sector Climax Traps.',
+    desc: 'Audit real Bhavcopy performance across the 50/50 Dual-Stage Harvester, including the session-by-session Daily Equity Curve, Market-Cap Tiers, and Confluence Factor Audits.',
     beforeAction: () => { closeModal(); }
   }
 ];
