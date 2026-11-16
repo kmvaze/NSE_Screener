@@ -20,6 +20,37 @@ from pipeline import (
 BACKTEST_JSON = os.path.join(BASE_DIR, "backtest_data.json")
 BACKTEST_SUMMARY_JSON = os.path.join(BASE_DIR, "backtest_summary.json")
 BACKTEST_CSV = os.path.join(DATA_DIR, "backtest_results.csv")
+DNA_PROFILES_CSV = os.path.join(DATA_DIR, "stock_dna_profiles.csv")
+
+
+def load_stock_dna_profiles() -> pd.DataFrame:
+    """
+    Loads the pure structural Stock DNA profiles (data/stock_dna_profiles.csv).
+    Automatically builds the file via build_stock_dna.py if not yet generated.
+    """
+    if not os.path.exists(DNA_PROFILES_CSV):
+        print("[*] stock_dna_profiles.csv not found — generating via build_stock_dna.py...")
+        from build_stock_dna import build_comprehensive_stock_dna
+        build_comprehensive_stock_dna()
+
+    if not os.path.exists(DNA_PROFILES_CSV):
+        return pd.DataFrame(columns=["symbol"])
+
+    dna_df = pd.read_csv(DNA_PROFILES_CSV).drop_duplicates(subset=["symbol"])
+    keep_cols = [
+        "symbol",
+        "dna_archetype",
+        "stock_dna_score",
+        "dominant_ma_dna",
+        "wick_polarity_dna",
+        "impulse_velocity_days",
+        "amihud_impact_dna",
+        "reentry_elasticity_pct",
+        "beta_asymmetry",
+        "median_er_30",
+    ]
+    avail_cols = [c for c in keep_cols if c in dna_df.columns]
+    return dna_df[avail_cols].copy()
 
 
 def determine_monthly_dates(all_dates: list):
@@ -179,10 +210,10 @@ def classify_sector_lifecycle(row: pd.Series) -> tuple:
     return "🔴 Lagging Sector Regime", 0.82
 
 
-def precompute_daily_eod_panel(df_all: pd.DataFrame) -> tuple:
+def precompute_daily_eod_panel(df_all: pd.DataFrame, dna_df: pd.DataFrame) -> tuple:
     """
     Pre-computes vectorized indicators, Weekly MTF alignment, 50-bar Volume-Profile POC,
-    and 500-Day Decision-Tree structural features across the entire universe with zero lookahead bias.
+    500-Day Decision-Tree structural features, and merges Pure Structural Stock DNA.
     """
     all_dates = sorted(df_all["date"].unique())
 
@@ -395,6 +426,25 @@ def precompute_daily_eod_panel(df_all: pd.DataFrame) -> tuple:
         lambda r: classify_mcap_tier(r["symbol"], r["index_name"], r["turnover_cr"]), axis=1
     )
 
+    # Merge Pure Structural Stock DNA Genome
+    if not dna_df.empty and "stock_dna_score" in dna_df.columns:
+        full_panel = pd.merge(full_panel, dna_df, on="symbol", how="left")
+        full_panel["stock_dna_score"] = full_panel["stock_dna_score"].fillna(65.0)
+        full_panel["dna_archetype"] = full_panel["dna_archetype"].fillna("DNA-3: Wicky Shakeout Reclaimer")
+        full_panel["dominant_ma_dna"] = full_panel["dominant_ma_dna"].fillna("50-SMA Deep Undercutter")
+        full_panel["wick_polarity_dna"] = full_panel["wick_polarity_dna"].fillna("Balanced Candle Body")
+        full_panel["impulse_velocity_days"] = full_panel["impulse_velocity_days"].fillna(11.0)
+        full_panel["amihud_impact_dna"] = full_panel["amihud_impact_dna"].fillna(0.04)
+        full_panel["reentry_elasticity_pct"] = full_panel["reentry_elasticity_pct"].fillna(30.0)
+    else:
+        full_panel["stock_dna_score"] = 66.0
+        full_panel["dna_archetype"] = "DNA-3: Wicky Shakeout Reclaimer"
+        full_panel["dominant_ma_dna"] = "50-SMA Deep Undercutter"
+        full_panel["wick_polarity_dna"] = "Balanced Candle Body"
+        full_panel["impulse_velocity_days"] = 11.0
+        full_panel["amihud_impact_dna"] = 0.04
+        full_panel["reentry_elasticity_pct"] = 30.0
+
     daily_frames = {d: grp.copy() for d, grp in full_panel.groupby("date")}
     return daily_frames, mkt_close
 
@@ -402,7 +452,8 @@ def precompute_daily_eod_panel(df_all: pd.DataFrame) -> tuple:
 def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     """
     Scores a single EOD session using the empirically validated 500-Day Decision-Tree
-    Core Gate, True 20-Bin Volume Profile POC, Anti-Bull-Trap Shield, and 4 Strategy Rules.
+    Core Gate, Unified Structural Stock DNA (v1), True 20-Bin Volume Profile POC,
+    Anti-Bull-Trap Shield, and 4 Strategy Rules.
     """
     ranked = day_df.copy()
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
@@ -493,6 +544,22 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
     ranked["confluence_booster"] = np.round(confluence_booster, 3)
 
+    # Unified Structural Stock DNA Multiplier (v1)
+    not_weak_dna1 = (~ranked["dna_archetype"].str.contains("DNA-1", na=False)) | (ranked["stock_dna_score"] >= 68.0)
+    has_strong_dna_edge = (
+        (ranked["stock_dna_score"] >= 64.0)
+        | (ranked["dominant_ma_dna"] == "50-SMA Deep Undercutter")
+        | (ranked["wick_polarity_dna"] == "Upper-Wick Supply Fader")
+        | (ranked["dna_archetype"].str.contains("DNA-2|DNA-4", na=False))
+    )
+    ranked["dna_qualified"] = not_weak_dna1 & has_strong_dna_edge
+
+    dna_score_mult = np.where(
+        ranked["dna_qualified"],
+        np.where(ranked["stock_dna_score"] >= 68.0, 1.06, 1.02),
+        0.78,
+    )
+
     sec_adj = np.clip(ranked["sector_climax_mult"], 0.84, 1.08)
     poc_multiplier = np.where(ranked["close"] >= ranked["volume_profile_poc"], 1.06, 0.85)
     tier_mult = np.where(ranked["mcap_tier"].str.contains("Tier 1"), 0.85, 1.04)
@@ -502,24 +569,24 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         np.where(ranked["atr_pct"] < 2.80, 0.72, 0.96),
     )
 
-    # 4 Strategy Scores
+    # 4 Strategy Scores (DNA-Modulated)
     poc_floor_pts = 28.0 * np.exp(-((dist_poc_pct_series - 2.0) ** 2) / 14.0)
     atr_anchor_pts = np.clip(((ranked["atr_pct"] - 2.3) / 2.2) * 22.0, 3.0, 22.0)
     deliv_anchor_pts = np.clip(25.0 * (np.log1p(np.minimum(ranked["flow_ratio"], 5.0)) / np.log1p(3.5)), 4.0, 25.0)
     raw_surety = poc_floor_pts + atr_anchor_pts + deliv_anchor_pts + (0.15 * rs_percentile) + (0.10 * ranked["iasis_score"])
-    ranked["score_surety_anchor"] = (raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster).clip(5.0, 99.0).round(1)
+    ranked["score_surety_anchor"] = (raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster * dna_score_mult).clip(5.0, 99.0).round(1)
 
     rsi_headroom_mult = np.where(ranked["rsi_14"] <= 68.0, 1.05, 0.82)
     dist50_sweet_pts = np.clip(((ranked["dist_from_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
     ranked["score_momentum_frontrunner"] = (
         (0.45 * rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * 75.0 + dist50_sweet_pts)
-        * sec_adj * tier_mult * kinetic_mult * rsi_headroom_mult * confluence_booster
+        * sec_adj * tier_mult * kinetic_mult * rsi_headroom_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     rot_struct_penalty = np.where(ranked["sector_lifecycle"].str.contains("Rotation|Leadership|Improving|Prime"), 1.08, 0.72)
     ranked["score_early_sector_rotation"] = (
         (0.35 * rs_percentile + 0.25 * peer_rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * 70.0)
-        * rot_struct_penalty * poc_multiplier * tier_mult * kinetic_mult * confluence_booster
+        * rot_struct_penalty * poc_multiplier * tier_mult * kinetic_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.0)) ** 2) / 8.5)
@@ -528,11 +595,11 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     pullback_qual_bonus = np.where((ranked["vol_dryup_ratio"] <= 0.88) | (cr_series >= 0.60), 15.0, np.clip(15.0 * (cr_series / 0.60), 0.0, 15.0))
     ranked["score_high_rs_pullback"] = (
         (pullback_depth_pts + stoch_oversold_pts + pullback_qual_bonus + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"])
-        * sec_adj * tier_mult * kinetic_mult * confluence_booster
+        * sec_adj * tier_mult * kinetic_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     # =========================================================================
-    # 500-DAY DECISION-TREE CORE GATE & ANTI-BULL-TRAP SHIELD
+    # 500-DAY DECISION-TREE CORE GATE + UNIFIED STRUCTURAL STOCK DNA (v1)
     # =========================================================================
     ex_large = ~ranked["mcap_tier"].str.contains("Tier 1", na=False)
     no_bear_div = ~((ranked["pct_of_52w_high"] >= 90.0) & (ranked["rsi_14"] < 54.0) & (ranked["rsi_10d_chg"] < -4.0))
@@ -560,9 +627,9 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     else:
         branch_ok = pd.Series(False, index=ranked.index)
 
-    tree_core_gate = struct_floor & branch_ok & (ranked["trig_a"] | ranked["trig_b"])
+    tree_core_gate = struct_floor & branch_ok & ranked["dna_qualified"] & (ranked["trig_a"] | ranked["trig_b"])
 
-    # Strategy-Specific Qualifications (Verified in true_poc_4_strategies_report.json: 71.4% - 78.3% WR)
+    # Strategy-Specific Qualifications
     ranked["qual_s1_surety"] = (
         tree_core_gate
         & ranked["dist_poc_pct"].between(0.0, 5.5)
@@ -707,7 +774,6 @@ def simulate_method2_execution(
 
         # PHASE 1: BEFORE 50% CORE TARGET (+10%) IS HIT
         if not t1_booked:
-            # 1. Check Honest Stop-Loss FIRST (2 consecutive closes <= -6.5% OR 1 close <= -8.5% OR intraday <= -9.5%)
             if c_val <= risk_clamp_price:
                 consec_stop_closes += 1
             else:
@@ -722,7 +788,6 @@ def simulate_method2_execution(
                 exit_reason = f"Stop Loss ({risk_clamp_pct}%)"
                 break
 
-            # 2. Check Active Progressive Ratchet Shield (on Daily Close < 10-EMA)
             if active_shield_lock is not None:
                 shield_price = round(entry_price * (1.0 + (active_shield_lock / 100.0)), 2)
                 if (c_val <= shield_price and c_val < e10_val) or (c_val <= entry_price and c_val < e10_val):
@@ -734,7 +799,6 @@ def simulate_method2_execution(
                     exit_reason = f"Breakeven Shield (+{active_shield_lock}%)"
                     break
 
-            # 3. Update Peak & Check +10% Core Target
             if h_val > running_peak:
                 running_peak = h_val
             peak_gain_now = ((running_peak - entry_price) / entry_price) * 100.0
@@ -753,7 +817,6 @@ def simulate_method2_execution(
                     break
                 continue
 
-            # 4. Arm Progressive Pre-Target Ratchet Shields for subsequent bars
             if peak_gain_now >= shield2_trig:
                 active_shield_lock = shield2_lock
             elif peak_gain_now >= shield1_trig:
@@ -922,6 +985,9 @@ def run_quarterly_backtest():
     target_symbols = list(symbol_meta.keys())
     ensure_metadata(target_symbols)
 
+    dna_df = load_stock_dna_profiles()
+    print(f"[*] Loaded Pure Structural Stock DNA Genome for {len(dna_df)} symbols.")
+
     print(f"[*] Reading {len(found_files)} real Bhavcopy session files from {CSV_STORE}...")
     df_all = pd.concat([pd.read_csv(f) for f in found_files], ignore_index=True).drop_duplicates(subset=["symbol", "date"])
     df_all = df_all[df_all["symbol"].isin(target_symbols)]
@@ -938,8 +1004,8 @@ def run_quarterly_backtest():
     all_dates = sorted(df_all["date"].unique())
     monthly_checkpoints, latest_date_overall = determine_monthly_dates(all_dates)
 
-    print("[*] Pre-computing vectorized daily EOD signals, Weekly MTF & True 20-Bin POC across all 2026 sessions...")
-    daily_frames, mkt_close_series = precompute_daily_eod_panel(df_all)
+    print("[*] Pre-computing vectorized daily EOD signals, Weekly MTF, True 20-Bin POC & Structural Stock DNA...")
+    daily_frames, mkt_close_series = precompute_daily_eod_panel(df_all, dna_df)
 
     symbol_groups = {}
     for sym, grp in df_all.groupby("symbol"):
@@ -950,7 +1016,7 @@ def run_quarterly_backtest():
         symbol_groups[sym] = g
 
     MODELS = [
-        ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (Daily EOD Confirmed)"),
+        ("dynamic_regime_portfolio", "⚡ Dynamic Regime-Gated Portfolio (DNA + Daily EOD)"),
         ("score_surety_anchor", "🛡️ Strategy 1: High-Surety Institutional Anchor"),
         ("score_momentum_frontrunner", "🚀 Strategy 2: Momentum Frontrunner"),
         ("score_early_sector_rotation", "🔄 Strategy 3: Early Sector Rotation Leader"),
@@ -973,7 +1039,7 @@ def run_quarterly_backtest():
     mcap_stats_accumulator = {}
     sector_lifecycle_accumulator = {}
     advanced_factors_accumulator = {
-        "1. Base Confirmed EOD Setups (Decision-Tree Core Gate)": [],
+        "1. Base Confirmed EOD Setups (Decision-Tree + Structural DNA Gate)": [],
         "2. 52-Week High Proximity (Within 12% of 52W High)": [],
         "3. Supply Exhaustion Air-Pocket (15D Up/Down Vol >= 2.5x)": [],
         "4. Top-3 Sector Leader + POC Floor Support (0% to +5.5%)": [],
@@ -983,7 +1049,7 @@ def run_quarterly_backtest():
     cooldown_tracker = {m_key: {} for m_key, _ in MODELS}
 
     print("\n" + "=" * 168)
-    print("RUNNING CONTINUOUS DAILY EOD BACKTEST: 500D OMNI-MATRIX + 50/50 DUAL-STAGE HARVESTER")
+    print("RUNNING CONTINUOUS DAILY EOD BACKTEST: UNIFIED STRUCTURAL DNA (v1) + 50/50 DUAL-STAGE HARVESTER")
     print(f"Scanning Every Trading Session from 2026-01-01 to {latest_date_overall}")
     print("=" * 168)
 
@@ -1042,30 +1108,29 @@ def run_quarterly_backtest():
 
             for m_key, m_desc in MODELS:
                 if m_key == "dynamic_regime_portfolio":
-                    # Prioritize Multi-Strategy Confluence Snipers first, then Strategy Score & RS Percentile
                     pool = confirmed_day.sort_values(
-                        by=["strat_confluence_count", "max_strat_score", "blended_rs_percentile"],
-                        ascending=[False, False, False],
+                        by=["strat_confluence_count", "stock_dna_score", "max_strat_score", "blended_rs_percentile"],
+                        ascending=[False, False, False, False],
                     )
                     cap_today = daily_quota
                 elif m_key == "score_surety_anchor":
                     pool = confirmed_day[confirmed_day["qual_s1_surety"]].sort_values(
-                        by=["score_surety_anchor", "blended_rs_percentile"], ascending=False
+                        by=["score_surety_anchor", "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False]
                     )
                     cap_today = 2
                 elif m_key == "score_momentum_frontrunner":
                     pool = confirmed_day[confirmed_day["qual_s2_momentum"]].sort_values(
-                        by=["score_momentum_frontrunner", "blended_rs_percentile"], ascending=False
+                        by=["score_momentum_frontrunner", "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False]
                     )
                     cap_today = 2
                 elif m_key == "score_early_sector_rotation":
                     pool = confirmed_day[confirmed_day["qual_s3_rotation"]].sort_values(
-                        by=["score_early_sector_rotation", "blended_rs_percentile"], ascending=False
+                        by=["score_early_sector_rotation", "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False]
                     )
                     cap_today = 2
                 elif m_key == "score_high_rs_pullback":
                     pool = confirmed_day[confirmed_day["qual_s4_pullback"]].sort_values(
-                        by=["score_high_rs_pullback", "blended_rs_percentile"], ascending=False
+                        by=["score_high_rs_pullback", "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False]
                     )
                     cap_today = 2
                 else:
@@ -1127,7 +1192,6 @@ def run_quarterly_backtest():
                     poc_floor = bool(stk_row["poc_floor_support"])
                     sec_life = str(stk_row["sector_lifecycle"])
 
-                    # Assign dominant strategy label from qualified strategies
                     qual_candidates = []
                     if bool(stk_row["qual_s1_surety"]):
                         qual_candidates.append((float(stk_row["score_surety_anchor"]), "🛡️ High-Surety Anchor"))
@@ -1152,6 +1216,12 @@ def run_quarterly_backtest():
                         "risk_suitability": str(stk_row["risk_suitability"]),
                         "inst_signal_at_entry": dom_signal,
                         "chart_pattern_at_entry": str(stk_row["trigger_label"]),
+                        "stock_dna_score": float(stk_row["stock_dna_score"]),
+                        "dna_archetype": str(stk_row["dna_archetype"]),
+                        "dominant_ma_dna": str(stk_row["dominant_ma_dna"]),
+                        "wick_polarity_dna": str(stk_row["wick_polarity_dna"]),
+                        "impulse_velocity_days": float(stk_row["impulse_velocity_days"]),
+                        "reentry_elasticity_pct": float(stk_row["reentry_elasticity_pct"]),
                         "volume_profile_poc": poc_val,
                         "poc_floor_support": poc_floor,
                         "sector_rs_status_at_entry": sec_life,
@@ -1219,7 +1289,7 @@ def run_quarterly_backtest():
                         poc_sweet = 0.0 <= dist_poc <= 5.5
                         is_sniper = (int(stk_row["strat_confluence_count"]) >= 2) and (float(stk_row["atr_pct"]) >= 3.40)
 
-                        advanced_factors_accumulator["1. Base Confirmed EOD Setups (Decision-Tree Core Gate)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
+                        advanced_factors_accumulator["1. Base Confirmed EOD Setups (Decision-Tree + Structural DNA Gate)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
                         if near_52w:
                             advanced_factors_accumulator["2. 52-Week High Proximity (Within 12% of 52W High)"].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
                         if sup_ex:
@@ -1241,6 +1311,10 @@ def run_quarterly_backtest():
                         "sector_lifecycle": sec_life,
                         "signal_at_entry": dom_signal,
                         "pattern": str(stk_row["trigger_label"]),
+                        "stock_dna_score": float(stk_row["stock_dna_score"]),
+                        "dna_archetype": str(stk_row["dna_archetype"]),
+                        "dominant_ma_dna": str(stk_row["dominant_ma_dna"]),
+                        "wick_polarity_dna": str(stk_row["wick_polarity_dna"]),
                         "entry_price": actual_entry_price,
                         "target_price": trade_sim["target_price"],
                         "stop_price": trade_sim["stop_price"],
@@ -1519,7 +1593,7 @@ def run_quarterly_backtest():
         json.dump(compact_summary, f, indent=2)
 
     print("\n" + "=" * 148)
-    print("CONTINUOUS DAILY EOD + 50/50 DUAL-STAGE HARVESTER LEADERBOARD")
+    print("CONTINUOUS DAILY EOD + UNIFIED STRUCTURAL DNA (v1) + 50/50 DUAL-STAGE HARVESTER LEADERBOARD")
     print("=" * 148)
     print(
         f"{'Strategy Model':<42} | {'Signals':<7} | {'Win Rate%':<9} | "
