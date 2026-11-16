@@ -1159,8 +1159,18 @@ function renderBacktestView() {
     return true;
   });
 
-  const mcapFilteredPicks = riskFilteredPicks.filter(p => matchBacktestMcapFilter(p, appState.selectedBacktestMcap));
-  const portLimit = parseInt(appState.selectedBacktestPortfolioSize || "8", 10);
+  const mcapFilteredPicks = riskFilteredPicks
+    .filter(p => matchBacktestMcapFilter(p, appState.selectedBacktestMcap))
+    .sort((a, b) => {
+      const aOpen = String(a.exit_reason || "").includes("Open") ? 1 : 0;
+      const bOpen = String(b.exit_reason || "").includes("Open") ? 1 : 0;
+      if (bOpen !== aOpen) return bOpen - aOpen;
+      const aFresh = a.is_carryover ? 0 : 1;
+      const bFresh = b.is_carryover ? 0 : 1;
+      if (bFresh !== aFresh) return bFresh - aFresh;
+      return Number(b.method2_return_pct ?? 0) - Number(a.method2_return_pct ?? 0);
+    });
+  const portLimit = parseInt(appState.selectedBacktestPortfolioSize || "12", 10);
   const picks = mcapFilteredPicks.slice(0, portLimit);
 
   const countLbl = document.getElementById('btFilteredCountLabel');
@@ -1294,6 +1304,7 @@ function renderBacktestView() {
       const isM2Win = Boolean(pick.is_method2_win ?? (m2Ret > 0));
       const inTradeDip = Number(pick.active_trade_drawdown_pct ?? pick.max_drawdown_mae_pct ?? 0);
       const exitReason = pick.exit_reason || (isM2Win ? "50/50 Target Harvest" : "Stop Loss (-6.5%)");
+      const isStillOpen = String(exitReason).includes("Open");
 
       let exitDateLabel = pick.exit_date;
       if (!exitDateLabel && pick.entry_date) {
@@ -1302,24 +1313,31 @@ function renderBacktestView() {
         exitDateLabel = eD.toISOString().split('T')[0];
       }
 
-      const exitBadge = isM2Win
+      const exitBadge = isStillOpen
         ? `
-          <span class="pill pill-buyzone" style="font-size:0.7rem; font-weight:800;">+${m2Ret.toFixed(1)}% Exit</span>
-          <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
-        `
-        : `
-          <span class="pill" style="background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.25); font-size:0.7rem; font-weight:800;">
-            ${m2Ret.toFixed(1)}% Stop
+          <span class="pill" style="background:${m2Ret >= 0 ? 'rgba(16,185,129,0.14)' : 'rgba(217,119,6,0.14)'}; color:${m2Ret >= 0 ? 'var(--green)' : 'var(--yellow)'}; border:1px solid ${m2Ret >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(217,119,6,0.3)'}; font-size:0.7rem; font-weight:800;">
+            ⏳ ${m2Ret >= 0 ? '+' : ''}${m2Ret.toFixed(1)}% Open
           </span>
-          <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
-        `;
+          <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">As of ${exitDateLabel} (${daysToExit}d held)</div>
+        `
+        : (isM2Win
+          ? `
+            <span class="pill pill-buyzone" style="font-size:0.7rem; font-weight:800;">+${m2Ret.toFixed(1)}% Exit</span>
+            <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
+          `
+          : `
+            <span class="pill" style="background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.25); font-size:0.7rem; font-weight:800;">
+              ${m2Ret.toFixed(1)}% Stop
+            </span>
+            <div style="font-size:0.68rem; color:var(--muted); margin-top:2px;">${exitDateLabel} (${daysToExit}d held)</div>
+          `);
 
       tr.innerHTML = `
         <td style="text-align:center;" onclick="event.stopPropagation()">
           <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${pick.symbol}', event)">${isStarred ? '⭐' : '☆'}</button>
         </td>
         <td>
-          <span class="pill" style="background:rgba(56,189,248,0.12); color:var(--accent);">Rank #${pick.rank || i + 1}</span>
+          <span class="pill" style="background:rgba(56,189,248,0.12); color:var(--accent);">Rank #${i + 1}</span>
           <div style="font-size:0.68rem; color:var(--muted); margin-top:3px;">${pick.mcap_tier ? pick.mcap_tier.split(':')[0] : 'Core'}</div>
         </td>
         <td>
