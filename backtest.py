@@ -1047,6 +1047,8 @@ def run_quarterly_backtest():
     }
 
     cooldown_tracker = {m_key: {} for m_key, _ in MODELS}
+    # Tracks trades across months so prior-month open positions carry over into current month's active display
+    carryover_pool_by_model = {m_key: [] for m_key, _ in MODELS}
 
     print("\n" + "=" * 168)
     print("RUNNING CONTINUOUS DAILY EOD BACKTEST: UNIFIED STRUCTURAL DNA (v1) + 50/50 DUAL-STAGE HARVESTER")
@@ -1256,6 +1258,7 @@ def run_quarterly_backtest():
                         "mfe_60d_pct": mfe_60d_pct,
                         "days_to_peak": days_to_peak,
                         "active_trade_drawdown_pct": trade_sim["active_drawdown_pct"],
+                        "is_carryover": False,
                     }
                     month_records_by_model[m_key].append(stock_record)
 
@@ -1339,22 +1342,69 @@ def run_quarterly_backtest():
 
         month_modes_output = {}
         for m_key, m_desc in MODELS:
-            stock_records = month_records_by_model[m_key]
-            stock_records.sort(key=lambda x: (-x["frontrunner_score_at_entry"], x["entry_date"]))
-            for idx_r, rec in enumerate(stock_records, start=1):
+            fresh_records = month_records_by_model[m_key]
+
+            # 1. Update macro accumulators strictly with fresh entries (no double counting)
+            m2_rets_fresh = [s["method2_return_pct"] for s in fresh_records]
+            mfes_fresh = [s["max_gain_mfe_pct"] for s in fresh_records]
+            mfes_30_fresh = [s["mfe_30d_pct"] for s in fresh_records]
+            mfes_60_fresh = [s["mfe_60d_pct"] for s in fresh_records]
+            act_dds_fresh = [s["active_trade_drawdown_pct"] for s in fresh_records]
+            pk_days_fresh = [s["days_to_peak"] for s in fresh_records]
+            ex_days_fresh = [s["raw_days_to_exit"] for s in fresh_records]
+            m2_wins_fresh = sum(1 for s in fresh_records if s["is_method2_win"])
+
+            acc = model_stats_accumulator[m_key]
+            acc["trades"] += len(m2_rets_fresh)
+            acc["wins"] += m2_wins_fresh
+            acc["total_m2_return"] += float(np.sum(m2_rets_fresh))
+            acc["total_m2_profit_inr"] += sum(s["method2_pnl_inr"] for s in fresh_records)
+            acc["total_mfe"] += float(np.sum(mfes_fresh))
+            acc["total_mfe_30d"] += float(np.sum(mfes_30_fresh))
+            acc["total_mfe_60d"] += float(np.sum(mfes_60_fresh))
+            acc["hits_15"] += int((np.array(mfes_fresh) >= 15.0).sum()) if mfes_fresh else 0
+            acc["hits_20"] += int((np.array(mfes_fresh) >= 20.0).sum()) if mfes_fresh else 0
+            acc["low_drawdown_count"] += int((np.array(act_dds_fresh) >= -6.0).sum()) if act_dds_fresh else 0
+            acc["total_active_drawdown"] += float(np.sum(act_dds_fresh))
+            acc["total_days_to_peak"] += float(np.sum(pk_days_fresh))
+            acc["total_days_to_exit"] += float(np.sum(ex_days_fresh))
+
+            # 2. Inject carried-over open positions from earlier months that are still active in this month
+            active_carryovers = []
+            for prev_rec in carryover_pool_by_model[m_key]:
+                ex_d = str(prev_rec.get("exit_date") or "")
+                ex_r = str(prev_rec.get("exit_reason") or "")
+                if (ex_d >= m_start_date) or ("Open" in ex_r):
+                    c_copy = dict(prev_rec)
+                    c_copy["is_carryover"] = True
+                    if "[Prior Month Carryover]" not in c_copy["exit_reason"]:
+                        c_copy["exit_reason"] = f"{c_copy['exit_reason']} [Prior Month Carryover]"
+                    active_carryovers.append(c_copy)
+
+            # Register any newly opened trades from this month that are still open at month's end
+            for rec in fresh_records:
+                ex_d = str(rec.get("exit_date") or "")
+                ex_r = str(rec.get("exit_reason") or "")
+                if (ex_d > m_end_date) or ("Open" in ex_r):
+                    carryover_pool_by_model[m_key].append(dict(rec))
+
+            # Combine carried-over active trades + fresh month entries for the UI ledger
+            combined_records = active_carryovers + fresh_records
+            combined_records.sort(key=lambda x: (-int(x.get("is_carryover", False)), -x["frontrunner_score_at_entry"], x["entry_date"]))
+            for idx_r, rec in enumerate(combined_records, start=1):
                 rec["rank"] = idx_r
 
-            m2_rets = [s["method2_return_pct"] for s in stock_records]
-            mfes = [s["max_gain_mfe_pct"] for s in stock_records]
-            mfes_30 = [s["mfe_30d_pct"] for s in stock_records]
-            mfes_60 = [s["mfe_60d_pct"] for s in stock_records]
-            act_dds = [s["active_trade_drawdown_pct"] for s in stock_records]
-            pk_days = [s["days_to_peak"] for s in stock_records]
-            ex_days = [s["raw_days_to_exit"] for s in stock_records]
+            m2_rets = [s["method2_return_pct"] for s in combined_records]
+            mfes = [s["max_gain_mfe_pct"] for s in combined_records]
+            mfes_30 = [s["mfe_30d_pct"] for s in combined_records]
+            mfes_60 = [s["mfe_60d_pct"] for s in combined_records]
+            act_dds = [s["active_trade_drawdown_pct"] for s in combined_records]
+            pk_days = [s["days_to_peak"] for s in combined_records]
+            ex_days = [s["raw_days_to_exit"] for s in combined_records]
 
             avg_m2_ret = round(float(np.mean(m2_rets)), 2) if m2_rets else 0.0
-            m2_wins_m = sum(1 for s in stock_records if s["is_method2_win"])
-            win_rate = round((m2_wins_m / max(1, len(stock_records))) * 100.0, 1)
+            m2_wins_m = sum(1 for s in combined_records if s["is_method2_win"])
+            win_rate = round((m2_wins_m / max(1, len(combined_records))) * 100.0, 1)
 
             avg_mfe = round(float(np.mean(mfes)), 2) if mfes else 0.0
             avg_mfe_30 = round(float(np.mean(mfes_30)), 2) if mfes_30 else 0.0
@@ -1366,26 +1416,13 @@ def run_quarterly_backtest():
             avg_ex_d = round(float(np.mean(ex_days)), 1) if ex_days else 1.0
             avg_adj_hold_d = round(avg_ex_d * 1.25, 1)
 
-            acc = model_stats_accumulator[m_key]
-            acc["trades"] += len(m2_rets)
-            acc["wins"] += m2_wins_m
-            acc["total_m2_return"] += float(np.sum(m2_rets))
-            acc["total_m2_profit_inr"] += sum(s["method2_pnl_inr"] for s in stock_records)
-            acc["total_mfe"] += float(np.sum(mfes))
-            acc["total_mfe_30d"] += float(np.sum(mfes_30))
-            acc["total_mfe_60d"] += float(np.sum(mfes_60))
-            acc["hits_15"] += int((np.array(mfes) >= 15.0).sum())
-            acc["hits_20"] += int((np.array(mfes) >= 20.0).sum())
-            acc["low_drawdown_count"] += int((np.array(act_dds) >= -6.0).sum())
-            acc["total_active_drawdown"] += float(np.sum(act_dds))
-            acc["total_days_to_peak"] += float(np.sum(pk_days))
-            acc["total_days_to_exit"] += float(np.sum(ex_days))
-
             month_modes_output[m_key] = {
                 "model_key": m_key,
                 "model_name": m_desc,
                 "regime_detected": last_regime_label if m_key == "dynamic_regime_portfolio" else "Continuous Daily EOD Strategy",
-                "picks_count": len(stock_records),
+                "picks_count": len(combined_records),
+                "fresh_entries_count": len(fresh_records),
+                "carryover_entries_count": len(active_carryovers),
                 "portfolio_win_rate_pct": win_rate,
                 "portfolio_avg_return_pct": avg_m2_ret,
                 "avg_peak_mfe_pct": avg_mfe,
@@ -1401,11 +1438,11 @@ def run_quarterly_backtest():
                 "alpha_vs_universe_pct": round(avg_m2_ret - universe_ret, 2),
                 "top_3_sectors": top_3_sectors,
                 "top_5_sectors": top_5_sectors,
-                "picks": stock_records,
-                "picks_9": stock_records[:20],
-                "dynamic_picks_conservative": [s for s in stock_records if s.get("risk_suitability") == "Low"],
-                "dynamic_picks_balanced": [s for s in stock_records if s.get("risk_suitability") == "Medium"],
-                "dynamic_picks_aggressive": [s for s in stock_records if s.get("risk_suitability") == "High"],
+                "picks": combined_records,
+                "picks_9": combined_records[:20],
+                "dynamic_picks_conservative": [s for s in combined_records if s.get("risk_suitability") == "Low"],
+                "dynamic_picks_balanced": [s for s in combined_records if s.get("risk_suitability") == "Medium"],
+                "dynamic_picks_aggressive": [s for s in combined_records if s.get("risk_suitability") == "High"],
             }
 
         primary_view = dict(month_modes_output["dynamic_regime_portfolio"])
@@ -1416,9 +1453,9 @@ def run_quarterly_backtest():
         months_payload.append(primary_view)
 
         print(
-            f"    -> {m_label:<8} ({len(m_dates):>2} sessions) | Dynamic EOD Trades: {primary_view['picks_count']:<3} | "
-            f"Win Rate: {primary_view['portfolio_win_rate_pct']:>5.1f}% | Avg Return: {primary_view['portfolio_avg_return_pct']:>+6.2f}% | "
-            f"Peak MFE: +{primary_view['avg_peak_mfe_pct']:>5.2f}%"
+            f"    -> {m_label:<8} ({len(m_dates):>2} sessions) | Active/New Trades: {primary_view['picks_count']:<3} "
+            f"(+{primary_view['carryover_entries_count']} carryover) | Win Rate: {primary_view['portfolio_win_rate_pct']:>5.1f}% | "
+            f"Avg Return: {primary_view['portfolio_avg_return_pct']:>+6.2f}% | Peak MFE: +{primary_view['avg_peak_mfe_pct']:>5.2f}%"
         )
 
     print("[*] Computing Daily Progress & Tracking Equity Curve across 2026 sessions...")
