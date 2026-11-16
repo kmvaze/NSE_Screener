@@ -3,6 +3,7 @@ import io
 import json
 import os
 import subprocess
+import time
 import zipfile
 from datetime import date, datetime, timedelta
 import pandas as pd
@@ -16,6 +17,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CSV_STORE = os.path.join(DATA_DIR, "csv_store")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_master.csv")
+DNA_PROFILES_CSV = os.path.join(DATA_DIR, "stock_dna_profiles.csv")
+ACTIVE_LEDGER_FILE = os.path.join(DATA_DIR, "active_trades_ledger.json")
 OUTPUT_JSON = os.path.join(BASE_DIR, "dashboard_data.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 
@@ -46,6 +49,45 @@ NIFTY_NEXT_50_SYMBOLS = {
     "PFC", "PNB", "RECLTD", "SIEMENS", "SRF", "TORNTPHARM", "TVSMOTOR", "UNITDSPR", "VBL",
     "VEDL", "ZYDUSLIFE", "ZOMATO"
 }
+
+
+def load_stock_dna_profiles(max_age_days: int = 5) -> pd.DataFrame:
+    """
+    Loads the pure structural Stock DNA profiles (data/stock_dna_profiles.csv).
+    Automatically builds or refreshes the file via build_stock_dna.py if missing or stale (>5 days).
+    """
+    needs_build = not os.path.exists(DNA_PROFILES_CSV)
+    if not needs_build:
+        age_days = (time.time() - os.path.getmtime(DNA_PROFILES_CSV)) / 86400.0
+        if age_days > max_age_days:
+            needs_build = True
+
+    if needs_build:
+        print("[*] Refreshing 500-Day Structural Stock DNA Genome via build_stock_dna.py...")
+        try:
+            from build_stock_dna import build_comprehensive_stock_dna
+            build_comprehensive_stock_dna()
+        except Exception as e:
+            print(f"[!] Stock DNA refresh warning: {e}")
+
+    if not os.path.exists(DNA_PROFILES_CSV):
+        return pd.DataFrame(columns=["symbol"])
+
+    dna_df = pd.read_csv(DNA_PROFILES_CSV).drop_duplicates(subset=["symbol"])
+    keep_cols = [
+        "symbol",
+        "dna_archetype",
+        "stock_dna_score",
+        "dominant_ma_dna",
+        "wick_polarity_dna",
+        "impulse_velocity_days",
+        "amihud_impact_dna",
+        "reentry_elasticity_pct",
+        "beta_asymmetry",
+        "median_er_30",
+    ]
+    avail_cols = [c for c in keep_cols if c in dna_df.columns]
+    return dna_df[avail_cols].copy()
 
 
 def download_with_curl(url: str) -> bytes:
@@ -403,6 +445,196 @@ def detect_genuine_chart_patterns(prices, volumes, highs, lows):
     return 0.90, "", 21
 
 
+def sync_active_trades_ledger(
+    df_all: pd.DataFrame,
+    ranked_today: pd.DataFrame,
+    newly_triggered_symbols: set,
+    latest_date: str,
+) -> dict:
+    """
+    Maintains persistent open positions across daily EOD runs until a 50/50 Dual-Stage
+    exit rule triggers. Evaluates whether each ongoing trade is still technically actionable.
+    """
+    ledger = {}
+    if os.path.exists(ACTIVE_LEDGER_FILE):
+        try:
+            with open(ACTIVE_LEDGER_FILE, "r", encoding="utf-8") as f:
+                ledger = json.load(f)
+        except Exception:
+            ledger = {}
+    else:
+        # Bootstrap open positions from recent backtest_data.json if first run
+        bt_json_path = os.path.join(BASE_DIR, "backtest_data.json")
+        if os.path.exists(bt_json_path):
+            try:
+                with open(bt_json_path, "r", encoding="utf-8") as f:
+                    bt_data = json.load(f)
+                for q in bt_data.get("quarters", [])[-2:]:
+                    for p in q.get("modes", {}).get("dynamic_regime_portfolio", {}).get("picks", []):
+                        if "Open" in str(p.get("exit_reason", "")):
+                            sym_b = str(p["symbol"])
+                            ep_b = float(p["entry_price"])
+                            is_t1_b = "Tier 1" in str(p.get("mcap_tier", ""))
+                            ledger[sym_b] = {
+                                "symbol": sym_b,
+                                "entry_date": str(p["entry_date"]),
+                                "entry_price": round(ep_b, 2),
+                                "target_price": round(float(p.get("target_price", ep_b * (1.08 if is_t1_b else 1.10))), 2),
+                                "tranche2_breakout_price": round(ep_b * (1.22 if is_t1_b else 1.35), 2),
+                                "stop_loss_price": round(float(p.get("stop_price", ep_b * (0.95 if is_t1_b else 0.935))), 2),
+                                "shield_trigger_price": round(ep_b * (1.04 if is_t1_b else 1.045), 2),
+                                "shield_floor_price": round(ep_b * (1.008 if is_t1_b else 1.01), 2),
+                                "inst_signal": str(p.get("inst_signal_at_entry", "📉 High-RS Pullback")),
+                                "trigger_reason": str(p.get("chart_pattern_at_entry", "20-SMA/POC Support Reclaimed")),
+                                "status": "OPEN",
+                            }
+            except Exception:
+                pass
+
+    today_lookup = ranked_today.set_index("symbol").to_dict(orient="index")
+
+    # 1. Register any newly triggered trades from today's EOD scan
+    for sym in newly_triggered_symbols:
+        if sym not in ledger and sym in today_lookup:
+            r = today_lookup[sym]
+            ep = float(r["close"])
+            is_t1 = "Tier 1" in str(r.get("mcap_tier", ""))
+            ledger[sym] = {
+                "symbol": sym,
+                "entry_date": str(latest_date),
+                "entry_price": round(ep, 2),
+                "target_price": round(float(r["target_price"]), 2),
+                "tranche2_breakout_price": round(float(r["tranche2_breakout_price"]), 2),
+                "stop_loss_price": round(float(r["stop_loss_price"]), 2),
+                "shield_trigger_price": round(ep * (1.04 if is_t1 else 1.045), 2),
+                "shield_floor_price": round(float(r["stage1_lock_price"]), 2),
+                "inst_signal": str(r.get("inst_signal", "📉 High-RS Pullback")),
+                "trigger_reason": str(r.get("trigger_reason", "Pocket Pivot Ignition Fired")),
+                "status": "OPEN",
+            }
+
+    # 2. Evaluate all open positions against historical bars since entry_date
+    active_meta_map = {}
+
+    for sym, pos in list(ledger.items()):
+        if pos.get("status") != "OPEN":
+            continue
+
+        entry_date = str(pos["entry_date"])
+        entry_price = float(pos["entry_price"])
+        t1_price = float(pos["target_price"])
+        t2_price = float(pos["tranche2_breakout_price"])
+        sl_price = float(pos["stop_loss_price"])
+        shield_trig = float(pos["shield_trigger_price"])
+        shield_floor = float(pos["shield_floor_price"])
+
+        sym_hist = df_all[(df_all["symbol"] == sym) & (df_all["date"] >= entry_date)].sort_values("date").copy()
+        if sym_hist.empty:
+            continue
+
+        sym_hist["ema10"] = sym_hist["close"].ewm(span=10, adjust=False).mean()
+        sym_hist["sma20"] = sym_hist["close"].rolling(20, min_periods=5).mean()
+
+        days_held = max(0, len(sym_hist) - 1)
+        is_closed = False
+        t1_booked = False
+        shield_armed = False
+        consec_sl = 0
+        consec_20sma = 0
+        peak_high = entry_price
+
+        for idx in range(1, len(sym_hist)):
+            row_b = sym_hist.iloc[idx]
+            h_v = float(row_b["high"])
+            l_v = float(row_b["low"])
+            c_v = float(row_b["close"])
+            e10_v = float(row_b["ema10"])
+            s20_v = float(row_b["sma20"]) if pd.notna(row_b["sma20"]) else c_v * 0.96
+
+            if h_v > peak_high:
+                peak_high = h_v
+
+            if not t1_booked:
+                consec_sl = (consec_sl + 1) if c_v <= sl_price else 0
+                if consec_sl >= 2 or c_v <= entry_price * 0.915 or l_v <= entry_price * 0.905:
+                    is_closed = True
+                    break
+                if shield_armed and ((c_v <= shield_floor and c_v < e10_v) or (c_v <= entry_price and c_v < e10_v)):
+                    is_closed = True
+                    break
+                if h_v >= t1_price:
+                    t1_booked = True
+                    if h_v >= t2_price:
+                        is_closed = True
+                        break
+                    continue
+                if h_v >= shield_trig:
+                    shield_armed = True
+            else:
+                if h_v >= t2_price:
+                    is_closed = True
+                    break
+                consec_20sma = (consec_20sma + 1) if c_v < (s20_v * 0.97) else 0
+                if consec_20sma >= 2:
+                    is_closed = True
+                    break
+
+        if is_closed:
+            pos["status"] = "CLOSED"
+            pos["exit_date"] = str(latest_date)
+            continue
+
+        # 3. Compute live unrealized P&L and whether a late entry is still technically valid
+        cur_row = today_lookup.get(sym, {})
+        cur_close = float(cur_row.get("close", sym_hist.iloc[-1]["close"]))
+        cur_sma20 = float(cur_row.get("sma_20", cur_close))
+        cur_sma50 = float(cur_row.get("sma_50", cur_close))
+        cur_poc = float(cur_row.get("volume_profile_poc", cur_close))
+        unrealized_pct = round(((cur_close - entry_price) / entry_price) * 100.0, 2)
+        dist_20_pct = ((cur_close - cur_sma20) / (cur_sma20 + 1e-5)) * 100.0
+
+        is_fresh_today = (entry_date == str(latest_date))
+
+        if is_fresh_today:
+            lifecycle_status = "NEW_TRIGGER_TODAY"
+            lifecycle_badge = "🔥 Fresh EOD Signal (Enter Today)"
+            can_still_enter = True
+            late_entry_note = "✅ Fresh Trigger — Valid Entry Zone"
+        else:
+            lifecycle_status = "ONGOING_ACTIVE"
+            lifecycle_badge = f"🟢 Trading Ongoing ({days_held}d | {unrealized_pct:+.1f}%)"
+
+            if t1_booked:
+                can_still_enter = False
+                late_entry_note = "🚫 50% Target Hit — Runner Mode Only (Do Not Enter)"
+            elif (-2.5 <= unrealized_pct <= 3.5) and (dist_20_pct <= 4.0) and (cur_close >= cur_sma50 * 0.985) and (cur_close >= cur_poc * 0.99):
+                can_still_enter = True
+                late_entry_note = f"✅ Still Actionable — In Buy Zone ({unrealized_pct:+.1f}% from ₹{entry_price:.2f})"
+            elif unrealized_pct > 3.5 or dist_20_pct > 4.0:
+                can_still_enter = False
+                late_entry_note = f"⚠️ Extended (+{unrealized_pct:.1f}%) — Hold Only, Wait for Dip"
+            else:
+                can_still_enter = False
+                late_entry_note = f"⏳ Testing Support ({unrealized_pct:+.1f}%) — Hold With ₹{sl_price:.2f} Stop"
+
+        active_meta_map[sym] = {
+            "trade_lifecycle_status": lifecycle_status,
+            "trade_lifecycle_badge": lifecycle_badge,
+            "can_still_enter": can_still_enter,
+            "late_entry_note": late_entry_note,
+            "logged_entry_date": entry_date,
+            "logged_entry_price": entry_price,
+            "days_held_live": days_held,
+            "unrealized_pnl_pct": unrealized_pct,
+            "t1_booked_live": t1_booked,
+        }
+
+    with open(ACTIVE_LEDGER_FILE, "w", encoding="utf-8") as f:
+        json.dump(ledger, f, indent=2)
+
+    return active_meta_map
+
+
 def run_screener_engine():
     update_incremental_store(lookback_days=720)
     symbol_meta = load_index_mappings()
@@ -423,6 +655,9 @@ def run_screener_engine():
 
     df_all, corp_events = normalize_corporate_actions(df_all)
     print(f"[*] Normalized {len(corp_events)} corporate split/bonus events across Bhavcopy series.")
+
+    dna_df = load_stock_dna_profiles(max_age_days=5)
+    print(f"[*] Loaded Pure Structural Stock DNA Genome for {len(dna_df)} symbols.")
 
     dates = sorted(df_all["date"].unique())
     latest_date = dates[-1]
@@ -746,10 +981,6 @@ def run_screener_engine():
 
         # ---------------------------------------------------------------------
         # 50/50 DUAL-STAGE EXECUTION PLAN (SYNCHRONIZED WITH BACKTEST.PY)
-        #   - Shield: At +4.5% (+4.0% T1), lock +1.0% (+0.8% T1) if Close < 10-EMA
-        #   - 50% Core Harvest: Book at +10.0% (+8.0% T1)
-        #   - 50% Trend Runner: Trail on 2 consecutive closes < 20-SMA * 0.97 (up to +35%)
-        #   - Stop: 2-Close -6.5% (-5.0% T1) / -8.5% 1D / -9.5% Intraday Catastrophe
         # ---------------------------------------------------------------------
         is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
         atr_mult = 2.8 if is_tier1_sym else 2.5
@@ -997,6 +1228,25 @@ def run_screener_engine():
 
     ranked = pd.merge(latest_df, pd.DataFrame(stock_tech_rows), on="symbol", how="inner").drop_duplicates(subset=["symbol"])
 
+    # Merge Pure Structural Stock DNA Genome
+    if not dna_df.empty and "stock_dna_score" in dna_df.columns:
+        ranked = pd.merge(ranked, dna_df, on="symbol", how="left")
+        ranked["stock_dna_score"] = ranked["stock_dna_score"].fillna(65.0)
+        ranked["dna_archetype"] = ranked["dna_archetype"].fillna("DNA-3: Wicky Shakeout Reclaimer")
+        ranked["dominant_ma_dna"] = ranked["dominant_ma_dna"].fillna("50-SMA Deep Undercutter")
+        ranked["wick_polarity_dna"] = ranked["wick_polarity_dna"].fillna("Balanced Candle Body")
+        ranked["impulse_velocity_days"] = ranked["impulse_velocity_days"].fillna(11.0)
+        ranked["amihud_impact_dna"] = ranked["amihud_impact_dna"].fillna(0.04)
+        ranked["reentry_elasticity_pct"] = ranked["reentry_elasticity_pct"].fillna(30.0)
+    else:
+        ranked["stock_dna_score"] = 66.0
+        ranked["dna_archetype"] = "DNA-3: Wicky Shakeout Reclaimer"
+        ranked["dominant_ma_dna"] = "50-SMA Deep Undercutter"
+        ranked["wick_polarity_dna"] = "Balanced Candle Body"
+        ranked["impulse_velocity_days"] = 11.0
+        ranked["amihud_impact_dna"] = 0.04
+        ranked["reentry_elasticity_pct"] = 30.0
+
     ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
     ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
 
@@ -1162,6 +1412,25 @@ def run_screener_engine():
     confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
     ranked["confluence_booster"] = np.round(confluence_booster, 3)
 
+    # =========================================================================
+    # UNIFIED STRUCTURAL STOCK DNA (v1) QUALIFICATION & SCORE MULTIPLIER
+    # (100% SYNCHRONIZED WITH VERIFIED BACKTEST.PY)
+    # =========================================================================
+    not_weak_dna1 = (~ranked["dna_archetype"].str.contains("DNA-1", na=False)) | (ranked["stock_dna_score"] >= 68.0)
+    has_strong_dna_edge = (
+        (ranked["stock_dna_score"] >= 64.0)
+        | (ranked["dominant_ma_dna"] == "50-SMA Deep Undercutter")
+        | (ranked["wick_polarity_dna"] == "Upper-Wick Supply Fader")
+        | (ranked["dna_archetype"].str.contains("DNA-2|DNA-4", na=False))
+    )
+    ranked["dna_qualified"] = not_weak_dna1 & has_strong_dna_edge
+
+    dna_score_mult = np.where(
+        ranked["dna_qualified"],
+        np.where(ranked["stock_dna_score"] >= 68.0, 1.06, 1.02),
+        0.78,
+    )
+
     # 1. Strategy 1: High-Surety Institutional Anchor
     poc_floor_pts = 28.0 * np.exp(-((dist_poc_pct_series - 2.0) ** 2) / 14.0)
     atr_anchor_pts = np.clip(((ranked["atr_pct"] - 2.3) / 2.2) * 22.0, 3.0, 22.0)
@@ -1175,7 +1444,7 @@ def run_screener_engine():
         + (0.10 * ranked["iasis_score"])
     )
     ranked["surety_score"] = (
-        raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster
+        raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
     ranked["score_surety_anchor"] = ranked["surety_score"]
 
@@ -1190,6 +1459,7 @@ def run_screener_engine():
         * kinetic_mult
         * rsi_headroom_mult
         * confluence_booster
+        * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     # 3. Strategy 3: Early Sector Rotation Leader
@@ -1200,6 +1470,7 @@ def run_screener_engine():
         * tier_mult
         * kinetic_mult
         * confluence_booster
+        * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     # 4. Strategy 4: High-RS Pullback Structure
@@ -1220,6 +1491,7 @@ def run_screener_engine():
         * tier_mult
         * kinetic_mult
         * confluence_booster
+        * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
     # =========================================================================
@@ -1279,7 +1551,7 @@ def run_screener_engine():
         }
 
     ex_large = ~ranked["mcap_tier"].str.contains("Tier 1", na=False)
-    tree_core_gate = ex_large & ranked["passes_anti_fizzle_gate"] & branch_ok & (ranked["trig_a"] | ranked["trig_b"])
+    tree_core_gate = ex_large & ranked["passes_anti_fizzle_gate"] & branch_ok & ranked["dna_qualified"] & (ranked["trig_a"] | ranked["trig_b"])
 
     ranked["qual_s1_surety"] = (
         tree_core_gate
@@ -1386,7 +1658,7 @@ def run_screener_engine():
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
 
     # =========================================================================
-    # SELECT UPPER SECTION: CONFIRMED ACTIONABLE TRADES (MULTI-STRATEGY PRIORITY)
+    # SELECT UPPER SECTION: CONFIRMED ACTIONABLE TRADES + STATEFUL ONGOING LEDGER
     # =========================================================================
     confirmed_active_symbols = set()
     if max_active_quota > 0:
@@ -1400,8 +1672,8 @@ def run_screener_engine():
                 ["score_high_rs_pullback", "score_momentum_frontrunner", "score_early_sector_rotation", "score_surety_anchor"]
             ].max(axis=1)
             elite_triggered_df = elite_triggered_df.sort_values(
-                by=["strat_confluence_count", "max_strat_score", "blended_rs_percentile"],
-                ascending=[False, False, False],
+                by=["strat_confluence_count", "stock_dna_score", "max_strat_score", "blended_rs_percentile"],
+                ascending=[False, False, False, False],
             )
 
             active_sec_counts = {}
@@ -1413,7 +1685,15 @@ def run_screener_engine():
                     confirmed_active_symbols.add(sym)
                     active_sec_counts[sec] = active_sec_counts.get(sec, 0) + 1
 
-    ranked["is_active_trade"] = ranked["symbol"].isin(confirmed_active_symbols)
+    active_ledger_map = sync_active_trades_ledger(
+        df_all=df_all,
+        ranked_today=ranked,
+        newly_triggered_symbols=confirmed_active_symbols,
+        latest_date=str(latest_date),
+    )
+    all_open_active_symbols = set(active_ledger_map.keys())
+
+    ranked["is_active_trade"] = ranked["symbol"].isin(all_open_active_symbols)
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "is_potential_stalking"] = True
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "execution_state"] = "👀 STALKING_WATCHLIST"
 
@@ -1422,11 +1702,12 @@ def run_screener_engine():
     # =========================================================================
     dynamic_picks_map = {}
     seen_sec = {}
-    seen_sym = set(confirmed_active_symbols)
+    seen_sym = set(all_open_active_symbols)
 
     stalking_quality_gate = (
         (ranked["passes_quality_gate"] == True) &
         (ranked["weekly_aligned"] == True) &
+        (ranked["dna_qualified"] == True) &
         (~ranked["mcap_tier"].str.contains("Tier 1", na=False)) &
         (ranked["blended_rs_percentile"] >= 75.0) &
         (
@@ -1457,7 +1738,7 @@ def run_screener_engine():
             strat_name = "pullback"
             mask = sub["close"] > 0
 
-        qual = sub[mask].sort_values(by=[strat_key, "blended_rs_percentile"], ascending=False)
+        qual = sub[mask].sort_values(by=[strat_key, "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False])
         added = 0
         for _, r in qual.iterrows():
             if added >= limit or len(dynamic_picks_map) >= 12:
@@ -1474,7 +1755,7 @@ def run_screener_engine():
     if len(dynamic_picks_map) < 12:
         backfill_pool = ranked[
             stalking_quality_gate & (~ranked["symbol"].isin(seen_sym))
-        ].sort_values(by=["score_high_rs_pullback", "blended_rs_percentile"], ascending=False)
+        ].sort_values(by=["score_high_rs_pullback", "stock_dna_score", "blended_rs_percentile"], ascending=[False, False, False])
 
         for _, r in backfill_pool.iterrows():
             if len(dynamic_picks_map) >= 12:
@@ -1537,8 +1818,8 @@ def run_screener_engine():
             agg_sec_counts[sec] = agg_sec_counts.get(sec, 0) + 1
 
     ranked = ranked.sort_values(
-        by=["is_active_trade", "strat_confluence_count", "score_high_rs_pullback", "score_momentum_frontrunner", "blended_rs_percentile"],
-        ascending=[False, False, False, False, False],
+        by=["is_active_trade", "strat_confluence_count", "stock_dna_score", "score_high_rs_pullback", "score_momentum_frontrunner", "blended_rs_percentile"],
+        ascending=[False, False, False, False, False, False],
     ).drop_duplicates(subset=["symbol"]).reset_index(drop=True)
 
     output_stocks = []
@@ -1643,9 +1924,11 @@ def run_screener_engine():
         is_active_trade = bool(r.get("is_active_trade", False))
         is_potential_stalking = bool(r.get("is_potential_stalking", False))
         exec_state = str(r.get("execution_state", "👀 STALKING_WATCHLIST"))
+        ledger_info = active_ledger_map.get(sym, {})
 
         if is_active_trade:
-            hold_status_badge = "🔥 Triggered Entry (Actionable)"
+            hold_status_badge = ledger_info.get("trade_lifecycle_badge", "🔥 Triggered Entry (Actionable)")
+            exec_state = "🔥 ACTIONABLE_BUY_NOW"
         elif is_potential_stalking:
             hold_status_badge = "👀 Stalking Pool (Awaiting Trigger)"
         else:
@@ -1684,6 +1967,22 @@ def run_screener_engine():
             "trigger_reason": clean(r.get("trigger_reason", ""), True),
             "is_active_trade": is_active_trade,
             "is_potential_stalking": is_potential_stalking,
+            "trade_lifecycle_status": ledger_info.get("trade_lifecycle_status", "STALKING" if is_potential_stalking else "WATCH"),
+            "trade_lifecycle_badge": hold_status_badge,
+            "can_still_enter": bool(ledger_info.get("can_still_enter", is_active_trade)),
+            "late_entry_note": ledger_info.get("late_entry_note", ""),
+            "logged_entry_date": ledger_info.get("logged_entry_date", str(latest_date) if is_active_trade else ""),
+            "logged_entry_price": ledger_info.get("logged_entry_price", clean(r.get("close"))),
+            "days_held_live": int(ledger_info.get("days_held_live", 0)),
+            "unrealized_pnl_pct": float(ledger_info.get("unrealized_pnl_pct", 0.0)),
+            "stock_dna_score": clean(r.get("stock_dna_score")),
+            "dna_archetype": clean(r.get("dna_archetype", ""), True),
+            "dominant_ma_dna": clean(r.get("dominant_ma_dna", ""), True),
+            "wick_polarity_dna": clean(r.get("wick_polarity_dna", ""), True),
+            "impulse_velocity_days": clean(r.get("impulse_velocity_days")),
+            "amihud_impact_dna": clean(r.get("amihud_impact_dna")),
+            "reentry_elasticity_pct": clean(r.get("reentry_elasticity_pct")),
+            "dna_qualified": bool(r.get("dna_qualified", False)),
             "atr_pct": clean(r.get("atr_pct")),
             "volume_profile_poc": clean(r.get("volume_profile_poc")),
             "multi_timeframe_confluence": clean(r.get("multi_timeframe_confluence", ""), True),

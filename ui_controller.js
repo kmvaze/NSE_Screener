@@ -130,7 +130,7 @@ function renderBacktestMethodCard() {
 
   const durationTip = "Trade duration includes a +25% execution cushion added to the raw average holding period to reflect real-world execution friction and liquidity absorption.";
   const xirrTip = "Annualized XIRR calculated using 232 active business trading sessions per year.";
-  const clampSubText = "+4.5% Shield | 50% @ +12% | 50% 2-Close 20-SMA Runner";
+  const clampSubText = "+4.5% Shield | 50% @ +10% | 50% 2-Close 20-SMA Runner";
   
   container.innerHTML = `
     <!-- 1. Win Rate -->
@@ -423,6 +423,7 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
   const momScore = Number(st.score_momentum_frontrunner ?? st.frontrunner_score ?? 0).toFixed(1);
   const rotScore = Number(st.score_early_sector_rotation ?? 0).toFixed(1);
   const pullScore = Number(st.score_high_rs_pullback ?? 0).toFixed(1);
+  const dnaScoreVal = st.stock_dna_score != null ? Number(st.stock_dna_score).toFixed(1) : null;
 
   const activeStrat = st.active_strategy || st.dynamic_mix_strategy || 'surety';
   const sigUpper = String(st.inst_signal || "").toUpperCase();
@@ -436,28 +437,52 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
     activeScoreLabel = `Pull: ${pullScore}`;
   }
 
-  const slotTierBadge = idx < 4 
-    ? `<span class="pill" style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.35);">🔥 Rank #${idx + 1}</span>`
-    : `<span class="pill" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">💎 Focus #${idx + 1}</span>`;
+  const isOngoing = !isStalking && st.trade_lifecycle_status === 'ONGOING_ACTIVE';
+  const slotTierBadge = isOngoing
+    ? `<span class="pill" style="background:rgba(13,148,136,0.16); color:var(--teal); border:1px solid rgba(13,148,136,0.35);">🟢 Ongoing Position</span>`
+    : (idx < 4 
+      ? `<span class="pill" style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.35);">🔥 Rank #${idx + 1}</span>`
+      : `<span class="pill" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">💎 Focus #${idx + 1}</span>`);
 
   const holdBadge = isStalking
     ? `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(56,189,248,0.12); color:var(--accent);">👀 Awaiting Trigger</span>`
-    : `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.15); color:var(--green);">🔥 ${st.trigger_reason || 'EOD Triggered'}</span>`;
+    : (isOngoing
+      ? `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.15); color:var(--green);">${st.trade_lifecycle_badge || '🟢 Trading Ongoing'}</span>`
+      : `<span class="badge" style="font-size:0.63rem; padding: 2px 6px; background:rgba(16,185,129,0.15); color:var(--green);">🔥 ${st.trigger_reason || 'Fresh EOD Trigger'}</span>`);
 
   const closeP = Number(st.close);
+  const planAnchorP = isOngoing && st.logged_entry_price ? Number(st.logged_entry_price) : closeP;
   const isTier1 = (st.mcap_tier || "").includes("Tier 1");
-  const t1Pct = st.target_pct || (isTier1 ? 9.0 : 12.0);
+  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
   const t2Pct = isTier1 ? 22.0 : 35.0;
   const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
   const shieldTrigPct = isTier1 ? 4.0 : 4.5;
   const shieldLockPct = isTier1 ? 0.8 : 1.0;
 
-  const t1Price = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
-  const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
-  const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
-  const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
+  const t1Price = (planAnchorP * (1.0 + (t1Pct / 100.0))).toFixed(2);
+  const t2Price = (planAnchorP * (1.0 + (t2Pct / 100.0))).toFixed(2);
+  const stopPrice = (planAnchorP * (1.0 + (stopPct / 100.0))).toFixed(2);
+  const shieldTrigPrice = (planAnchorP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
   const triggerPrice = st.trigger_price ? Number(st.trigger_price).toFixed(2) : (closeP * 1.01).toFixed(2);
   const atrPctVal = st.atr_pct != null ? Number(st.atr_pct).toFixed(1) : '--';
+
+  let lateEntryBannerHtml = '';
+  if (!isStalking) {
+    const canEnter = st.can_still_enter !== false;
+    const noteText = st.late_entry_note || '✅ Fresh Trigger — Valid Entry Zone';
+    const bannerStyle = canEnter
+      ? 'background:rgba(16,185,129,0.10); border:1px solid rgba(16,185,129,0.30); color:var(--green);'
+      : 'background:rgba(217,119,6,0.10); border:1px solid rgba(217,119,6,0.32); color:var(--yellow);';
+    const entryMetaLine = isOngoing && st.logged_entry_date
+      ? `<div style="font-size:0.65rem; color:var(--muted); margin-top:2px;">Entry: ₹${planAnchorP.toFixed(2)} on ${st.logged_entry_date} (${st.days_held_live || 1}d held)</div>`
+      : '';
+    lateEntryBannerHtml = `
+      <div style="${bannerStyle} border-radius:8px; padding:6px 10px; margin-bottom:9px; font-size:0.7rem; font-weight:700;">
+        <div>${noteText}</div>
+        ${entryMetaLine}
+      </div>
+    `;
+  }
 
   return `
     <div class="landing-tile" onclick='openStockModal(${JSON.stringify(st).replace(/'/g, "&#39;")})'>
@@ -467,12 +492,14 @@ function generateLandingCardHtml(st, idx, isStalking = false) {
           ${holdBadge}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
-          <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeScoreLabel}</span>
+          <span style="font-size: 0.72rem; font-weight: 800; color: var(--purple);">${activeScoreLabel}${dnaScoreVal ? ` • DNA ${dnaScoreVal}` : ''}</span>
           <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="toggleWatchlist('${st.symbol}', event)">
             ${isStarred ? '⭐' : '☆'}
           </button>
         </div>
       </div>
+
+      ${lateEntryBannerHtml}
 
       <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
         <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">${st.symbol}</h3>
@@ -1240,7 +1267,7 @@ function renderBacktestView() {
         <th class="tip-trigger" data-tip="Date the trade signal triggered.">Entry Date</th>
         <th class="tip-trigger" data-tip="Reference entry price on signal date.">Entry Price</th>
         <th class="peak-highlight-cell tip-trigger" data-tip="Highest price reached, peak gain percentage, and days taken.">🚀 Peak MFE &amp; Days</th>
-        <th class="tip-trigger" data-tip="50/50 Dual-Stage Harvester Resolution: Breakeven Shield, 50% @ +12% Target, or 2-Close 20-SMA Runner.">50/50 Trade Exit</th>
+        <th class="tip-trigger" data-tip="50/50 Dual-Stage Harvester Resolution: Breakeven Shield, 50% @ +10% Target, or 2-Close 20-SMA Runner.">50/50 Trade Exit</th>
         <th class="tip-trigger" data-tip="Maximum price dip experienced strictly while the position was active.">In-Trade Max Dip</th>
         <th class="tip-trigger" data-tip="Open direct technical chart view.">Chart</th>
       </tr>
@@ -1713,24 +1740,31 @@ window.addEventListener('keydown', (e) => {
 
 function openStockModal(st) {
   const closeP = Number(st.close);
+  const isOngoing = st.trade_lifecycle_status === 'ONGOING_ACTIVE';
+  const planAnchorP = isOngoing && st.logged_entry_price ? Number(st.logged_entry_price) : closeP;
   const isTier1 = (st.mcap_tier || "").includes("Tier 1");
-  const t1Pct = st.target_pct || (isTier1 ? 9.0 : 12.0);
+  const t1Pct = st.target_pct || (isTier1 ? 8.0 : 10.0);
   const t2Pct = isTier1 ? 22.0 : 35.0;
   const stopPct = st.risk_clamp_pct || (isTier1 ? -5.0 : -6.5);
   const shieldTrigPct = isTier1 ? 4.0 : 4.5;
   const shieldLockPct = isTier1 ? 0.8 : 1.0;
 
-  const targetPrice = st.target_price ? Number(st.target_price).toFixed(2) : (closeP * (1.0 + (t1Pct / 100.0))).toFixed(2);
-  const t2Price = st.tranche2_breakout_price ? Number(st.tranche2_breakout_price).toFixed(2) : (closeP * (1.0 + (t2Pct / 100.0))).toFixed(2);
-  const shieldTrigPrice = (closeP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
-  const shieldFloorPrice = (closeP * (1.0 + (shieldLockPct / 100.0))).toFixed(2);
-  const stopPrice = st.stop_loss_price ? Number(st.stop_loss_price).toFixed(2) : (closeP * (1.0 + (stopPct / 100.0))).toFixed(2);
+  const targetPrice = (planAnchorP * (1.0 + (t1Pct / 100.0))).toFixed(2);
+  const t2Price = (planAnchorP * (1.0 + (t2Pct / 100.0))).toFixed(2);
+  const shieldTrigPrice = (planAnchorP * (1.0 + (shieldTrigPct / 100.0))).toFixed(2);
+  const shieldFloorPrice = (planAnchorP * (1.0 + (shieldLockPct / 100.0))).toFixed(2);
+  const stopPrice = (planAnchorP * (1.0 + (stopPct / 100.0))).toFixed(2);
+
+  const dnaMeta = st.stock_dna_score != null ? ` • DNA: ${Number(st.stock_dna_score).toFixed(1)} (${st.dna_archetype || 'Structural'})` : '';
+  const ongoingBanner = isOngoing && st.late_entry_note
+    ? `<strong>[${st.trade_lifecycle_badge || '🟢 Trading Ongoing'} | Entry ₹${planAnchorP.toFixed(2)} on ${st.logged_entry_date}]</strong> ${st.late_entry_note} &mdash; `
+    : '';
 
   document.getElementById('modalSymbol').textContent = st.symbol;
   document.getElementById('modalCompanyName').textContent = st.company_name || st.symbol;
-  document.getElementById('modalTags').textContent = `${st.sector} • ${st.index_name || 'Nifty 500'} • ATR: ${st.atr_pct ?? '--'}%`;
+  document.getElementById('modalTags').textContent = `${st.sector} • ${st.index_name || 'Nifty 500'} • ATR: ${st.atr_pct ?? '--'}%${dnaMeta}`;
   document.getElementById('modalSignalPill').innerHTML = `<span class="pill pill-buyzone">${st.inst_signal}</span>`;
-  document.getElementById('modalStrengthsText').innerHTML = `Entry: ₹${closeP.toFixed(2)} | Free-Roll Shield (+${shieldTrigPct}%): @ ₹${shieldTrigPrice} &rarr; Lock ₹${shieldFloorPrice} (+${shieldLockPct}% if &lt;10EMA) | 50/50 Targets: 50% @ ₹${targetPrice} (+${t1Pct}%), 50% Runner @ ₹${t2Price} (+${t2Pct}% / 2-Close 20-SMA) | Risk Clamp Stop: ₹${stopPrice} (${stopPct}% 2D Close)`;
+  document.getElementById('modalStrengthsText').innerHTML = `${ongoingBanner}Entry: ₹${planAnchorP.toFixed(2)} | Free-Roll Shield (+${shieldTrigPct}%): @ ₹${shieldTrigPrice} &rarr; Lock ₹${shieldFloorPrice} (+${shieldLockPct}% if &lt;10EMA) | 50/50 Targets: 50% @ ₹${targetPrice} (+${t1Pct}%), 50% Runner @ ₹${t2Price} (+${t2Pct}% / 2-Close 20-SMA) | Risk Clamp Stop: ₹${stopPrice} (${stopPct}% 2D Close)`;
   document.getElementById('modalAvoidText').innerHTML = st.reasons_to_avoid || 'None. Technical structure & kinetic fuel remain constructive.';
   document.getElementById('modalClose').textContent = `₹${closeP.toFixed(2)}`;
   document.getElementById('modalSma20').textContent = `₹${Number(st.sma_20).toFixed(2)}`;
@@ -1747,7 +1781,7 @@ function openStockModal(st) {
   if (document.getElementById('modalPattern')) document.getElementById('modalPattern').textContent = st.chart_pattern_signal || 'Consolidation';
   if (document.getElementById('modalSectorRs')) document.getElementById('modalSectorRs').textContent = st.sector_lifecycle || st.sector_rs_status || '';
   if (document.getElementById('modalOrderBlock')) {
-    document.getElementById('modalOrderBlock').textContent = st.order_block_status || `50/50 Dual-Stage Plan: Buy @ ₹${closeP.toFixed(2)} | Shield @ ₹${shieldTrigPrice} (+${shieldTrigPct}%) -> Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | Harvest 50% @ ₹${targetPrice} (+${t1Pct}%), 50% @ ₹${t2Price} (2-Close 20-SMA Trail) | Stop @ ₹${stopPrice} (${stopPct}%)`;
+    document.getElementById('modalOrderBlock').textContent = st.order_block_status || `50/50 Dual-Stage Plan: Buy @ ₹${planAnchorP.toFixed(2)} | Shield @ ₹${shieldTrigPrice} (+${shieldTrigPct}%) -> Lock ₹${shieldFloorPrice} (+${shieldLockPct}%) | Harvest 50% @ ₹${targetPrice} (+${t1Pct}%), 50% @ ₹${t2Price} (2-Close 20-SMA Trail) | Stop @ ₹${stopPrice} (${stopPct}%)`;
   }
   document.getElementById('modalTvLink').href = `https://in.tradingview.com/chart/?symbol=NSE:${st.symbol}`;
   document.getElementById('quantModal').style.display = 'flex';
@@ -1771,7 +1805,7 @@ const TOUR_STEPS = [
     tab: 'landing',
     selector: '#quantModalCard',
     title: '2. 50/50 Dual-Stage Execution Blueprint',
-    desc: 'Clicking any stock card opens this diagnostic modal showing the +4.5% Free-Roll Breakeven Shield, 50% Core Target (+12%), 50% 2-Close 20-SMA Runner (+35%), and structural Risk Clamp stop.',
+    desc: 'Clicking any stock card opens this diagnostic modal showing the +4.5% Free-Roll Breakeven Shield, 50% Core Target (+10%), 50% 2-Close 20-SMA Runner (+35%), and structural Risk Clamp stop.',
     beforeAction: () => {
       if (appState.stocks.length > 0) openStockModal(appState.stocks[0]);
     }
