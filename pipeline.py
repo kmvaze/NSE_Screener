@@ -469,9 +469,9 @@ def sync_active_trades_ledger(df_all, ranked_today, newly_triggered_symbols, lat
         all_hist = all_hist.sort_values(by=["symbol", "date"]).reset_index(drop=True)
         grp = all_hist.groupby("symbol")
         all_hist["ema10"] = grp["close"].transform(lambda x: x.ewm(span=10, adjust=False).mean())
-        all_hist["sma20"] = grp["close"].transform(lambda x: x.rolling(20, min_periods=5).mean())
+        all_hist["sma50"] = grp["close"].transform(lambda x: x.rolling(50, min_periods=10).mean())
         all_hist["prev_ema10"] = grp["ema10"].shift(1)
-        all_hist["prev_sma20"] = grp["sma20"].shift(1)
+        all_hist["prev_sma50"] = grp["sma50"].shift(1)
 
         for sym, pos in list(ledger.items()):
             if pos.get("status") != "OPEN":
@@ -482,8 +482,20 @@ def sync_active_trades_ledger(df_all, ranked_today, newly_triggered_symbols, lat
             t1_price = float(pos["target_price"])
             t2_price = float(pos["tranche2_breakout_price"])
             sl_price = float(pos["stop_loss_price"])
-            shield_trig = float(pos["shield_trigger_price"])
-            shield_floor = float(pos["shield_floor_price"])
+
+            cur_meta = today_lookup.get(sym, {})
+            is_t1_pos = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS) or ("Tier 1" in str(cur_meta.get("mcap_tier", "")))
+            risk_clamp_pct_pos = round(((sl_price - entry_price) / max(entry_price, 1e-5)) * 100.0, 2)
+            if is_t1_pos:
+                hard_1d_price = round(entry_price * 0.935, 2)
+                intraday_cat_price = round(entry_price * 0.925, 2)
+                shield1_trig, shield1_lock = 4.0, 0.8
+                shield2_trig, shield2_lock = 6.0, 3.0
+            else:
+                hard_1d_price = round(entry_price * (1.0 + ((risk_clamp_pct_pos - 1.5) / 100.0)), 2)
+                intraday_cat_price = round(entry_price * (1.0 + ((risk_clamp_pct_pos - 2.5) / 100.0)), 2)
+                shield1_trig, shield1_lock = 4.5, 1.0
+                shield2_trig, shield2_lock = 7.5, 4.0
 
             sym_hist = all_hist[(all_hist["symbol"] == sym) & (all_hist["date"] >= entry_date)]
             if sym_hist.empty:
@@ -492,9 +504,9 @@ def sync_active_trades_ledger(df_all, ranked_today, newly_triggered_symbols, lat
             days_held = max(0, len(sym_hist) - 1)
             is_closed = False
             t1_booked = False
-            shield_armed = False
+            active_shield_lock = None
             consec_sl = 0
-            consec_20sma = 0
+            consec_trail_breaks = 0
             peak_high = entry_price
 
             for idx in range(1, len(sym_hist)):
@@ -504,37 +516,50 @@ def sync_active_trades_ledger(df_all, ranked_today, newly_triggered_symbols, lat
                 l_v = float(row_b["low"])
                 c_v = float(row_b["close"])
                 e10_v = float(row_b["prev_ema10"]) if pd.notna(row_b["prev_ema10"]) else c_v
-                s20_v = float(row_b["prev_sma20"]) if pd.notna(row_b["prev_sma20"]) else c_v * 0.96
+                s50_v = float(row_b["prev_sma50"]) if pd.notna(row_b["prev_sma50"]) else c_v * 0.94
 
-                if h_v > peak_high:
-                    peak_high = h_v
-
-                if o_v <= entry_price * 0.905 or o_v <= sl_price:
+                if not t1_booked and (o_v <= intraday_cat_price or o_v <= sl_price):
                     is_closed = True
                     break
 
                 if not t1_booked:
                     consec_sl = (consec_sl + 1) if c_v <= sl_price else 0
-                    if consec_sl >= 2 or c_v <= entry_price * 0.915 or l_v <= entry_price * 0.905:
+                    if consec_sl >= 2 or c_v <= hard_1d_price or l_v <= intraday_cat_price:
                         is_closed = True
                         break
-                    if shield_armed and ((c_v <= shield_floor and c_v < e10_v) or (c_v <= entry_price and c_v < e10_v)):
-                        is_closed = True
-                        break
+                    if active_shield_lock is not None:
+                        shield_price = round(entry_price * (1.0 + (active_shield_lock / 100.0)), 2)
+                        if (c_v <= shield_price and c_v < e10_v) or (c_v <= entry_price and c_v < e10_v):
+                            is_closed = True
+                            break
+                    if h_v > peak_high:
+                        peak_high = h_v
+                    peak_gain_now = ((peak_high - entry_price) / entry_price) * 100.0
+
                     if h_v >= t1_price:
                         t1_booked = True
                         if h_v >= t2_price:
                             is_closed = True
                             break
                         continue
-                    if h_v >= shield_trig:
-                        shield_armed = True
+
+                    if peak_gain_now >= shield2_trig:
+                        active_shield_lock = shield2_lock
+                    elif peak_gain_now >= shield1_trig:
+                        active_shield_lock = shield1_lock
                 else:
+                    if h_v > peak_high:
+                        peak_high = h_v
+                    peak_gain_now = ((peak_high - entry_price) / entry_price) * 100.0
+
                     if h_v >= t2_price:
                         is_closed = True
                         break
-                    consec_20sma = (consec_20sma + 1) if c_v < (s20_v * 0.97) else 0
-                    if consec_20sma >= 2:
+                    t2_locked_pct = 15.0 if peak_gain_now >= 24.0 else (8.0 if peak_gain_now >= 16.0 else 2.5)
+                    t2_floor_price = entry_price * (1.0 + (t2_locked_pct / 100.0))
+
+                    consec_trail_breaks = (consec_trail_breaks + 1) if (c_v < (s50_v * 0.985) or c_v < t2_floor_price) else 0
+                    if consec_trail_breaks >= 2 or c_v < t2_floor_price:
                         is_closed = True
                         break
 
@@ -852,7 +877,10 @@ def run_screener_engine():
         else:
             iasis_score = round(np.clip(raw_iasis, 10.0, 99.0), 1)
             
-        is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
+        turnover_val = float((r.get("volume", 0.0) * close) / 10000000.0)
+        tier_label_sym = classify_mcap_tier(sym, str(r.get("index_name", "")), turnover_val)
+        is_tier1_sym = "Tier 1" in tier_label_sym
+        is_tier4_sym = "Tier 4" in tier_label_sym
         atr_mult = 2.8 if is_tier1_sym else 2.5
         max_sl_floor = 0.935 if is_tier1_sym else 0.885
 
@@ -861,7 +889,12 @@ def run_screener_engine():
 
         t1_target_pct = 8.0 if is_tier1_sym else 10.0
         t2_target_pct = 22.0 if is_tier1_sym else 35.0
-        m2_stop_pct = -5.0 if is_tier1_sym else -6.5
+        if is_tier1_sym:
+            m2_stop_pct = -5.0
+        elif is_tier4_sym and close > 0:
+            m2_stop_pct = float(np.clip(-round((1.85 * atr_20 / close) * 100.0, 2), -8.5, -6.5))
+        else:
+            m2_stop_pct = -6.5
         shield_trig_pct = 4.0 if is_tier1_sym else 4.5
         shield_lock_pct = 0.8 if is_tier1_sym else 1.0
 
@@ -876,7 +909,7 @@ def run_screener_engine():
         order_block_status = (
             f"50/50 Dual-Stage Plan: Entry ₹{close:.2f} | "
             f"Shield: At ₹{shield_trigger_price:.2f} (+{shield_trig_pct:.1f}%), lock ₹{shield_floor_price:.2f} (+{shield_lock_pct:.1f}% if <10EMA) | "
-            f"Harvest: 50% @ ₹{target_price:.2f} (+{t1_target_pct:.0f}%), 50% Runner @ ₹{tranche2_breakout_price:.2f} (+{t2_target_pct:.0f}% / 2-Close 20-SMA) | "
+            f"Harvest: 50% @ ₹{target_price:.2f} (+{t1_target_pct:.0f}%), 50% Runner @ ₹{tranche2_breakout_price:.2f} (+{t2_target_pct:.0f}% / 2-Close 50-SMA) | "
             f"Stop: ₹{risk_clamp_stop:.2f} ({m2_stop_pct:.1f}% 2D Close)"
         )
         
@@ -1065,7 +1098,7 @@ def run_screener_engine():
     ranked = ranked.dropna(subset=["stock_dna_score"])
 
     ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
-    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
+    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
 
     ranked["d_expansion"] = ranked["smooth_deliv_expansion"]
     ranked["deliv_spike"] = (ranked["deliv_qty"] / (ranked["avg_deliv_20"] + 1)).round(2)
@@ -1215,7 +1248,7 @@ def run_screener_engine():
     ranked["beats_own_sector"] = ranked["raw_multi_rs"] >= ranked["sector"].map(lambda s: sec_avg_rs_map.get(s, -999.0))
 
     near_52w_bonus = np.where(ranked["pct_of_52w_high"] >= 88.0, 1.05, 0.97)
-    supply_ex_bonus = np.where(ranked["supply_exhaustion_ratio"] >= 2.5, 1.06, 1.00)
+    supply_ex_bonus = np.where(ranked["supply_exhaustion_ratio"] >= 2.5, 1.00, 1.00)
     weekly_mtf_bonus = np.where(ranked["weekly_aligned"], 1.03, 0.94)
     top3_sec_poc_bonus = np.where(
         (ranked["sector_internal_rank"] <= 3) & (dist_poc_pct_series >= 0.0) & (dist_poc_pct_series <= 5.5),
@@ -1394,11 +1427,17 @@ def run_screener_engine():
         + ranked["qual_s4_pullback"].astype(int)
     )
 
+    is_lagging_sec = ranked["sector_lifecycle"].str.contains("Decelerating|Lagging", na=False)
+    stage4_sec_ok = (~is_lagging_sec) | (ranked["strat_confluence_count"] >= 2)
+
     ranked["is_eod_confirmed"] = (
-        ranked["qual_s1_surety"]
-        | ranked["qual_s2_momentum"]
-        | ranked["qual_s3_rotation"]
-        | ranked["qual_s4_pullback"]
+        (
+            ranked["qual_s1_surety"]
+            | ranked["qual_s2_momentum"]
+            | ranked["qual_s3_rotation"]
+            | ranked["qual_s4_pullback"]
+        )
+        & stage4_sec_ok
     )
 
     def get_signal(r):
