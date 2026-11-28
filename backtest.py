@@ -11,8 +11,7 @@ from pipeline import (
     DATA_DIR,
     CSV_STORE,
     METADATA_FILE,
-    NIFTY_50_SYMBOLS,
-    NIFTY_NEXT_50_SYMBOLS,
+    DNA_PROFILES_CSV,
     load_index_mappings,
     ensure_metadata,
 )
@@ -20,14 +19,9 @@ from pipeline import (
 BACKTEST_JSON = os.path.join(BASE_DIR, "backtest_data.json")
 BACKTEST_SUMMARY_JSON = os.path.join(BASE_DIR, "backtest_summary.json")
 BACKTEST_CSV = os.path.join(DATA_DIR, "backtest_results.csv")
-DNA_PROFILES_CSV = os.path.join(DATA_DIR, "stock_dna_profiles.csv")
 
 
 def load_stock_dna_profiles() -> pd.DataFrame:
-    """
-    Loads the pure structural Stock DNA profiles (data/stock_dna_profiles.csv).
-    Automatically builds the file via build_stock_dna.py if not yet generated.
-    """
     if not os.path.exists(DNA_PROFILES_CSV):
         print("[*] stock_dna_profiles.csv not found — generating via build_stock_dna.py...")
         from build_stock_dna import build_comprehensive_stock_dna
@@ -54,10 +48,6 @@ def load_stock_dna_profiles() -> pd.DataFrame:
 
 
 def determine_monthly_dates(all_dates: list):
-    """
-    Generates monthly windows from January 2026 through November 2026.
-    Each month scans all trading sessions within that month continuously.
-    """
     monthly_checkpoints = []
     for month in range(1, 12):
         cal_date = f"2026-{month:02d}-01"
@@ -79,10 +69,6 @@ def determine_monthly_dates(all_dates: list):
 
 
 def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
-    """
-    Detects overnight Stock Splits and Bonus Issues in raw NSE Bhavcopy series
-    and backward-adjusts historical OHLC & volume prior to the ex-date.
-    """
     standard_ratios = np.array([0.50, 1.0 / 3.0, 0.25, 0.20, 0.10, 2.0 / 3.0, 0.40, 0.30])
     adjusted_groups = []
     adjusted_events = []
@@ -98,7 +84,7 @@ def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
         highs = g["high"].values.astype(float)
         lows = g["low"].values.astype(float)
         vols = g["volume"].values.astype(float)
-        delivs = g["deliv_qty"].values.astype(float)
+        delivs = g["deliv_qty"].values.astype(float) if "deliv_qty" in g.columns else np.zeros(len(g))
         dates = g["date"].values
 
         for i in range(1, len(g)):
@@ -140,17 +126,11 @@ def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
     return df_clean, adjusted_events
 
 
-def classify_mcap_tier(symbol: str, index_name: str, turnover: float = 0.0) -> str:
-    sym_up = str(symbol).strip().upper()
+def classify_mcap_tier(index_name: str, turnover: float = 0.0) -> str:
     idx_up = str(index_name).upper()
     tokens = [t.strip() for t in idx_up.split(",") if t.strip()]
 
-    if (
-        sym_up in NIFTY_50_SYMBOLS
-        or sym_up in NIFTY_NEXT_50_SYMBOLS
-        or "NIFTY 50" in tokens
-        or "NIFTY NEXT 50" in tokens
-    ):
+    if "NIFTY 50" in tokens or "NIFTY NEXT 50" in tokens:
         return "Tier 1: Large Cap (Nifty 100)"
     if "NIFTY MIDCAP 150" in tokens or "MIDCAP" in idx_up:
         return "Tier 2: Mid Cap (Midcap 150)"
@@ -211,10 +191,6 @@ def classify_sector_lifecycle(row: pd.Series) -> tuple:
 
 
 def precompute_daily_eod_panel(df_all: pd.DataFrame, dna_df: pd.DataFrame) -> tuple:
-    """
-    Pre-computes vectorized indicators, Weekly MTF alignment, 50-bar Volume-Profile POC,
-    500-Day Decision-Tree structural features, and merges Pure Structural Stock DNA.
-    """
     all_dates = sorted(df_all["date"].unique())
 
     mkt_close = df_all.groupby("date")["close"].mean().reindex(all_dates).ffill()
@@ -225,237 +201,178 @@ def precompute_daily_eod_panel(df_all: pd.DataFrame, dna_df: pd.DataFrame) -> tu
     bm_sma_20 = mkt_close.rolling(20, min_periods=5).mean()
     bm_mrs_series = (((mkt_close / (bm_sma_20 + 1e-5)) - 1.0) * 100.0).round(2)
 
-    panel_rows = []
-    for sym, grp in df_all.groupby("symbol", sort=False):
-        g = grp.sort_values("date").reset_index(drop=True)
-        n = len(g)
-        if n < 50:
-            continue
+    df_all = df_all.sort_values(by=["symbol", "date"]).reset_index(drop=True)
 
-        c = g["close"].values.astype(float)
-        o = g["open"].values.astype(float)
-        h = g["high"].values.astype(float)
-        l = g["low"].values.astype(float)
-        v = g["volume"].values.astype(float)
-        d_qty = g["deliv_qty"].values.astype(float) if "deliv_qty" in g.columns else np.zeros(n)
-        d_arr = g["date"].values
+    # Vectorized computations at the groupby level
+    grouped = df_all.groupby("symbol", sort=False)
+    
+    df_all["sma_20"] = grouped["close"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+    df_all["ema_10"] = grouped["close"].transform(lambda x: x.ewm(span=10, adjust=False).mean())
+    df_all["sma_50"] = grouped["close"].transform(lambda x: x.rolling(50, min_periods=20).mean())
+    df_all["sma_200"] = grouped["close"].transform(lambda x: x.rolling(200, min_periods=40).mean())
 
-        p_ser = pd.Series(c)
-        sma_20 = p_ser.rolling(20, min_periods=10).mean().values
-        ema_10 = p_ser.ewm(span=10, adjust=False).mean().values
-        sma_50 = p_ser.rolling(50, min_periods=20).mean().values
-        sma_200 = p_ser.rolling(200, min_periods=40).mean().values
+    df_all["sma20_10d_ago"] = grouped["sma_20"].shift(10)
+    df_all["sma20_slope_10d"] = ((df_all["sma_20"] - df_all["sma20_10d_ago"]) / (df_all["sma20_10d_ago"] + 1e-5)) * 100.0
+    df_all["sma50_20d_ago"] = grouped["sma_50"].shift(20)
+    df_all["sma50_slope_20d"] = ((df_all["sma_50"] - df_all["sma50_20d_ago"]) / (df_all["sma50_20d_ago"] + 1e-5)) * 100.0
 
-        # Moving Average Slopes (10D slope of 20-SMA & 20D slope of 50-SMA)
-        sma20_10d_ago = pd.Series(sma_20).shift(10).bfill().values
-        sma20_slope_10d = ((sma_20 - sma20_10d_ago) / (sma20_10d_ago + 1e-5)) * 100.0
-        sma50_20d_ago = pd.Series(sma_50).shift(20).bfill().values
-        sma50_slope_20d = ((sma_50 - sma50_20d_ago) / (sma50_20d_ago + 1e-5)) * 100.0
+    df_all["prev_c"] = grouped["close"].shift(1)
+    df_all["tr"] = np.maximum(df_all["high"] - df_all["low"], 
+                              np.maximum(np.abs(df_all["high"] - df_all["prev_c"].fillna(df_all["close"])), 
+                                         np.abs(df_all["low"] - df_all["prev_c"].fillna(df_all["close"]))))
+    df_all["atr_20"] = grouped["tr"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+    df_all["atr_pct"] = (df_all["atr_20"] / (df_all["close"] + 1e-5)) * 100.0
 
-        # Weekly Multi-Timeframe Alignment (point-in-time W-FRI mapped back to daily)
-        w_df = pd.DataFrame({"dt": pd.to_datetime(d_arr), "close": c}).set_index("dt")
-        w_close = w_df["close"].resample("W-FRI").last().dropna()
-        w_ema10 = w_close.ewm(span=10, adjust=False).mean()
-        w_sma20 = w_close.rolling(20, min_periods=5).mean()
-        w_aligned_weekly = ((w_close >= w_ema10) & (w_ema10 >= w_sma20 * 0.995)).astype(bool)
-        w_aligned_daily = (
-            w_aligned_weekly.shift(1, fill_value=True)
-            .reindex(w_df.index, method="ffill")
-            .fillna(True)
-            .to_numpy(dtype=bool)
-        )
+    df_all["vol_20"] = grouped["volume"].transform(lambda x: x.rolling(20, min_periods=10).mean()) + 1e-5
+    df_all["rvol"] = df_all["volume"] / df_all["vol_20"]
+    df_all["cr"] = (df_all["close"] - df_all["low"]) / (df_all["high"] - df_all["low"] + 1e-5)
+    
+    df_all["diff"] = df_all["close"] - df_all["prev_c"].fillna(df_all["close"])
+    df_all["gain"] = np.where(df_all["diff"] > 0, df_all["diff"], 0.0)
+    df_all["loss"] = np.where(df_all["diff"] < 0, -df_all["diff"], 0.0)
+    
+    df_all["avg_gain"] = grouped["gain"].transform(lambda x: x.rolling(14, min_periods=5).mean())
+    df_all["avg_loss"] = grouped["loss"].transform(lambda x: x.rolling(14, min_periods=5).mean())
+    df_all["rsi_14"] = 100.0 - (100.0 / (1.0 + (df_all["avg_gain"] / (df_all["avg_loss"] + 1e-5))))
+    df_all["rsi_10d_chg"] = df_all["rsi_14"] - grouped["rsi_14"].shift(10)
 
-        prev_c = np.roll(c, 1)
-        prev_c[0] = c[0]
-        tr = np.maximum(h - l, np.maximum(np.abs(h - prev_c), np.abs(l - prev_c)))
-        atr_20 = pd.Series(tr).rolling(20, min_periods=10).mean().values
-        atr_pct = (atr_20 / (c + 1e-5)) * 100.0
+    df_all["low_20"] = grouped["low"].transform(lambda x: x.rolling(20, min_periods=5).min())
+    df_all["high_20"] = grouped["high"].transform(lambda x: x.rolling(20, min_periods=5).max())
+    df_all["stoch_k"] = np.clip(((df_all["close"] - df_all["low_20"]) / (df_all["high_20"] - df_all["low_20"] + 1e-5)) * 100.0, 0.0, 100.0)
 
-        vol_20 = pd.Series(v).rolling(20, min_periods=10).mean().values + 1e-5
-        rvol = v / vol_20
-        cr = (c - l) / (h - l + 1e-5)
+    df_all["high_30"] = grouped["high"].transform(lambda x: x.rolling(30, min_periods=10).max())
+    df_all["low_30"] = grouped["low"].transform(lambda x: x.rolling(30, min_periods=10).min())
+    df_all["base_depth_pct"] = ((df_all["high_30"] - df_all["low_30"]) / (df_all["high_30"] + 1e-5)) * 100.0
+    df_all["high_52w"] = grouped["high"].transform(lambda x: x.rolling(250, min_periods=40).max())
+    df_all["pct_of_52w_high"] = (df_all["close"] / (df_all["high_52w"] + 1e-5)) * 100.0
 
-        diff = np.diff(c, prepend=c[0])
-        gain = pd.Series(np.where(diff > 0, diff, 0.0)).rolling(14, min_periods=5).mean().values
-        loss = pd.Series(np.where(diff < 0, -diff, 0.0)).rolling(14, min_periods=5).mean().values
-        rsi_14 = 100.0 - (100.0 / (1.0 + (gain / (loss + 1e-5))))
-        rsi_ser = pd.Series(rsi_14)
-        rsi_10d_chg = (rsi_ser - rsi_ser.shift(10).bfill()).values
+    df_all["up_v"] = np.where(df_all["diff"] > 0, df_all["volume"], 0.0)
+    df_all["dn_v"] = np.where(df_all["diff"] < 0, df_all["volume"], 0.0)
+    df_all["up_v_50"] = grouped["up_v"].transform(lambda x: x.rolling(50, min_periods=15).sum()) + 1.0
+    df_all["dn_v_50"] = grouped["dn_v"].transform(lambda x: x.rolling(50, min_periods=15).sum()) + 1.0
+    df_all["ud_ratio"] = df_all["up_v_50"] / df_all["dn_v_50"]
 
-        low_20 = pd.Series(l).rolling(20, min_periods=5).min().values
-        high_20 = pd.Series(h).rolling(20, min_periods=5).max().values
-        stoch_k = np.clip(((c - low_20) / (high_20 - low_20 + 1e-5)) * 100.0, 0.0, 100.0)
+    df_all["up_v_15"] = grouped["up_v"].transform(lambda x: x.rolling(15, min_periods=5).sum()) + 1.0
+    df_all["dn_v_15"] = grouped["dn_v"].transform(lambda x: x.rolling(15, min_periods=5).sum()) + 1.0
+    df_all["sup_ex_ratio"] = df_all["up_v_15"] / df_all["dn_v_15"]
 
-        high_30 = pd.Series(h).rolling(30, min_periods=10).max().values
-        low_30 = pd.Series(l).rolling(30, min_periods=10).min().values
-        base_depth_pct = ((high_30 - low_30) / (high_30 + 1e-5)) * 100.0
-        high_52w = pd.Series(h).rolling(250, min_periods=40).max().values
-        pct_of_52w_high = (c / (high_52w + 1e-5)) * 100.0
+    # Delivery Logic - Forward Fill missing instead of Dummy Values
+    if "deliv_qty" in df_all.columns:
+         df_all["deliv_qty"] = grouped["deliv_qty"].ffill().fillna(0)
+    else:
+         df_all["deliv_qty"] = 0
 
-        up_v_50 = pd.Series(np.where(diff > 0, v, 0.0)).rolling(50, min_periods=15).sum().values + 1.0
-        dn_v_50 = pd.Series(np.where(diff < 0, v, 0.0)).rolling(50, min_periods=15).sum().values + 1.0
-        ud_ratio = up_v_50 / dn_v_50
+    df_all["d_cash"] = df_all["deliv_qty"] * df_all["close"]
+    df_all["deliv_up_cash"] = np.where(df_all["diff"] > 0, df_all["d_cash"], 0.0)
+    df_all["deliv_dn_cash"] = np.where(df_all["diff"] < 0, df_all["d_cash"], 0.0)
+    df_all["deliv_up"] = grouped["deliv_up_cash"].transform(lambda x: x.rolling(30, min_periods=10).sum()) + 1.0
+    df_all["deliv_dn"] = grouped["deliv_dn_cash"].transform(lambda x: x.rolling(30, min_periods=10).sum()) + 1.0
+    df_all["flow_ratio"] = df_all["deliv_up"] / df_all["deliv_dn"]
 
-        up_v_15 = pd.Series(np.where(diff > 0, v, 0.0)).rolling(15, min_periods=5).sum().values + 1.0
-        dn_v_15 = pd.Series(np.where(diff < 0, v, 0.0)).rolling(15, min_periods=5).sum().values + 1.0
-        sup_ex_ratio = up_v_15 / dn_v_15
+    df_all["vol_5"] = grouped["volume"].transform(lambda x: x.rolling(5, min_periods=2).mean())
+    df_all["vol_50"] = grouped["volume"].transform(lambda x: x.rolling(50, min_periods=15).mean()) + 1e-5
+    df_all["vol_dryup"] = df_all["vol_5"] / df_all["vol_50"]
 
-        d_cash = d_qty * c
-        deliv_up = pd.Series(np.where(diff > 0, d_cash, 0.0)).rolling(30, min_periods=10).sum().values + 1.0
-        deliv_dn = pd.Series(np.where(diff < 0, d_cash, 0.0)).rolling(30, min_periods=10).sum().values + 1.0
-        flow_ratio = deliv_up / deliv_dn
-
-        vol_5 = pd.Series(v).rolling(5, min_periods=2).mean().values
-        vol_50 = pd.Series(v).rolling(50, min_periods=15).mean().values + 1e-5
-        vol_dryup = vol_5 / vol_50
-
-        c_20_ago = p_ser.shift(20).bfill().values
-        c_63_ago = p_ser.shift(63).bfill().values
-        ret_21 = (c / (p_ser.shift(21).bfill().values + 1e-5)) - 1.0
-        ret_63 = (c / (c_63_ago + 1e-5)) - 1.0
-        ret_126 = (c / (p_ser.shift(126).bfill().values + 1e-5)) - 1.0
-        ret_250 = (c / (p_ser.shift(250).bfill().values + 1e-5)) - 1.0
-
-        # True 50-bar Volume-Profile Histogram POC
-        poc_arr = np.copy(sma_20)
-        for idx in range(50, n):
-            w_p = c[idx - 50 : idx + 1]
-            w_v = v[idx - 50 : idx + 1]
+    df_all["c_20_ago"] = grouped["close"].shift(20)
+    df_all["c_63_ago"] = grouped["close"].shift(63)
+    df_all["ret_21"] = (df_all["close"] / (grouped["close"].shift(21) + 1e-5)) - 1.0
+    df_all["ret_63"] = (df_all["close"] / (df_all["c_63_ago"] + 1e-5)) - 1.0
+    df_all["ret_126"] = (df_all["close"] / (grouped["close"].shift(126) + 1e-5)) - 1.0
+    df_all["ret_250"] = (df_all["close"] / (grouped["close"].shift(250) + 1e-5)) - 1.0
+    
+    # POC approximation at groupby level
+    def get_poc(prices, volumes):
+        poc_arr = np.full(len(prices), np.nan)
+        for idx in range(50, len(prices)):
+            w_p = prices[idx - 50 : idx + 1]
+            w_v = volumes[idx - 50 : idx + 1]
             if np.sum(w_v) > 0:
                 hist, bins = np.histogram(w_p, bins=10, weights=w_v)
                 best_b = int(np.argmax(hist))
                 poc_arr[idx] = (bins[best_b] + bins[best_b + 1]) / 2.0
+        return poc_arr
+        
+    df_all["volume_profile_poc"] = grouped.apply(lambda x: pd.Series(get_poc(x["close"].values, x["volume"].values), index=x.index)).reset_index(level=0, drop=True)
+    df_all["volume_profile_poc"] = df_all["volume_profile_poc"].fillna(df_all["sma_20"])
 
-        prev_h = pd.Series(h).shift(1).bfill().values
-        prev_l = pd.Series(l).shift(1).bfill().values
-        prev2_h = pd.Series(h).shift(1).rolling(2, min_periods=1).max().bfill().values
-        prev2_l = pd.Series(l).shift(1).rolling(2, min_periods=1).min().bfill().values
-        prior_2d_rng = ((prev2_h - prev2_l) / (prev_c + 1e-5)) * 100.0
-        prior_quiet = (pd.Series(v).shift(1).bfill().values <= vol_20 * 1.08) | (prior_2d_rng <= 6.0)
+    df_all["prev_h"] = grouped["high"].shift(1)
+    df_all["prev_l"] = grouped["low"].shift(1)
+    df_all["prev2_h"] = grouped["high"].shift(1).rolling(2, min_periods=1).max()
+    df_all["prev2_l"] = grouped["low"].shift(1).rolling(2, min_periods=1).min()
+    df_all["prior_2d_rng"] = ((df_all["prev2_h"] - df_all["prev2_l"]) / (df_all["prev_c"] + 1e-5)) * 100.0
+    df_all["prior_quiet"] = (grouped["volume"].shift(1) <= df_all["vol_20"] * 1.08) | (df_all["prior_2d_rng"] <= 6.0)
 
-        dist_20_pct = ((c - sma_20) / (sma_20 + 1e-5)) * 100.0
-        dist_50_pct = ((c - sma_50) / (sma_50 + 1e-5)) * 100.0
-        is_not_ext = dist_20_pct <= 4.0
-        has_floor = c >= sma_50 * 0.985
+    df_all["dist_20_pct"] = ((df_all["close"] - df_all["sma_20"]) / (df_all["sma_20"] + 1e-5)) * 100.0
+    df_all["dist_50_pct"] = ((df_all["close"] - df_all["sma_50"]) / (df_all["sma_50"] + 1e-5)) * 100.0
+    df_all["is_not_ext"] = df_all["dist_20_pct"] <= 4.0
+    df_all["has_floor"] = df_all["close"] >= df_all["sma_50"] * 0.985
 
-        trig_a = (
-            has_floor & is_not_ext & prior_quiet &
-            (c > o) & (c >= prev_h) & (c >= ema_10) &
-            (ema_10 >= sma_50 * 0.99) & (c >= sma_20 * 0.995) &
-            (cr >= 0.65) & (rvol >= 1.25) & (c >= poc_arr * 0.99)
-        )
-
-        tested_sup = (
-            (prev_l <= sma_20 * 1.012) | (l <= sma_20 * 1.012) |
-            (prev_l <= ema_10 * 1.008) | (l <= poc_arr * 1.010)
-        )
-        trig_b = (
-            has_floor & is_not_ext & tested_sup &
-            (c > o) & (c >= prev_c * 1.008) & (c >= ema_10 * 0.995) &
-            (cr >= 0.65) & (c >= sma_50 * 0.990)
-        )
-
-        mask_2026 = d_arr >= "2026-01-01"
-        if not np.any(mask_2026):
-            continue
-
-        sub_df = pd.DataFrame({
-            "date": d_arr[mask_2026],
-            "symbol": sym,
-            "company_name": g["company_name"].iloc[-1],
-            "sector": g["sector"].iloc[-1],
-            "index_name": g["index_name"].iloc[-1] if "index_name" in g.columns else "Nifty 500",
-            "open": o[mask_2026],
-            "close": c[mask_2026],
-            "close_20d_ago": c_20_ago[mask_2026],
-            "close_63d_ago": c_63_ago[mask_2026],
-            "volume": v[mask_2026],
-            "sma_20": np.round(sma_20[mask_2026], 2),
-            "sma_50": np.round(sma_50[mask_2026], 2),
-            "sma_200": np.round(sma_200[mask_2026], 2),
-            "weekly_aligned": w_aligned_daily[mask_2026],
-            "sma_50_rising": sma_50[mask_2026] >= (pd.Series(sma_50).shift(10).bfill().values[mask_2026] * 0.998),
-            "sma20_slope_10d": np.round(sma20_slope_10d[mask_2026], 2),
-            "sma50_slope_20d": np.round(sma50_slope_20d[mask_2026], 2),
-            "above_sma50_5d_ago": pd.Series(c >= sma_50).shift(5).fillna(True).values[mask_2026],
-            "atr_20": np.round(atr_20[mask_2026], 2),
-            "atr_pct": np.round(atr_pct[mask_2026], 2),
-            "rsi_14": np.round(rsi_14[mask_2026], 1),
-            "rsi_10d_chg": np.round(rsi_10d_chg[mask_2026], 2),
-            "stoch_k": np.round(stoch_k[mask_2026], 1),
-            "base_depth_pct": np.round(base_depth_pct[mask_2026], 2),
-            "high_52w": np.round(high_52w[mask_2026], 2),
-            "pct_of_52w_high": np.round(pct_of_52w_high[mask_2026], 2),
-            "up_down_vol_ratio": np.round(ud_ratio[mask_2026], 2),
-            "supply_exhaustion_ratio": np.round(sup_ex_ratio[mask_2026], 2),
-            "flow_ratio": np.round(flow_ratio[mask_2026], 2),
-            "vol_dryup_ratio": np.round(vol_dryup[mask_2026], 2),
-            "closing_range": np.round(cr[mask_2026], 3),
-            "session_rvol": np.round(rvol[mask_2026], 2),
-            "volume_profile_poc": np.round(poc_arr[mask_2026], 2),
-            "mrs_score": np.round(dist_20_pct[mask_2026], 1),
-            "dist_from_50_pct": np.round(dist_50_pct[mask_2026], 2),
-            "prior_63d_pct": np.round(ret_63[mask_2026] * 100.0, 2),
-            "ret_250d_pct": np.round(ret_250[mask_2026] * 100.0, 2),
-            "ret_21": ret_21[mask_2026],
-            "ret_63": ret_63[mask_2026],
-            "ret_126": ret_126[mask_2026],
-            "ret_250": ret_250[mask_2026],
-            "trig_a": trig_a[mask_2026],
-            "trig_b": trig_b[mask_2026],
-        })
-        panel_rows.append(sub_df)
-
-    full_panel = pd.concat(panel_rows, ignore_index=True)
-
-    full_panel["bm_21"] = full_panel["date"].map(bm_ret_21)
-    full_panel["bm_63"] = full_panel["date"].map(bm_ret_63)
-    full_panel["bm_126"] = full_panel["date"].map(bm_ret_126)
-    full_panel["bm_250"] = full_panel["date"].map(bm_ret_250)
-    full_panel["bm_mrs"] = full_panel["date"].map(bm_mrs_series)
-
-    full_panel["raw_multi_rs"] = (
-        0.40 * (full_panel["ret_63"] - full_panel["bm_63"]) * 100.0
-        + 0.30 * (full_panel["ret_126"] - full_panel["bm_126"]) * 100.0
-        + 0.20 * (full_panel["ret_250"] - full_panel["bm_250"]) * 100.0
-        + 0.10 * (full_panel["ret_21"] - full_panel["bm_21"]) * 100.0
+    df_all["trig_a"] = (
+        df_all["has_floor"] & df_all["is_not_ext"] & df_all["prior_quiet"] &
+        (df_all["close"] > df_all["open"]) & (df_all["close"] >= df_all["prev_h"]) & (df_all["close"] >= df_all["ema_10"]) &
+        (df_all["ema_10"] >= df_all["sma_50"] * 0.99) & (df_all["close"] >= df_all["sma_20"] * 0.995) &
+        (df_all["cr"] >= 0.65) & (df_all["rvol"] >= 1.25) & (df_all["close"] >= df_all["volume_profile_poc"] * 0.99)
     )
 
-    full_panel["turnover_cr"] = ((full_panel["volume"] * full_panel["close"]) / 10000000.0).round(2)
-    full_panel["mcap_tier"] = full_panel.apply(
-        lambda r: classify_mcap_tier(r["symbol"], r["index_name"], r["turnover_cr"]), axis=1
+    df_all["tested_sup"] = (
+        (df_all["prev_l"] <= df_all["sma_20"] * 1.012) | (df_all["low"] <= df_all["sma_20"] * 1.012) |
+        (df_all["prev_l"] <= df_all["ema_10"] * 1.008) | (df_all["low"] <= df_all["volume_profile_poc"] * 1.010)
+    )
+    df_all["trig_b"] = (
+        df_all["has_floor"] & df_all["is_not_ext"] & df_all["tested_sup"] &
+        (df_all["close"] > df_all["open"]) & (df_all["close"] >= df_all["prev_c"] * 1.008) & (df_all["close"] >= df_all["ema_10"] * 0.995) &
+        (df_all["cr"] >= 0.65) & (df_all["close"] >= df_all["sma_50"] * 0.990)
     )
 
-    # Merge Pure Structural Stock DNA Genome
+    df_2026 = df_all[df_all["date"] >= "2026-01-01"].copy()
+    
+    # Weekly Aligned Logic
+    def align_weekly(grp):
+        w_df = pd.DataFrame({"dt": pd.to_datetime(grp["date"]), "close": grp["close"]}).set_index("dt")
+        w_close = w_df["close"].resample("W-FRI").last().dropna()
+        if len(w_close) >= 5:
+            w_ema10 = w_close.ewm(span=10, adjust=False).mean()
+            w_sma20 = w_close.rolling(20, min_periods=5).mean()
+            w_aligned = ((w_close >= w_ema10) & (w_ema10 >= w_sma20 * 0.995)).astype(bool)
+            return w_aligned.shift(1, fill_value=True).reindex(w_df.index, method="ffill").fillna(True).values
+        else:
+            return np.ones(len(grp), dtype=bool)
+            
+    df_2026["weekly_aligned"] = df_2026.groupby("symbol", sort=False).apply(align_weekly).explode().values.astype(bool)
+    df_2026["sma_50_rising"] = df_2026["sma_50"] >= (df_2026.groupby("symbol")["sma_50"].shift(10) * 0.998)
+    df_2026["above_sma50_5d_ago"] = df_2026.groupby("symbol")["close"].shift(5) >= df_2026.groupby("symbol")["sma_50"].shift(5)
+
+    df_2026["bm_21"] = df_2026["date"].map(bm_ret_21)
+    df_2026["bm_63"] = df_2026["date"].map(bm_ret_63)
+    df_2026["bm_126"] = df_2026["date"].map(bm_ret_126)
+    df_2026["bm_250"] = df_2026["date"].map(bm_ret_250)
+    df_2026["bm_mrs"] = df_2026["date"].map(bm_mrs_series)
+
+    df_2026["raw_multi_rs"] = (
+        0.40 * (df_2026["ret_63"] - df_2026["bm_63"]) * 100.0
+        + 0.30 * (df_2026["ret_126"] - df_2026["bm_126"]) * 100.0
+        + 0.20 * (df_2026["ret_250"] - df_2026["bm_250"]) * 100.0
+        + 0.10 * (df_2026["ret_21"] - df_2026["bm_21"]) * 100.0
+    )
+
+    df_2026["turnover_cr"] = ((df_2026["volume"] * df_2026["close"]) / 10000000.0).round(2)
+    df_2026["mcap_tier"] = df_2026.apply(lambda r: classify_mcap_tier(r["index_name"], r["turnover_cr"]), axis=1)
+
     if not dna_df.empty and "stock_dna_score" in dna_df.columns:
-        full_panel = pd.merge(full_panel, dna_df, on="symbol", how="left")
-        full_panel["stock_dna_score"] = full_panel["stock_dna_score"].fillna(65.0)
-        full_panel["dna_archetype"] = full_panel["dna_archetype"].fillna("DNA-3: Wicky Shakeout Reclaimer")
-        full_panel["dominant_ma_dna"] = full_panel["dominant_ma_dna"].fillna("50-SMA Deep Undercutter")
-        full_panel["wick_polarity_dna"] = full_panel["wick_polarity_dna"].fillna("Balanced Candle Body")
-        full_panel["impulse_velocity_days"] = full_panel["impulse_velocity_days"].fillna(11.0)
-        full_panel["amihud_impact_dna"] = full_panel["amihud_impact_dna"].fillna(0.04)
-        full_panel["reentry_elasticity_pct"] = full_panel["reentry_elasticity_pct"].fillna(30.0)
-    else:
-        full_panel["stock_dna_score"] = 66.0
-        full_panel["dna_archetype"] = "DNA-3: Wicky Shakeout Reclaimer"
-        full_panel["dominant_ma_dna"] = "50-SMA Deep Undercutter"
-        full_panel["wick_polarity_dna"] = "Balanced Candle Body"
-        full_panel["impulse_velocity_days"] = 11.0
-        full_panel["amihud_impact_dna"] = 0.04
-        full_panel["reentry_elasticity_pct"] = 30.0
-
-    daily_frames = {d: grp.copy() for d, grp in full_panel.groupby("date")}
+        df_2026 = pd.merge(df_2026, dna_df, on="symbol", how="left")
+    
+    daily_frames = {d: grp.copy() for d, grp in df_2026.groupby("date")}
     return daily_frames, mkt_close
 
 
 def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
-    """
-    Scores a single EOD session using the empirically validated 500-Day Decision-Tree
-    Core Gate, Unified Structural Stock DNA (v1), True 20-Bin Volume Profile POC,
-    Anti-Bull-Trap Shield, and 4 Strategy Rules.
-    """
     ranked = day_df.copy()
+    
+    # Drop rows where Stock DNA could not be determined instead of substituting dummies
+    ranked = ranked.dropna(subset=["stock_dna_score"])
+    if ranked.empty:
+         return pd.DataFrame(), ranked, 0.0, 0.0
+
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
     ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"]
     ranked["stage2_aligned"] = (ranked["close"] > ranked["sma_50"]) & (ranked["sma_50"] > ranked["sma_200"]) & ranked["sma_50_rising"]
@@ -470,8 +387,8 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         .agg(
             daily_perf=("close", lambda x: round(float(((x - ranked.loc[x.index, "open"]) / (ranked.loc[x.index, "open"] + 1e-5)).mean() * 100.0), 2)),
             advance_pct=("close", lambda x: round(float((x > ranked.loc[x.index, "open"]).mean() * 100.0), 2)),
-            perf_20d=("close", lambda x: round(float(((x - ranked.loc[x.index, "close_20d_ago"]) / (ranked.loc[x.index, "close_20d_ago"] + 1e-5)).mean() * 100.0), 2)),
-            perf_63d=("close", lambda x: round(float(((x - ranked.loc[x.index, "close_63d_ago"]) / (ranked.loc[x.index, "close_63d_ago"] + 1e-5)).mean() * 100.0), 2)),
+            perf_20d=("close", lambda x: round(float(((x - ranked.loc[x.index, "c_20_ago"]) / (ranked.loc[x.index, "c_20_ago"] + 1e-5)).mean() * 100.0), 2)),
+            perf_63d=("close", lambda x: round(float(((x - ranked.loc[x.index, "c_63_ago"]) / (ranked.loc[x.index, "c_63_ago"] + 1e-5)).mean() * 100.0), 2)),
             stock_count=("symbol", "count"),
         )
         .reset_index()
@@ -505,7 +422,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     sec_mult_map = dict(zip(sector_summary["sector"], sector_summary["sector_climax_mult"]))
     sec_life_map = dict(zip(sector_summary["sector"], sector_summary["sector_lifecycle"]))
 
-    ranked["beta_neutral_mrs"] = (ranked["mrs_score"] - ranked["sector"].map(lambda s: sec_perf_map.get(s, 0.0))).round(1)
+    ranked["beta_neutral_mrs"] = (ranked["dist_20_pct"] - ranked["sector"].map(lambda s: sec_perf_map.get(s, 0.0))).round(1)
     ranked["sector_climax_mult"] = ranked["sector"].map(lambda s: sec_mult_map.get(s, 1.0))
     ranked["sector_lifecycle"] = ranked["sector"].map(lambda s: sec_life_map.get(s, "Neutral"))
 
@@ -513,7 +430,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     atr_fuel_pts = np.clip(((ranked["atr_pct"] - 2.2) / 2.4) * 30.0, 2.0, 30.0)
     base_coil_pts = np.where(ranked["above_sma50"], np.clip(25.0 * np.exp(-((ranked["base_depth_pct"] - 21.5) ** 2) / 65.0), 3.0, 25.0), 4.0)
     flow_pts = np.clip(30.0 * (np.log1p(np.minimum(ranked["flow_ratio"], 6.0)) / np.log1p(4.0)), 4.0, 30.0)
-    ud_pts = np.clip(((ranked["up_down_vol_ratio"] - 1.0) / 1.5) * 15.0, 2.0, 15.0)
+    ud_pts = np.clip(((ranked["ud_ratio"] - 1.0) / 1.5) * 15.0, 2.0, 15.0)
     ranked["iasis_score"] = np.clip(atr_fuel_pts + base_coil_pts + flow_pts + ud_pts, 10.0, 99.0).round(1)
 
     global_rs_pct = ranked["raw_multi_rs"].rank(pct=True) * 100.0
@@ -534,7 +451,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     ranked["beats_own_sector"] = ranked["raw_multi_rs"] >= ranked["sector"].map(lambda s: sec_avg_rs_map.get(s, -999.0))
 
     near_52w_bonus = np.where(ranked["pct_of_52w_high"] >= 88.0, 1.05, 0.97)
-    supply_ex_bonus = np.where(ranked["supply_exhaustion_ratio"] >= 2.5, 1.06, 1.00)
+    supply_ex_bonus = np.where(ranked["sup_ex_ratio"] >= 2.5, 1.06, 1.00)
     weekly_mtf_bonus = np.where(ranked["weekly_aligned"], 1.03, 0.94)
     top3_sec_poc_bonus = np.where(
         (ranked["sector_internal_rank"] <= 3) & (dist_poc_pct_series >= 0.0) & (dist_poc_pct_series <= 5.5),
@@ -544,7 +461,6 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
     ranked["confluence_booster"] = np.round(confluence_booster, 3)
 
-    # Unified Structural Stock DNA Multiplier (v1)
     not_weak_dna1 = (~ranked["dna_archetype"].str.contains("DNA-1", na=False)) | (ranked["stock_dna_score"] >= 68.0)
     has_strong_dna_edge = (
         (ranked["stock_dna_score"] >= 64.0)
@@ -577,7 +493,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     ranked["score_surety_anchor"] = (raw_surety * sec_adj * poc_multiplier * tier_mult * kinetic_mult * confluence_booster * dna_score_mult).clip(5.0, 99.0).round(1)
 
     rsi_headroom_mult = np.where(ranked["rsi_14"] <= 68.0, 1.05, 0.82)
-    dist50_sweet_pts = np.clip(((ranked["dist_from_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
+    dist50_sweet_pts = np.clip(((ranked["dist_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
     ranked["score_momentum_frontrunner"] = (
         (0.45 * rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * 75.0 + dist50_sweet_pts)
         * sec_adj * tier_mult * kinetic_mult * rsi_headroom_mult * confluence_booster * dna_score_mult
@@ -589,18 +505,15 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         * rot_struct_penalty * poc_multiplier * tier_mult * kinetic_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
-    pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.0)) ** 2) / 8.5)
+    pullback_depth_pts = 30.0 * np.exp(-((ranked["dist_20_pct"] - (-1.0)) ** 2) / 8.5)
     stoch_oversold_pts = 20.0 * np.clip(1.0 - (ranked["stoch_k"] / 65.0), 0.0, 1.0)
-    cr_series = ranked["closing_range"]
-    pullback_qual_bonus = np.where((ranked["vol_dryup_ratio"] <= 0.88) | (cr_series >= 0.60), 15.0, np.clip(15.0 * (cr_series / 0.60), 0.0, 15.0))
+    cr_series = ranked["cr"]
+    pullback_qual_bonus = np.where((ranked["vol_dryup"] <= 0.88) | (cr_series >= 0.60), 15.0, np.clip(15.0 * (cr_series / 0.60), 0.0, 15.0))
     ranked["score_high_rs_pullback"] = (
         (pullback_depth_pts + stoch_oversold_pts + pullback_qual_bonus + 0.25 * rs_percentile + 0.15 * ranked["iasis_score"])
         * sec_adj * tier_mult * kinetic_mult * confluence_booster * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
-    # =========================================================================
-    # 500-DAY DECISION-TREE CORE GATE + UNIFIED STRUCTURAL STOCK DNA (v1)
-    # =========================================================================
     ex_large = ~ranked["mcap_tier"].str.contains("Tier 1", na=False)
     no_bear_div = ~((ranked["pct_of_52w_high"] >= 90.0) & (ranked["rsi_14"] < 54.0) & (ranked["rsi_10d_chg"] < -4.0))
     struct_floor = (
@@ -610,17 +523,17 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         & (ranked["close"] >= ranked["sma_200"])
         & (ranked["close"] >= ranked["sma_50"] * 0.985)
         & (ranked["close"] >= ranked["volume_profile_poc"] * 0.99)
-        & (ranked["ret_250d_pct"] >= 12.0)
+        & (ranked["ret_250"] >= 0.12)
         & (ranked["pct_of_52w_high"] >= 82.0)
-        & (ranked["mrs_score"] <= 4.0)
-        & (ranked["dist_from_50_pct"] <= 14.0)
+        & (ranked["dist_20_pct"] <= 4.0)
+        & (ranked["dist_50_pct"] <= 14.0)
     )
 
     if breadth_pct >= 55.0:
         branch_ok = (ranked["atr_pct"] >= 3.05) & (rs_percentile >= 76.0)
     elif 48.0 <= breadth_pct < 55.0:
         branch_ok = (rs_percentile >= 78.0) & (
-            (ranked["atr_pct"] >= 3.45) | ((ranked["sma20_slope_10d"] >= 0.96) & (ranked["session_rvol"] <= 1.05))
+            (ranked["atr_pct"] >= 3.45) | ((ranked["sma20_slope_10d"] >= 0.96) & (ranked["rvol"] <= 1.05))
         )
     elif breadth_pct < 28.0:
         branch_ok = (rs_percentile >= 82.0) & (ranked["atr_pct"] >= 3.40)
@@ -635,7 +548,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         & ranked["dist_poc_pct"].between(0.0, 5.5)
         & (ranked["flow_ratio"] >= 1.35)
         & (ranked["sma50_slope_20d"] >= 2.5)
-        & (ranked["up_down_vol_ratio"] >= 1.25)
+        & (ranked["ud_ratio"] >= 1.25)
     )
     ranked["qual_s2_momentum"] = (
         tree_core_gate
@@ -643,7 +556,7 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
         & (ranked["sma50_slope_20d"] >= 4.5)
         & (ranked["pct_of_52w_high"] >= 88.0)
         & ((breadth_pct >= 55.0) | (ranked["atr_pct"] >= 3.55))
-        & (ranked["up_down_vol_ratio"] >= 1.30)
+        & (ranked["ud_ratio"] >= 1.30)
     )
     ranked["qual_s3_rotation"] = (
         tree_core_gate
@@ -657,9 +570,9 @@ def score_single_eod_session(day_df: pd.DataFrame) -> tuple:
     ranked["qual_s4_pullback"] = (
         tree_core_gate
         & (rs_percentile >= 78.0)
-        & ranked["mrs_score"].between(-3.5, 2.5)
+        & ranked["dist_20_pct"].between(-3.5, 2.5)
         & (ranked["trig_b"])
-        & ((ranked["session_rvol"] <= 1.15) | (ranked["atr_pct"] >= 3.45))
+        & ((ranked["rvol"] <= 1.15) | (ranked["atr_pct"] >= 3.45))
         & (ranked["sma50_slope_20d"] >= 2.5)
     )
 
@@ -694,11 +607,7 @@ def simulate_method2_execution(
     is_tier1: bool = False,
     structural_stop: float = None,
 ) -> dict:
-    """
-    100% Honest 2-Close -6.5% Stop (-8.5% 1D / -9.5% Intraday Catastrophe Floor)
-    + Progressive 10-EMA Closing Ratchet (+4.5% -> +1.0%, +7.5% -> +4.0%)
-    + 50/50 Dual-Stage Harvester (50% @ +10.0% | 50% 2-Close 20-SMA * 0.97 Runner up to +35.0%).
-    """
+    # Proper Gap-Down Fill and Shifted Lookahead bias fix included
     if is_tier1 or "Tier 1" in mcap_tier:
         t1_target_pct = 8.0
         t2_climax_pct = 22.0
@@ -737,11 +646,14 @@ def simulate_method2_execution(
         }
 
     dates = fut_slice["date"].values
+    opens = fut_slice["open"].values.astype(float)
     highs = fut_slice["high"].values.astype(float)
     lows = fut_slice["low"].values.astype(float)
     closes = fut_slice["close"].values.astype(float)
-    ema10_arr = fut_slice["ema10_roll"].values.astype(float)
-    sma20_arr = fut_slice["sma20_roll"].values.astype(float)
+    
+    # Pre-shift Moving Averages to avoid lookahead bias
+    ema10_arr = fut_slice["ema10_roll"].shift(1).bfill().values.astype(float)
+    sma20_arr = fut_slice["sma20_roll"].shift(1).bfill().values.astype(float)
 
     position_capital = 100000.0
 
@@ -763,14 +675,25 @@ def simulate_method2_execution(
 
     for idx in range(1, len(fut_slice)):
         d_str = str(dates[idx])
+        o_val = float(opens[idx])
         h_val = float(highs[idx])
         l_val = float(lows[idx])
         c_val = float(closes[idx])
-        e10_val = float(ema10_arr[idx]) if not np.isnan(ema10_arr[idx]) else c_val
-        s20_val = float(sma20_arr[idx]) if not np.isnan(sma20_arr[idx]) else c_val * 0.96
+        e10_val = float(ema10_arr[idx])
+        s20_val = float(sma20_arr[idx])
 
         if not t1_booked and l_val < min_low_before_t1:
             min_low_before_t1 = l_val
+            
+        # Gap-down protection: If the open is below the catastrophe or hard stop, exit AT OPEN
+        if o_val <= intraday_cat_price or o_val <= risk_clamp_price:
+            exit_idx = idx
+            exit_date = d_str
+            exit_price = o_val
+            realized_ret = round(((o_val - entry_price)/entry_price)*100.0, 2)
+            is_win = False
+            exit_reason = f"Gap Down Stop Hit ({realized_ret}%)"
+            break
 
         # PHASE 1: BEFORE 50% CORE TARGET (+10%) IS HIT
         if not t1_booked:
@@ -782,10 +705,12 @@ def simulate_method2_execution(
             if consec_stop_closes >= 2 or c_val <= hard_1d_price or l_val <= intraday_cat_price:
                 exit_idx = idx
                 exit_date = d_str
-                realized_ret = round(risk_clamp_pct, 2)
-                exit_price = risk_clamp_price
+                # If hit intraday, assume worst execution near bottom, if closed assume close
+                actual_exit_p = min(risk_clamp_price, c_val) if l_val <= intraday_cat_price else risk_clamp_price
+                realized_ret = round(((actual_exit_p - entry_price)/entry_price)*100.0, 2)
+                exit_price = actual_exit_p
                 is_win = False
-                exit_reason = f"Stop Loss ({risk_clamp_pct}%)"
+                exit_reason = f"Stop Loss ({realized_ret}%)"
                 break
 
             if active_shield_lock is not None:
@@ -992,10 +917,16 @@ def run_quarterly_backtest():
     df_all = pd.concat([pd.read_csv(f) for f in found_files], ignore_index=True).drop_duplicates(subset=["symbol", "date"])
     df_all = df_all[df_all["symbol"].isin(target_symbols)]
     master_df = pd.read_csv(METADATA_FILE).drop_duplicates(subset=["symbol"])
-    df_all = pd.merge(df_all, master_df, on="symbol", how="left").fillna(
-        {"sector": "Capital Goods", "company_name": df_all["symbol"]}
-    )
+    df_all = pd.merge(df_all, master_df, on="symbol", how="inner")
     df_all = df_all[df_all["sector"] != "General Equities"].sort_values(by=["symbol", "date"]).reset_index(drop=True)
+    
+    # Missing delivery data logging
+    if "deliv_qty" in df_all.columns:
+        missing_delivery = df_all[df_all["deliv_qty"].isna() | (df_all["deliv_qty"] == 0)]
+        if not missing_delivery.empty:
+            with open("missing_delivery_data.log", "w") as f:
+                f.write(f"Missing delivery data for {len(missing_delivery)} rows.\n")
+                f.write(missing_delivery[["date", "symbol"]].to_string())
 
     print("[*] Running Corporate Action Split/Bonus Continuity Normalizer on Bhavcopy series...")
     df_all, corp_action_events = normalize_corporate_actions(df_all)
@@ -1236,9 +1167,9 @@ def run_quarterly_backtest():
                         "score_high_rs_pullback": float(stk_row["score_high_rs_pullback"]),
                         "frontrunner_score_at_entry": float(stk_row["blended_rs_percentile"]),
                         "iasis_score_at_entry": float(stk_row["iasis_score"]),
-                        "mrs_20d_at_entry_pct": float(stk_row["mrs_score"]),
-                        "dist_50d_at_entry_pct": float(stk_row["dist_from_50_pct"]),
-                        "prior_63d_run_pct": float(stk_row["prior_63d_pct"]),
+                        "dist_20_pct_at_entry_pct": float(stk_row["dist_20_pct"]),
+                        "dist_50d_at_entry_pct": float(stk_row["dist_50_pct"]),
+                        "prior_63d_run_pct": float(stk_row["ret_63"] * 100),
                         "zone_persistence_days": 14,
                         "trend_persistence_days": max(1, days_to_exit),
                         "entry_date": scan_date,
@@ -1286,7 +1217,7 @@ def run_quarterly_backtest():
                         sector_lifecycle_accumulator[life_bucket].append((peak_gain_pct, trade_sim["active_drawdown_pct"], trade_sim["realized_return_pct"]))
 
                         near_52w = float(stk_row["pct_of_52w_high"]) >= 88.0
-                        sup_ex = float(stk_row["supply_exhaustion_ratio"]) >= 2.5
+                        sup_ex = float(stk_row["sup_ex_ratio"]) >= 2.5
                         sec_top3 = float(stk_row["sector_internal_rank"]) <= 3
                         dist_poc = float(stk_row["dist_poc_pct"])
                         poc_sweet = 0.0 <= dist_poc <= 5.5

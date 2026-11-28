@@ -50,12 +50,7 @@ NIFTY_NEXT_50_SYMBOLS = {
     "VEDL", "ZYDUSLIFE", "ZOMATO"
 }
 
-
 def load_stock_dna_profiles(max_age_days: int = 5) -> pd.DataFrame:
-    """
-    Loads the pure structural Stock DNA profiles (data/stock_dna_profiles.csv).
-    Automatically builds or refreshes the file via build_stock_dna.py if missing or stale (>5 days).
-    """
     needs_build = not os.path.exists(DNA_PROFILES_CSV)
     if not needs_build:
         age_days = (time.time() - os.path.getmtime(DNA_PROFILES_CSV)) / 86400.0
@@ -75,16 +70,9 @@ def load_stock_dna_profiles(max_age_days: int = 5) -> pd.DataFrame:
 
     dna_df = pd.read_csv(DNA_PROFILES_CSV).drop_duplicates(subset=["symbol"])
     keep_cols = [
-        "symbol",
-        "dna_archetype",
-        "stock_dna_score",
-        "dominant_ma_dna",
-        "wick_polarity_dna",
-        "impulse_velocity_days",
-        "amihud_impact_dna",
-        "reentry_elasticity_pct",
-        "beta_asymmetry",
-        "median_er_30",
+        "symbol", "dna_archetype", "stock_dna_score", "dominant_ma_dna",
+        "wick_polarity_dna", "impulse_velocity_days", "amihud_impact_dna",
+        "reentry_elasticity_pct", "beta_asymmetry", "median_er_30"
     ]
     avail_cols = [c for c in keep_cols if c in dna_df.columns]
     return dna_df[avail_cols].copy()
@@ -139,14 +127,14 @@ def load_index_mappings() -> dict:
                 if not sym or sym == "NAN":
                     continue
                 cname = str(r[name_col]).strip() if pd.notna(r[name_col]) else sym
-                industry = str(r[ind_col]).strip() if ind_col and pd.notna(r[ind_col]) else "General Equities"
+                industry = str(r[ind_col]).strip() if ind_col and pd.notna(r[ind_col]) else "Unclassified"
                 if sym not in symbol_to_meta:
                     symbol_to_meta[sym] = {"indices": [index_name], "company_name": cname, "sector": industry}
                 else:
                     if index_name not in symbol_to_meta[sym]["indices"]:
                         symbol_to_meta[sym]["indices"].append(index_name)
-        except Exception as e:
-            print(f"[!] Error parsing index file {valid_path}: {e}")
+        except Exception:
+            pass
 
     for sym in NIFTY_50_SYMBOLS:
         if sym in symbol_to_meta:
@@ -155,7 +143,7 @@ def load_index_mappings() -> dict:
             if "Nifty 500" not in symbol_to_meta[sym]["indices"]:
                 symbol_to_meta[sym]["indices"].append("Nifty 500")
         else:
-            symbol_to_meta[sym] = {"indices": ["Nifty 50", "Nifty 500"], "company_name": sym, "sector": "General Equities"}
+            symbol_to_meta[sym] = {"indices": ["Nifty 50", "Nifty 500"], "company_name": sym, "sector": "Unclassified"}
 
     for sym in NIFTY_NEXT_50_SYMBOLS:
         if sym in symbol_to_meta:
@@ -164,7 +152,7 @@ def load_index_mappings() -> dict:
             if "Nifty 500" not in symbol_to_meta[sym]["indices"]:
                 symbol_to_meta[sym]["indices"].append("Nifty 500")
         else:
-            symbol_to_meta[sym] = {"indices": ["Nifty Next 50", "Nifty 500"], "company_name": sym, "sector": "General Equities"}
+            symbol_to_meta[sym] = {"indices": ["Nifty Next 50", "Nifty 500"], "company_name": sym, "sector": "Unclassified"}
 
     return {
         sym: {
@@ -268,7 +256,7 @@ def update_incremental_store(lookback_days: int = 720):
         df = fetch_udiff_bhavcopy(target)
         if not df.empty:
             delivery_df = fetch_mto_delivery(target)
-            merged = pd.merge(df, delivery_df, on="symbol", how="left").fillna({"deliv_qty": 0, "deliv_pct": 50.0})
+            merged = pd.merge(df, delivery_df, on="symbol", how="left")
             merged["date"] = date_iso
             os.makedirs(os.path.dirname(target_file), exist_ok=True)
             merged.drop_duplicates(subset=["symbol"]).to_csv(target_file, index=False)
@@ -290,6 +278,9 @@ def normalize_corporate_actions(df_all: pd.DataFrame) -> tuple:
         highs = g["high"].values.astype(float)
         lows = g["low"].values.astype(float)
         vols = g["volume"].values.astype(float)
+        
+        # Forward fill delivery data instead of using placeholders
+        g["deliv_qty"] = g["deliv_qty"].ffill().fillna(0)
         delivs = g["deliv_qty"].values.astype(float)
         dates = g["date"].values
 
@@ -337,12 +328,7 @@ def classify_mcap_tier(symbol: str, index_name: str, turnover: float = 0.0) -> s
     idx_up = str(index_name).upper()
     tokens = [t.strip() for t in idx_up.split(",") if t.strip()]
 
-    if (
-        sym_up in NIFTY_50_SYMBOLS
-        or sym_up in NIFTY_NEXT_50_SYMBOLS
-        or "NIFTY 50" in tokens
-        or "NIFTY NEXT 50" in tokens
-    ):
+    if sym_up in NIFTY_50_SYMBOLS or sym_up in NIFTY_NEXT_50_SYMBOLS or "NIFTY 50" in tokens or "NIFTY NEXT 50" in tokens:
         return "Tier 1: Large Cap (Nifty 100)"
     if "NIFTY MIDCAP 150" in tokens or "MIDCAP" in idx_up:
         return "Tier 2: Mid Cap (Midcap 150)"
@@ -445,55 +431,17 @@ def detect_genuine_chart_patterns(prices, volumes, highs, lows):
     return 0.90, "", 21
 
 
-def sync_active_trades_ledger(
-    df_all: pd.DataFrame,
-    ranked_today: pd.DataFrame,
-    newly_triggered_symbols: set,
-    latest_date: str,
-) -> dict:
-    """
-    Maintains persistent open positions across daily EOD runs until a 50/50 Dual-Stage
-    exit rule triggers. Evaluates whether each ongoing trade is still technically actionable.
-    """
+def sync_active_trades_ledger(df_all, ranked_today, newly_triggered_symbols, latest_date):
     ledger = {}
     if os.path.exists(ACTIVE_LEDGER_FILE):
         try:
             with open(ACTIVE_LEDGER_FILE, "r", encoding="utf-8") as f:
                 ledger = json.load(f)
         except Exception:
-            ledger = {}
-    else:
-        # Bootstrap open positions from recent backtest_data.json if first run
-        bt_json_path = os.path.join(BASE_DIR, "backtest_data.json")
-        if os.path.exists(bt_json_path):
-            try:
-                with open(bt_json_path, "r", encoding="utf-8") as f:
-                    bt_data = json.load(f)
-                for q in bt_data.get("quarters", [])[-2:]:
-                    for p in q.get("modes", {}).get("dynamic_regime_portfolio", {}).get("picks", []):
-                        if "Open" in str(p.get("exit_reason", "")):
-                            sym_b = str(p["symbol"])
-                            ep_b = float(p["entry_price"])
-                            is_t1_b = "Tier 1" in str(p.get("mcap_tier", ""))
-                            ledger[sym_b] = {
-                                "symbol": sym_b,
-                                "entry_date": str(p["entry_date"]),
-                                "entry_price": round(ep_b, 2),
-                                "target_price": round(float(p.get("target_price", ep_b * (1.08 if is_t1_b else 1.10))), 2),
-                                "tranche2_breakout_price": round(ep_b * (1.22 if is_t1_b else 1.35), 2),
-                                "stop_loss_price": round(float(p.get("stop_price", ep_b * (0.95 if is_t1_b else 0.935))), 2),
-                                "shield_trigger_price": round(ep_b * (1.04 if is_t1_b else 1.045), 2),
-                                "shield_floor_price": round(ep_b * (1.008 if is_t1_b else 1.01), 2),
-                                "inst_signal": str(p.get("inst_signal_at_entry", "📉 High-RS Pullback")),
-                                "trigger_reason": str(p.get("chart_pattern_at_entry", "20-SMA/POC Support Reclaimed")),
-                                "status": "OPEN",
-                            }
-            except Exception:
-                pass
+            pass
 
     today_lookup = ranked_today.set_index("symbol").to_dict(orient="index")
 
-    # 1. Register any newly triggered trades from today's EOD scan
     for sym in newly_triggered_symbols:
         if sym not in ledger and sym in today_lookup:
             r = today_lookup[sym]
@@ -513,121 +461,131 @@ def sync_active_trades_ledger(
                 "status": "OPEN",
             }
 
-    # 2. Evaluate all open positions against historical bars since entry_date
     active_meta_map = {}
+    active_syms = [s for s, pos in ledger.items() if pos.get("status") == "OPEN"]
+    
+    if active_syms:
+        all_hist = df_all[df_all["symbol"].isin(active_syms)].copy()
+        all_hist = all_hist.sort_values(by=["symbol", "date"]).reset_index(drop=True)
+        grp = all_hist.groupby("symbol")
+        all_hist["ema10"] = grp["close"].transform(lambda x: x.ewm(span=10, adjust=False).mean())
+        all_hist["sma20"] = grp["close"].transform(lambda x: x.rolling(20, min_periods=5).mean())
+        all_hist["prev_ema10"] = grp["ema10"].shift(1)
+        all_hist["prev_sma20"] = grp["sma20"].shift(1)
 
-    for sym, pos in list(ledger.items()):
-        if pos.get("status") != "OPEN":
-            continue
+        for sym, pos in list(ledger.items()):
+            if pos.get("status") != "OPEN":
+                continue
 
-        entry_date = str(pos["entry_date"])
-        entry_price = float(pos["entry_price"])
-        t1_price = float(pos["target_price"])
-        t2_price = float(pos["tranche2_breakout_price"])
-        sl_price = float(pos["stop_loss_price"])
-        shield_trig = float(pos["shield_trigger_price"])
-        shield_floor = float(pos["shield_floor_price"])
+            entry_date = str(pos["entry_date"])
+            entry_price = float(pos["entry_price"])
+            t1_price = float(pos["target_price"])
+            t2_price = float(pos["tranche2_breakout_price"])
+            sl_price = float(pos["stop_loss_price"])
+            shield_trig = float(pos["shield_trigger_price"])
+            shield_floor = float(pos["shield_floor_price"])
 
-        sym_hist = df_all[(df_all["symbol"] == sym) & (df_all["date"] >= entry_date)].sort_values("date").copy()
-        if sym_hist.empty:
-            continue
+            sym_hist = all_hist[(all_hist["symbol"] == sym) & (all_hist["date"] >= entry_date)]
+            if sym_hist.empty:
+                continue
 
-        sym_hist["ema10"] = sym_hist["close"].ewm(span=10, adjust=False).mean()
-        sym_hist["sma20"] = sym_hist["close"].rolling(20, min_periods=5).mean()
+            days_held = max(0, len(sym_hist) - 1)
+            is_closed = False
+            t1_booked = False
+            shield_armed = False
+            consec_sl = 0
+            consec_20sma = 0
+            peak_high = entry_price
 
-        days_held = max(0, len(sym_hist) - 1)
-        is_closed = False
-        t1_booked = False
-        shield_armed = False
-        consec_sl = 0
-        consec_20sma = 0
-        peak_high = entry_price
+            for idx in range(1, len(sym_hist)):
+                row_b = sym_hist.iloc[idx]
+                o_v = float(row_b["open"])
+                h_v = float(row_b["high"])
+                l_v = float(row_b["low"])
+                c_v = float(row_b["close"])
+                e10_v = float(row_b["prev_ema10"]) if pd.notna(row_b["prev_ema10"]) else c_v
+                s20_v = float(row_b["prev_sma20"]) if pd.notna(row_b["prev_sma20"]) else c_v * 0.96
 
-        for idx in range(1, len(sym_hist)):
-            row_b = sym_hist.iloc[idx]
-            h_v = float(row_b["high"])
-            l_v = float(row_b["low"])
-            c_v = float(row_b["close"])
-            e10_v = float(row_b["ema10"])
-            s20_v = float(row_b["sma20"]) if pd.notna(row_b["sma20"]) else c_v * 0.96
+                if h_v > peak_high:
+                    peak_high = h_v
 
-            if h_v > peak_high:
-                peak_high = h_v
-
-            if not t1_booked:
-                consec_sl = (consec_sl + 1) if c_v <= sl_price else 0
-                if consec_sl >= 2 or c_v <= entry_price * 0.915 or l_v <= entry_price * 0.905:
+                if o_v <= entry_price * 0.905 or o_v <= sl_price:
                     is_closed = True
                     break
-                if shield_armed and ((c_v <= shield_floor and c_v < e10_v) or (c_v <= entry_price and c_v < e10_v)):
-                    is_closed = True
-                    break
-                if h_v >= t1_price:
-                    t1_booked = True
+
+                if not t1_booked:
+                    consec_sl = (consec_sl + 1) if c_v <= sl_price else 0
+                    if consec_sl >= 2 or c_v <= entry_price * 0.915 or l_v <= entry_price * 0.905:
+                        is_closed = True
+                        break
+                    if shield_armed and ((c_v <= shield_floor and c_v < e10_v) or (c_v <= entry_price and c_v < e10_v)):
+                        is_closed = True
+                        break
+                    if h_v >= t1_price:
+                        t1_booked = True
+                        if h_v >= t2_price:
+                            is_closed = True
+                            break
+                        continue
+                    if h_v >= shield_trig:
+                        shield_armed = True
+                else:
                     if h_v >= t2_price:
                         is_closed = True
                         break
-                    continue
-                if h_v >= shield_trig:
-                    shield_armed = True
-            else:
-                if h_v >= t2_price:
-                    is_closed = True
-                    break
-                consec_20sma = (consec_20sma + 1) if c_v < (s20_v * 0.97) else 0
-                if consec_20sma >= 2:
-                    is_closed = True
-                    break
+                    consec_20sma = (consec_20sma + 1) if c_v < (s20_v * 0.97) else 0
+                    if consec_20sma >= 2:
+                        is_closed = True
+                        break
 
-        if is_closed:
-            pos["status"] = "CLOSED"
-            pos["exit_date"] = str(latest_date)
-            continue
+            if is_closed:
+                pos["status"] = "CLOSED"
+                pos["exit_date"] = str(latest_date)
+                continue
 
-        # 3. Compute live unrealized P&L and whether a late entry is still technically valid
-        cur_row = today_lookup.get(sym, {})
-        cur_close = float(cur_row.get("close", sym_hist.iloc[-1]["close"]))
-        cur_sma20 = float(cur_row.get("sma_20", cur_close))
-        cur_sma50 = float(cur_row.get("sma_50", cur_close))
-        cur_poc = float(cur_row.get("volume_profile_poc", cur_close))
-        unrealized_pct = round(((cur_close - entry_price) / entry_price) * 100.0, 2)
-        dist_20_pct = ((cur_close - cur_sma20) / (cur_sma20 + 1e-5)) * 100.0
+            cur_row = today_lookup.get(sym, {})
+            cur_close = float(cur_row.get("close", sym_hist.iloc[-1]["close"]))
+            cur_sma20 = float(cur_row.get("sma_20", cur_close))
+            cur_sma50 = float(cur_row.get("sma_50", cur_close))
+            cur_poc = float(cur_row.get("volume_profile_poc", cur_close))
+            unrealized_pct = round(((cur_close - entry_price) / entry_price) * 100.0, 2)
+            dist_20_pct = ((cur_close - cur_sma20) / (cur_sma20 + 1e-5)) * 100.0
 
-        is_fresh_today = (entry_date == str(latest_date))
+            is_fresh_today = (entry_date == str(latest_date))
 
-        if is_fresh_today:
-            lifecycle_status = "NEW_TRIGGER_TODAY"
-            lifecycle_badge = "🔥 Fresh EOD Signal (Enter Today)"
-            can_still_enter = True
-            late_entry_note = "✅ Fresh Trigger — Valid Entry Zone"
-        else:
-            lifecycle_status = "ONGOING_ACTIVE"
-            lifecycle_badge = f"🟢 Trading Ongoing ({days_held}d | {unrealized_pct:+.1f}%)"
-
-            if t1_booked:
-                can_still_enter = False
-                late_entry_note = "🚫 50% Target Hit — Runner Mode Only (Do Not Enter)"
-            elif (-2.5 <= unrealized_pct <= 3.5) and (dist_20_pct <= 4.0) and (cur_close >= cur_sma50 * 0.985) and (cur_close >= cur_poc * 0.99):
+            if is_fresh_today:
+                lifecycle_status = "NEW_TRIGGER_TODAY"
+                lifecycle_badge = "🔥 Fresh EOD Signal (Enter Today)"
                 can_still_enter = True
-                late_entry_note = f"✅ Still Actionable — In Buy Zone ({unrealized_pct:+.1f}% from ₹{entry_price:.2f})"
-            elif unrealized_pct > 3.5 or dist_20_pct > 4.0:
-                can_still_enter = False
-                late_entry_note = f"⚠️ Extended (+{unrealized_pct:.1f}%) — Hold Only, Wait for Dip"
+                late_entry_note = "✅ Fresh Trigger — Valid Entry Zone"
             else:
-                can_still_enter = False
-                late_entry_note = f"⏳ Testing Support ({unrealized_pct:+.1f}%) — Hold With ₹{sl_price:.2f} Stop"
+                lifecycle_status = "ONGOING_ACTIVE"
+                lifecycle_badge = f"🟢 Trading Ongoing ({days_held}d | {unrealized_pct:+.1f}%)"
 
-        active_meta_map[sym] = {
-            "trade_lifecycle_status": lifecycle_status,
-            "trade_lifecycle_badge": lifecycle_badge,
-            "can_still_enter": can_still_enter,
-            "late_entry_note": late_entry_note,
-            "logged_entry_date": entry_date,
-            "logged_entry_price": entry_price,
-            "days_held_live": days_held,
-            "unrealized_pnl_pct": unrealized_pct,
-            "t1_booked_live": t1_booked,
-        }
+                if t1_booked:
+                    can_still_enter = False
+                    late_entry_note = "🚫 50% Target Hit — Runner Mode Only (Do Not Enter)"
+                elif (-2.5 <= unrealized_pct <= 3.5) and (dist_20_pct <= 4.0) and (cur_close >= cur_sma50 * 0.985) and (cur_close >= cur_poc * 0.99):
+                    can_still_enter = True
+                    late_entry_note = f"✅ Still Actionable — In Buy Zone ({unrealized_pct:+.1f}% from ₹{entry_price:.2f})"
+                elif unrealized_pct > 3.5 or dist_20_pct > 4.0:
+                    can_still_enter = False
+                    late_entry_note = f"⚠️ Extended (+{unrealized_pct:.1f}%) — Hold Only, Wait for Dip"
+                else:
+                    can_still_enter = False
+                    late_entry_note = f"⏳ Testing Support ({unrealized_pct:+.1f}%) — Hold With ₹{sl_price:.2f} Stop"
+
+            active_meta_map[sym] = {
+                "trade_lifecycle_status": lifecycle_status,
+                "trade_lifecycle_badge": lifecycle_badge,
+                "can_still_enter": can_still_enter,
+                "late_entry_note": late_entry_note,
+                "logged_entry_date": entry_date,
+                "logged_entry_price": entry_price,
+                "days_held_live": days_held,
+                "unrealized_pnl_pct": unrealized_pct,
+                "t1_booked_live": t1_booked,
+            }
 
     with open(ACTIVE_LEDGER_FILE, "w", encoding="utf-8") as f:
         json.dump(ledger, f, indent=2)
@@ -650,14 +608,20 @@ def run_screener_engine():
     df_all = pd.concat([pd.read_csv(f) for f in found_files], ignore_index=True).drop_duplicates(subset=["symbol", "date"])
     df_all = df_all[df_all["symbol"].isin(target_symbols)]
     master_df = pd.read_csv(METADATA_FILE).drop_duplicates(subset=["symbol"])
-    df_all = pd.merge(df_all, master_df, on="symbol", how="left").fillna({"sector": "Capital Goods", "company_name": df_all["symbol"]})
-    df_all = df_all[df_all["sector"] != "General Equities"].sort_values(by=["symbol", "date"]).reset_index(drop=True)
+    df_all = pd.merge(df_all, master_df, on="symbol", how="inner")
+    df_all = df_all[df_all["sector"] != "Unclassified"].sort_values(by=["symbol", "date"]).reset_index(drop=True)
+    
+    if "deliv_qty" in df_all.columns:
+        missing_delivery = df_all[df_all["deliv_qty"].isna() | (df_all["deliv_qty"] == 0)]
+        if not missing_delivery.empty:
+            with open("missing_delivery_data.log", "a") as f:
+                f.write(f"Missing delivery data for {len(missing_delivery)} rows.\n")
 
     df_all, corp_events = normalize_corporate_actions(df_all)
-    print(f"[*] Normalized {len(corp_events)} corporate split/bonus events across Bhavcopy series.")
+    print(f"[*] Normalized {len(corp_events)} corporate events.")
 
     dna_df = load_stock_dna_profiles(max_age_days=5)
-    print(f"[*] Loaded Pure Structural Stock DNA Genome for {len(dna_df)} symbols.")
+    print(f"[*] Loaded Stock DNA Genome for {len(dna_df)} symbols.")
 
     dates = sorted(df_all["date"].unique())
     latest_date = dates[-1]
@@ -676,14 +640,15 @@ def run_screener_engine():
     sec_base["close_20d_ago"] = sec_base["close_20d_ago"].fillna(sec_base["close"])
     sec_base["close_63d_ago"] = sec_base["close_63d_ago"].fillna(sec_base["close"])
 
-    df_250d_all = df_all[df_all["date"].isin(dates[-250:])].sort_values(by=["symbol", "date"])
+    df_250d_all = df_all[df_all["date"].isin(dates[-250:])].sort_values(by=["symbol", "date"]).copy()
+    
     market_pivot = df_250d_all.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
     market_benchmark = market_pivot.mean(axis=1)
 
     sector_benchmarks = {}
     sector_rs_history = {}
     for sec_name, sec_grp in df_250d_all.groupby("sector"):
-        if sec_name == "General Equities":
+        if sec_name == "Unclassified":
             continue
         sec_pivot = sec_grp.pivot(index="date", columns="symbol", values="close").ffill().dropna(how="all")
         if not sec_pivot.empty:
@@ -701,293 +666,198 @@ def run_screener_engine():
     bm_ret_63 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(63, mkt_len)] + 1e-5)) - 1.0
     bm_ret_126 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[-min(126, mkt_len)] + 1e-5)) - 1.0
     bm_ret_250 = (market_benchmark.iloc[-1] / (market_benchmark.iloc[0] + 1e-5)) - 1.0
+    
+    print("[*] Performing vectorized technical computations...")
+    grouped = df_250d_all.groupby("symbol")
+    
+    df_250d_all["sma_20"] = grouped["close"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+    df_250d_all["ema_10"] = grouped["close"].transform(lambda x: x.ewm(span=10, adjust=False).mean())
+    df_250d_all["ema_21"] = grouped["close"].transform(lambda x: x.ewm(span=21, adjust=False).mean())
+    df_250d_all["sma_50"] = grouped["close"].transform(lambda x: x.rolling(50, min_periods=20).mean())
+    df_250d_all["sma_200"] = grouped["close"].transform(lambda x: x.rolling(200, min_periods=40).mean())
+    
+    df_250d_all["prev_c"] = grouped["close"].shift(1).fillna(df_250d_all["close"])
+    df_250d_all["prev_h"] = grouped["high"].shift(1)
+    df_250d_all["prev_l"] = grouped["low"].shift(1)
+    df_250d_all["prev2_h"] = grouped["high"].shift(1).rolling(2, min_periods=1).max()
+    df_250d_all["prev2_l"] = grouped["low"].shift(1).rolling(2, min_periods=1).min()
+    
+    df_250d_all["sma20_10d_ago"] = grouped["sma_20"].shift(10)
+    df_250d_all["sma50_10d_ago"] = grouped["sma_50"].shift(10)
+    df_250d_all["sma50_20d_ago"] = grouped["sma_50"].shift(20)
+    df_250d_all["sma20_slope_10d"] = ((df_250d_all["sma_20"] - df_250d_all["sma20_10d_ago"]) / (df_250d_all["sma20_10d_ago"] + 1e-5)) * 100.0
+    df_250d_all["sma50_slope_20d"] = ((df_250d_all["sma_50"] - df_250d_all["sma50_20d_ago"]) / (df_250d_all["sma50_20d_ago"] + 1e-5)) * 100.0
+    df_250d_all["sma_50_rising"] = df_250d_all["sma_50"] >= (df_250d_all["sma50_10d_ago"] * 0.998)
+    
+    df_250d_all["tr"] = np.maximum(df_250d_all["high"] - df_250d_all["low"], 
+                              np.maximum(np.abs(df_250d_all["high"] - df_250d_all["prev_c"]), 
+                                         np.abs(df_250d_all["low"] - df_250d_all["prev_c"])))
+    df_250d_all["atr_20"] = grouped["tr"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+    df_250d_all["atr_pct"] = (df_250d_all["atr_20"] / (df_250d_all["close"] + 1e-5)) * 100.0
+    
+    df_250d_all["vol_20"] = grouped["volume"].transform(lambda x: x.rolling(20, min_periods=10).mean()) + 1e-5
+    df_250d_all["prior_2d_rng"] = ((df_250d_all["prev2_h"] - df_250d_all["prev2_l"]) / (df_250d_all["prev_c"] + 1e-5)) * 100.0
+    df_250d_all["prior_quiet"] = (grouped["volume"].shift(1) <= df_250d_all["vol_20"] * 1.08) | (df_250d_all["prior_2d_rng"] <= 6.0)
+    df_250d_all["session_rvol"] = df_250d_all["volume"] / df_250d_all["vol_20"]
+    df_250d_all["cr"] = (df_250d_all["close"] - df_250d_all["low"]) / (df_250d_all["high"] - df_250d_all["low"] + 1e-5)
+    
+    df_250d_all["diff"] = df_250d_all["close"] - df_250d_all["prev_c"]
+    df_250d_all["gain"] = np.where(df_250d_all["diff"] > 0, df_250d_all["diff"], 0.0)
+    df_250d_all["loss"] = np.where(df_250d_all["diff"] < 0, -df_250d_all["diff"], 0.0)
+    df_250d_all["avg_gain"] = grouped["gain"].transform(lambda x: x.rolling(14, min_periods=5).mean())
+    df_250d_all["avg_loss"] = grouped["loss"].transform(lambda x: x.rolling(14, min_periods=5).mean())
+    df_250d_all["rsi_14"] = 100.0 - (100.0 / (1.0 + (df_250d_all["avg_gain"] / (df_250d_all["avg_loss"] + 1e-5))))
+    df_250d_all["rsi_10d_chg"] = df_250d_all["rsi_14"] - grouped["rsi_14"].shift(10)
+    
+    df_250d_all["low_20"] = grouped["low"].transform(lambda x: x.rolling(20, min_periods=5).min())
+    df_250d_all["high_20"] = grouped["high"].transform(lambda x: x.rolling(20, min_periods=5).max())
+    df_250d_all["stoch_k"] = np.clip(((df_250d_all["close"] - df_250d_all["low_20"]) / (df_250d_all["high_20"] - df_250d_all["low_20"] + 1e-5)) * 100.0, 0.0, 100.0)
+    
+    df_250d_all["high_30"] = grouped["high"].transform(lambda x: x.rolling(30, min_periods=10).max())
+    df_250d_all["low_30"] = grouped["low"].transform(lambda x: x.rolling(30, min_periods=10).min())
+    df_250d_all["base_depth_pct"] = ((df_250d_all["high_30"] - df_250d_all["low_30"]) / (df_250d_all["high_30"] + 1e-5)) * 100.0
+    
+    df_250d_all["high_52w"] = grouped["high"].transform(lambda x: x.rolling(250, min_periods=40).max())
+    df_250d_all["low_52w"] = grouped["low"].transform(lambda x: x.rolling(250, min_periods=40).min())
+    df_250d_all["pct_of_52w_high"] = (df_250d_all["close"] / (df_250d_all["high_52w"] + 1e-5)) * 100.0
+    
+    df_250d_all["dist_from_20"] = (df_250d_all["close"] - df_250d_all["sma_20"]) / (df_250d_all["sma_20"] + 1e-5)
+    df_250d_all["mrs_score"] = df_250d_all["dist_from_20"] * 100.0
+    df_250d_all["dist_from_50_pct"] = ((df_250d_all["close"] - df_250d_all["sma_50"]) / (df_250d_all["sma_50"] + 1e-5)) * 100.0
+    df_250d_all["dist_from_200_pct"] = ((df_250d_all["close"] - df_250d_all["sma_200"]) / (df_250d_all["sma_200"] + 1e-5)) * 100.0
+
+    df_250d_all["vol_5"] = grouped["volume"].transform(lambda x: x.rolling(5, min_periods=2).mean())
+    df_250d_all["vol_50"] = grouped["volume"].transform(lambda x: x.rolling(50, min_periods=15).mean()) + 1e-5
+    df_250d_all["vol_dryup_ratio"] = df_250d_all["vol_5"] / df_250d_all["vol_50"]
+    
+    df_250d_all["up_v"] = np.where(df_250d_all["diff"] > 0, df_250d_all["volume"], 0.0)
+    df_250d_all["dn_v"] = np.where(df_250d_all["diff"] < 0, df_250d_all["volume"], 0.0)
+    df_250d_all["up_v_50"] = grouped["up_v"].transform(lambda x: x.rolling(50, min_periods=15).sum()) + 1.0
+    df_250d_all["dn_v_50"] = grouped["dn_v"].transform(lambda x: x.rolling(50, min_periods=15).sum()) + 1.0
+    df_250d_all["up_down_ratio"] = df_250d_all["up_v_50"] / df_250d_all["dn_v_50"]
+    
+    df_250d_all["up_v_15"] = grouped["up_v"].transform(lambda x: x.rolling(15, min_periods=5).sum()) + 1.0
+    df_250d_all["dn_v_15"] = grouped["dn_v"].transform(lambda x: x.rolling(15, min_periods=5).sum()) + 1.0
+    df_250d_all["supply_exhaustion_ratio"] = df_250d_all["up_v_15"] / df_250d_all["dn_v_15"]
+
+    df_250d_all["d_cash"] = df_250d_all["deliv_qty"] * df_250d_all["close"]
+    df_250d_all["deliv_up_cash"] = np.where(df_250d_all["diff"] > 0, df_250d_all["d_cash"], 0.0)
+    df_250d_all["deliv_dn_cash"] = np.where(df_250d_all["diff"] < 0, df_250d_all["d_cash"], 0.0)
+    df_250d_all["deliv_up"] = grouped["deliv_up_cash"].transform(lambda x: x.rolling(30, min_periods=10).sum()) + 1.0
+    df_250d_all["deliv_dn"] = grouped["deliv_dn_cash"].transform(lambda x: x.rolling(30, min_periods=10).sum()) + 1.0
+    df_250d_all["deliv_flow_ratio"] = df_250d_all["deliv_up"] / df_250d_all["deliv_dn"]
+    df_250d_all["smooth_deliv_pct"] = grouped["deliv_pct"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+    df_250d_all["avg_deliv_20"] = grouped["deliv_qty"].transform(lambda x: x.rolling(20, min_periods=10).mean())
+
+    df_250d_all["c_21_ago"] = grouped["close"].shift(21)
+    df_250d_all["c_63_ago"] = grouped["close"].shift(63)
+    df_250d_all["c_126_ago"] = grouped["close"].shift(126)
+    df_250d_all["c_250_ago"] = grouped["close"].shift(250).fillna(grouped["close"].transform('first'))
+    
+    df_250d_all["stk_ret_21"] = (df_250d_all["close"] / (df_250d_all["c_21_ago"] + 1e-5)) - 1.0
+    df_250d_all["stk_ret_63"] = (df_250d_all["close"] / (df_250d_all["c_63_ago"] + 1e-5)) - 1.0
+    df_250d_all["stk_ret_126"] = (df_250d_all["close"] / (df_250d_all["c_126_ago"] + 1e-5)) - 1.0
+    df_250d_all["stk_ret_250"] = (df_250d_all["close"] / (df_250d_all["c_250_ago"] + 1e-5)) - 1.0
+    
+    def get_poc(prices, volumes):
+        poc_arr = np.full(len(prices), np.nan)
+        for idx in range(50, len(prices)):
+            w_p = prices[idx - 50 : idx + 1]
+            w_v = volumes[idx - 50 : idx + 1]
+            if np.sum(w_v) > 0:
+                hist, bins = np.histogram(w_p, bins=10, weights=w_v)
+                best_b = int(np.argmax(hist))
+                poc_arr[idx] = (bins[best_b] + bins[best_b + 1]) / 2.0
+        return poc_arr
+        
+    df_250d_all["volume_profile_poc"] = grouped.apply(lambda x: pd.Series(get_poc(x["close"].values, x["volume"].values), index=x.index)).reset_index(level=0, drop=True)
+    df_250d_all["volume_profile_poc"] = df_250d_all["volume_profile_poc"].fillna(df_250d_all["sma_20"])
+
+    def align_weekly(grp):
+        w_df = pd.DataFrame({"dt": pd.to_datetime(grp["date"]), "close": grp["close"]}).set_index("dt")
+        w_close = w_df["close"].resample("W-FRI").last().dropna()
+        if len(w_close) >= 5:
+            w_ema10 = w_close.ewm(span=10, adjust=False).mean()
+            w_sma20 = w_close.rolling(20, min_periods=5).mean()
+            w_aligned = ((w_close >= w_ema10) & (w_ema10 >= w_sma20 * 0.995)).astype(bool)
+            return w_aligned.shift(1, fill_value=True).reindex(w_df.index, method="ffill").fillna(True).values
+        else:
+            return np.ones(len(grp), dtype=bool)
+            
+    df_250d_all["weekly_aligned"] = df_250d_all.groupby("symbol", sort=False).apply(align_weekly).explode().values.astype(bool)
 
     stock_tech_rows = []
     price_history_map = {}
-
-    for sym, grp in df_250d_all.groupby("symbol"):
-        prices = grp["close"].values.astype(float)
-        volumes = grp["volume"].values.astype(float)
-        highs = grp["high"].values.astype(float)
-        lows = grp["low"].values.astype(float)
-        opens = grp["open"].values.astype(float) if "open" in grp.columns else prices
-        deliv_pcts = grp["deliv_pct"].values.astype(float) if "deliv_pct" in grp.columns else np.zeros_like(prices)
-        deliv_qtys = grp["deliv_qty"].values.astype(float) if "deliv_qty" in grp.columns else np.zeros_like(prices)
-
-        n_bars = len(prices)
-        if n_bars < 50:
-            continue
-
-        p_series = pd.Series(prices)
-        close = float(prices[-1])
-        open_c = float(opens[-1])
-        high_c = float(highs[-1])
-        low_c = float(lows[-1])
-        vol_c = float(volumes[-1])
-
-        if close <= 0:
-            continue
-
-        sma_20_series = p_series.rolling(20, min_periods=10).mean()
-        sma_20 = round(float(sma_20_series.iloc[-1]), 2)
-        sma_20_10d_ago = float(sma_20_series.iloc[-min(11, len(sma_20_series))])
-        sma20_slope_10d = round(float(((sma_20 - sma_20_10d_ago) / (sma_20_10d_ago + 1e-5)) * 100.0), 2)
-
-        ema_10 = float(p_series.ewm(span=10, adjust=False).mean().iloc[-1])
-        ema_21 = float(p_series.ewm(span=21, adjust=False).mean().iloc[-1])
-
-        sma_50_series = p_series.rolling(50, min_periods=20).mean()
-        sma_50 = round(float(sma_50_series.iloc[-1]), 2)
-        sma_50_5d_ago = float(sma_50_series.iloc[-min(6, len(sma_50_series))])
-        sma_50_10d_ago = float(sma_50_series.iloc[-min(10, len(sma_50_series))])
-        sma_50_20d_ago = float(sma_50_series.iloc[-min(21, len(sma_50_series))])
-        sma_50_rising = sma_50 >= (sma_50_10d_ago * 0.998)
-        sma50_slope_20d = round(float(((sma_50 - sma_50_20d_ago) / (sma_50_20d_ago + 1e-5)) * 100.0), 2)
-
-        sma_200 = round(float(p_series.rolling(min(200, n_bars), min_periods=40).mean().iloc[-1]), 2)
-
-        if np.isnan(sma_20) or np.isnan(sma_50) or np.isnan(sma_200):
-            continue
-
-        above_sma50_5d_ago = bool(prices[-min(6, n_bars)] >= sma_50_5d_ago)
-
-        # Weekly Multi-Timeframe Alignment (W-FRI Resample)
-        w_df = grp[["date", "close"]].copy()
-        w_df["dt"] = pd.to_datetime(w_df["date"])
-        w_close = w_df.set_index("dt")["close"].resample("W-FRI").last().dropna()
-        if len(w_close) >= 12:
-            w_ema10 = float(w_close.ewm(span=10, adjust=False).mean().iloc[-1])
-            w_sma20 = float(w_close.rolling(min(20, len(w_close)), min_periods=5).mean().iloc[-1])
-            weekly_aligned = bool((close >= w_ema10) and (w_ema10 >= w_sma20 * 0.995))
-        else:
-            weekly_aligned = bool((close > sma_50) and (sma_50 > sma_200))
-
-        tr_arr = np.maximum(
-            highs[-20:] - lows[-20:],
-            np.maximum(
-                np.abs(highs[-20:] - np.roll(prices, 1)[-20:]),
-                np.abs(lows[-20:] - np.roll(prices, 1)[-20:])
-            ),
-        )
-        atr_20 = float(np.mean(tr_arr))
-        atr_pct = round(float((atr_20 / (close + 1e-5)) * 100.0), 2)
-
-        vol_20_avg = float(np.mean(volumes[-min(20, n_bars):])) + 1e-5
-        session_rvol = round(float(vol_c / vol_20_avg), 2)
-        is_rvol_expanded = session_rvol >= 2.5
-
-        cr = float((close - low_c) / (high_c - low_c + 1e-5))
-
-        sub_15_diff = np.diff(prices[-16:]) if n_bars >= 16 else np.diff(prices)
-        sub_15_vols = volumes[-len(sub_15_diff):]
-        up_vol_15 = np.sum(sub_15_vols[sub_15_diff > 0]) if np.any(sub_15_diff > 0) else 1.0
-        down_vol_15 = np.sum(sub_15_vols[sub_15_diff < 0]) if np.any(sub_15_diff < 0) else 1.0
-        supply_exhaustion_ratio = round(float(up_vol_15 / (down_vol_15 + 1e-5)), 2)
-        is_supply_exhausted = supply_exhaustion_ratio >= 2.5
-
-        stock_series_full = grp.set_index("date")["close"]
-        common_s_idx_full = stock_series_full.index.intersection(market_benchmark.index)
-        stk_sub_full = stock_series_full.loc[common_s_idx_full]
-        bm_sub_full = market_benchmark.loc[common_s_idx_full]
-        rs_full_series = (stk_sub_full / bm_sub_full).values
-        if len(rs_full_series) >= 30:
-            rs_slope_10 = (rs_full_series[-1] - rs_full_series[-10]) / (rs_full_series[-10] + 1e-5)
-            rs_slope_30 = (rs_full_series[-1] - rs_full_series[-30]) / (rs_full_series[-30] + 1e-5)
-            rs_acceleration = round(float(rs_slope_10 - (rs_slope_30 / 3.0)), 4)
-        else:
-            rs_acceleration = 0.0
-        is_rs_accelerating = rs_acceleration > 0.0
-
-        # RSI-14 & 10-Day RSI Change (Bearish Divergence Detector)
-        diffs = np.diff(prices)
-        if len(diffs) >= 24:
-            d_ser = pd.Series(diffs)
-            g_ser = d_ser.clip(lower=0).rolling(14, min_periods=5).mean()
-            l_ser = (-d_ser.clip(upper=0)).rolling(14, min_periods=5).mean()
-            rsi_hist = (100.0 - (100.0 / (1.0 + (g_ser / (l_ser + 1e-5))))).dropna().values
-            rsi_14 = round(float(rsi_hist[-1]), 1)
-            rsi_10d_ago = float(rsi_hist[-min(11, len(rsi_hist))])
-            rsi_10d_chg = round(float(rsi_14 - rsi_10d_ago), 2)
-        else:
-            avg_g = np.mean(np.where(diffs > 0, diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-            avg_l = np.mean(np.where(diffs < 0, -diffs, 0)[-14:]) if len(diffs) >= 14 else 1.0
-            rsi_14 = round(100.0 - (100.0 / (1.0 + (avg_g / (avg_l + 1e-5)))), 1)
-            rsi_10d_chg = 0.0
-
-        min_l, max_h = np.min(lows[-20:]), np.max(highs[-20:])
-        stoch_k = round(float(np.clip((prices[-1] - min_l) / (max_h - min_l + 1e-5) * 100.0, 0, 100)), 1)
-
-        # True 50-bar Volume-Profile Histogram POC
-        hist, bins = np.histogram(prices[-50:], bins=10, weights=volumes[-50:])
-        poc = round(float((bins[np.argmax(hist)] + bins[np.argmax(hist) + 1]) / 2.0), 2)
-
-        ma_spread_pct = float(((max(ema_10, ema_21, sma_50) - min(ema_10, ema_21, sma_50)) / (close + 1e-5)) * 100.0)
-        is_ma_pinched = ma_spread_pct <= 2.8
-
-        roll_20 = p_series.rolling(20)
-        bb_mid = float(roll_20.mean().iloc[-1])
-        bb_std = float(roll_20.std().iloc[-1])
-        upper_bb = bb_mid + (2.0 * bb_std)
-        lower_bb = bb_mid - (2.0 * bb_std)
-        upper_kc = sma_20 + (1.5 * atr_20)
-        lower_kc = sma_20 - (1.5 * atr_20)
-        is_squeezed = (upper_bb <= upper_kc) and (lower_bb >= lower_kc)
-
-        bb_width = max(1e-4, upper_bb - lower_bb)
-        kc_width = max(1e-4, upper_kc - lower_kc)
-        bb_kc_ratio = float(bb_width / kc_width)
-
-        vol_5d = float(np.mean(volumes[-5:]))
-        vol_50d = float(np.mean(volumes[-min(50, n_bars):])) + 1e-5
-        vol_dryup_ratio = float(vol_5d / vol_50d)
-
-        stock_series = grp.set_index("date")["close"]
-        common_s_idx = stock_series.index.intersection(market_benchmark.index)
-        stk_sub = stock_series.loc[common_s_idx]
-        bm_sub = market_benchmark.loc[common_s_idx]
-        rs_series = (stk_sub / bm_sub).values
-
-        sec_name = grp["sector"].iloc[-1] if "sector" in grp.columns else "Capital Goods"
-        sec_bm = sector_benchmarks.get(sec_name, market_benchmark)
-        sec_sub = sec_bm.reindex(common_s_idx).ffill().bfill()
-        sec_rs_series = (stk_sub / (sec_sub + 1e-5)).values
-
-        if len(rs_series) >= 63:
-            rs_63_high = np.max(rs_series[-63:-1])
-            price_63_high = np.max(highs[-63:-1])
-            is_rs_divergent = (rs_series[-1] >= rs_63_high) and (close < price_63_high * 0.99)
-            rs_is_new_high = rs_series[-1] >= np.max(rs_series[-21:])
-            rs_is_lagging = rs_series[-1] <= np.min(rs_series[-63:])
-        else:
-            is_rs_divergent = False
-            rs_is_new_high = close >= np.max(prices[-20:-1])
-            rs_is_lagging = False
-
-        if len(sec_rs_series) >= 63:
-            sec_rs_63_high = np.max(sec_rs_series[-63:-1])
-            price_63_high_sec = np.max(highs[-63:-1])
-            is_sec_rs_divergent = (sec_rs_series[-1] >= sec_rs_63_high) and (close < price_63_high_sec * 0.99)
-            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
-            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
-        elif len(sec_rs_series) >= 21:
-            is_sec_rs_divergent = False
-            sec_rs_new_high = sec_rs_series[-1] >= np.max(sec_rs_series[-21:])
-            sec_rs_outperforming = sec_rs_series[-1] >= sec_rs_series[-min(20, len(sec_rs_series))]
-        else:
-            is_sec_rs_divergent = False
-            sec_rs_new_high = rs_is_new_high
-            sec_rs_outperforming = True
-
-        if is_sec_rs_divergent:
-            sector_rs_status = "🎯 Sector RS Pre-Breakout"
-        elif sec_rs_new_high:
-            sector_rs_status = "🔥 Sector RS New High"
-        elif sec_rs_outperforming:
-            sector_rs_status = "🟢 Outperforming Sector"
-        else:
-            sector_rs_status = "🔴 Lagging Sector"
-
-        is_pocket_pivot = False
-        is_pocket_pivot_5d = False
-        if n_bars >= 15:
-            diffs_10 = np.diff(prices[-11:])
-            down_vols = volumes[-10:][diffs_10 < 0]
-            max_down_vol = np.max(down_vols) if len(down_vols) > 0 else 0
-            is_pocket_pivot = (close > prices[-2]) and (vol_c > max_down_vol) and (close >= ema_10)
-
-            for back_i in range(1, min(6, n_bars - 11)):
-                idx_end = n_bars - back_i
-                c_bar = prices[idx_end]
-                prev_bar = prices[idx_end - 1]
-                v_bar = volumes[idx_end]
-                d_10 = np.diff(prices[idx_end - 10 : idx_end + 1])
-                dv_10 = volumes[idx_end - 9 : idx_end + 1][d_10 < 0]
-                max_dv = np.max(dv_10) if len(dv_10) > 0 else 0
-                if (c_bar > prev_bar) and (v_bar > max_dv) and (close >= ema_10 * 0.995) and (close >= c_bar * 0.985):
-                    is_pocket_pivot_5d = True
-                    break
-        is_pocket_pivot_5d = is_pocket_pivot or is_pocket_pivot_5d
-
-        base_high = float(np.max(highs[-min(30, n_bars):]))
-        base_low = float(np.min(lows[-min(30, n_bars):]))
-        base_depth_pct = float(((base_high - base_low) / (base_high + 1e-5)) * 100.0)
-
-        dist_from_20 = (close - sma_20) / (sma_20 + 1e-5)
-        dist_from_50 = (close - sma_50) / (sma_50 + 1e-5)
-        dist_from_50_pct = round(float(dist_from_50 * 100.0), 2)
-        dist_from_200_pct = round(float(((close - sma_200) / (sma_200 + 1e-5)) * 100.0), 2)
-        is_extended_danger = dist_from_20 > 0.08
-
-        stk_ret_21 = (close / (prices[-min(21, n_bars)] + 1e-5)) - 1.0
-        stk_ret_63 = (close / (prices[-min(63, n_bars)] + 1e-5)) - 1.0
-        stk_ret_126 = (close / (prices[-min(126, n_bars)] + 1e-5)) - 1.0
-        stk_ret_250 = (close / (prices[0] + 1e-5)) - 1.0
-        prior_63d_pct = round(float(stk_ret_63 * 100.0), 2)
-        ret_250d_pct = round(float(stk_ret_250 * 100.0), 2)
-
-        rs_spread_21 = (stk_ret_21 - bm_ret_21) * 100.0
+    
+    final_day = df_250d_all[df_250d_all["date"] == latest_date].copy()
+    
+    for _, r in final_day.iterrows():
+        sym = r["symbol"]
+        close = r["close"]
+        if pd.isna(close) or close <= 0: continue
+        
+        sma_20 = r["sma_20"]
+        sma_50 = r["sma_50"]
+        sma_200 = r["sma_200"]
+        if pd.isna(sma_20) or pd.isna(sma_50) or pd.isna(sma_200): continue
+        
+        atr_20 = r["atr_20"]
+        atr_pct = r["atr_pct"]
+        poc = r["volume_profile_poc"]
+        ema_10 = r["ema_10"]
+        cr = r["cr"]
+        session_rvol = r["session_rvol"]
+        
+        is_extended_danger = r["dist_from_20"] > 0.08
+        stk_ret_63 = r["stk_ret_63"]
+        stk_ret_250 = r["stk_ret_250"]
+        prior_63d_pct = round(stk_ret_63 * 100.0, 2)
+        ret_250d_pct = round(stk_ret_250 * 100.0, 2)
+        
+        rs_spread_21 = (r["stk_ret_21"] - bm_ret_21) * 100.0
         rs_spread_63 = (stk_ret_63 - bm_ret_63) * 100.0
-        rs_spread_126 = (stk_ret_126 - bm_ret_126) * 100.0
+        rs_spread_126 = (r["stk_ret_126"] - bm_ret_126) * 100.0
         rs_spread_250 = (stk_ret_250 - bm_ret_250) * 100.0
-        raw_multi_rs = float((0.40 * rs_spread_63) + (0.30 * rs_spread_126) + (0.20 * rs_spread_250) + (0.10 * rs_spread_21))
-
+        raw_multi_rs = (0.40 * rs_spread_63) + (0.30 * rs_spread_126) + (0.20 * rs_spread_250) + (0.10 * rs_spread_21)
+        
+        grp_data = grouped.get_group(sym)
+        prices = grp_data["close"].values
+        volumes = grp_data["volume"].values
+        highs = grp_data["high"].values
+        lows = grp_data["low"].values
         vcp_rat, pattern, pattern_tf = detect_genuine_chart_patterns(prices, volumes, highs, lows)
-
-        if len(diffs) >= 1:
-            up_vol = np.sum(volumes[1:][diffs > 0][-50:]) if np.any(diffs > 0) else 1.0
-            down_vol = np.sum(volumes[1:][diffs < 0][-50:]) if np.any(diffs < 0) else 1.0
-            up_down_ratio = round(float(up_vol / (down_vol + 1e-5)), 2)
-        else:
-            up_down_ratio = 1.0
-
-        sma_200_20d_ago = np.mean(prices[-min(220, n_bars):-20]) if n_bars >= 30 else sma_200
+        
+        sma_200_20d_ago = np.mean(prices[-min(220, len(prices)):-20]) if len(prices) >= 30 else sma_200
         sma_200_slope = (sma_200 - sma_200_20d_ago) / (sma_200_20d_ago + 1e-5)
-        h_52 = float(np.max(highs))
-        l_52 = float(np.min(lows))
-        pct_of_52w_high = round(float((close / (h_52 + 1e-5)) * 100.0), 2)
-
+        h_52 = r["high_52w"]
+        l_52 = r["low_52w"]
+        
         trend_score = 0.0
-        if close > sma_200:
-            trend_score += 25.0
-        if close > sma_50:
-            trend_score += 25.0
-        if sma_50 > sma_200:
-            trend_score += 20.0
-        if sma_200_slope >= 0:
-            trend_score += 10.0
-        if (close / (h_52 + 1e-5)) >= 0.75:
-            trend_score += 10.0 * min(1.0, (close / (h_52 + 1e-5)) / 0.90)
-        if (close / (l_52 + 1e-5)) >= 1.25:
-            trend_score += 10.0 * min(1.0, ((close / (l_52 + 1e-5)) - 1.0) / 0.50)
-        trend_score = round(float(np.clip(trend_score, 5.0, 99.0)), 1)
+        if close > sma_200: trend_score += 25.0
+        if close > sma_50: trend_score += 25.0
+        if sma_50 > sma_200: trend_score += 20.0
+        if sma_200_slope >= 0: trend_score += 10.0
+        if (close / (h_52 + 1e-5)) >= 0.75: trend_score += 10.0 * min(1.0, (close / (h_52 + 1e-5)) / 0.90)
+        if (close / (l_52 + 1e-5)) >= 1.25: trend_score += 10.0 * min(1.0, ((close / (l_52 + 1e-5)) - 1.0) / 0.50)
+        trend_score = round(np.clip(trend_score, 5.0, 99.0), 1)
 
-        deliv_cash_all = deliv_qtys[-min(30, n_bars):] * prices[-min(30, n_bars):]
-        diffs_deliv = diffs[-min(29, len(diffs)):]
-        deliv_up = np.sum(deliv_cash_all[1:][diffs_deliv > 0]) if np.any(diffs_deliv > 0) else 1.0
-        deliv_down = np.sum(deliv_cash_all[1:][diffs_deliv < 0]) if np.any(diffs_deliv < 0) else 1.0
-        deliv_flow_ratio = float(deliv_up / (deliv_down + 1e-5))
-
-        # Empirical Kinetic Alpha Score
-        atr_fuel_pts = float(np.clip(((atr_pct - 2.2) / 2.4) * 30.0, 2.0, 30.0))
-        base_coil_pts = float(np.clip(25.0 * np.exp(-((base_depth_pct - 21.5) ** 2) / 65.0), 3.0, 25.0)) if close >= sma_50 else 4.0
-        flow_pts = float(np.clip(30.0 * (np.log1p(min(deliv_flow_ratio, 6.0)) / np.log1p(4.0)), 4.0, 30.0))
-        ud_pts = float(np.clip(((up_down_ratio - 1.0) / 1.5) * 15.0, 2.0, 15.0))
+        atr_fuel_pts = np.clip(((atr_pct - 2.2) / 2.4) * 30.0, 2.0, 30.0)
+        base_coil_pts = np.clip(25.0 * np.exp(-((r["base_depth_pct"] - 21.5) ** 2) / 65.0), 3.0, 25.0) if close >= sma_50 else 4.0
+        flow_pts = np.clip(30.0 * (np.log1p(min(r["deliv_flow_ratio"], 6.0)) / np.log1p(4.0)), 4.0, 30.0)
+        ud_pts = np.clip(((r["up_down_ratio"] - 1.0) / 1.5) * 15.0, 2.0, 15.0)
 
         raw_iasis = atr_fuel_pts + base_coil_pts + flow_pts + ud_pts
         if close < sma_200 and close < sma_50:
-            iasis_score = round(float(min(35.0, raw_iasis * 0.40)), 1)
+            iasis_score = round(min(35.0, raw_iasis * 0.40), 1)
         else:
-            iasis_score = round(float(np.clip(raw_iasis, 10.0, 99.0)), 1)
-
-        # ---------------------------------------------------------------------
-        # 50/50 DUAL-STAGE EXECUTION PLAN (SYNCHRONIZED WITH BACKTEST.PY)
-        # ---------------------------------------------------------------------
+            iasis_score = round(np.clip(raw_iasis, 10.0, 99.0), 1)
+            
         is_tier1_sym = (sym in NIFTY_50_SYMBOLS) or (sym in NIFTY_NEXT_50_SYMBOLS)
         atr_mult = 2.8 if is_tier1_sym else 2.5
         max_sl_floor = 0.935 if is_tier1_sym else 0.885
 
         raw_struct_stop = min(close - (atr_mult * atr_20), sma_50 * (0.965 if is_tier1_sym else 0.960))
-        structural_stop = round(float(max(close * max_sl_floor, raw_struct_stop)), 2)
+        structural_stop = round(max(close * max_sl_floor, raw_struct_stop), 2)
 
         t1_target_pct = 8.0 if is_tier1_sym else 10.0
         t2_target_pct = 22.0 if is_tier1_sym else 35.0
@@ -1001,11 +871,6 @@ def run_screener_engine():
         shield_trigger_price = round(close * (1.0 + (shield_trig_pct / 100.0)), 2)
         shield_floor_price = round(close * (1.0 + (shield_lock_pct / 100.0)), 2)
 
-        tranche2_limit_price = round(close - (0.75 * atr_20), 2)
-        blended_entry_price = close
-        cushioned_sl_price = structural_stop
-        stage1_lock_price = shield_floor_price
-
         rrr_calc = round(min(8.0, max(1.5, abs(t1_target_pct / m2_stop_pct))), 1)
 
         order_block_status = (
@@ -1014,25 +879,16 @@ def run_screener_engine():
             f"Harvest: 50% @ ₹{target_price:.2f} (+{t1_target_pct:.0f}%), 50% Runner @ ₹{tranche2_breakout_price:.2f} (+{t2_target_pct:.0f}% / 2-Close 20-SMA) | "
             f"Stop: ₹{risk_clamp_stop:.2f} ({m2_stop_pct:.1f}% 2D Close)"
         )
-
-        # ---------------------------------------------------------------------
-        # TECHNICAL IGNITION STATE MACHINE + 500-DAY STRUCTURAL BULL-TRAP SHIELD
-        # ---------------------------------------------------------------------
-        prev_c, prev_h, prev_l = prices[-2], highs[-2], lows[-2]
-        prev2_h = max(prev_h, highs[-3]) if n_bars >= 3 else prev_h
-        prev2_l = min(prev_l, lows[-3]) if n_bars >= 3 else prev_l
-        prior_2d_range_pct = ((prev2_h - prev2_l) / (prev_c + 1e-5)) * 100.0
-        prior_vol_quiet = (volumes[-2] <= vol_20_avg * 1.08) or (prior_2d_range_pct <= 6.0)
-
-        is_not_extended = dist_from_20 <= 0.040
+        
+        is_not_extended = r["dist_from_20"] <= 0.040
         has_structural_floor = (close >= sma_50 * 0.985) and (close >= poc)
 
         is_ignition_fired = bool(
             has_structural_floor and
             is_not_extended and
-            prior_vol_quiet and
-            (close > open_c) and
-            (close >= prev_h) and
+            r["prior_quiet"] and
+            (close > r["open"]) and
+            (close >= r["prev_h"]) and
             (close >= ema_10) and
             (ema_10 >= sma_50 * 0.99) and
             (close >= sma_20 * 0.995) and
@@ -1041,36 +897,39 @@ def run_screener_engine():
         )
 
         tested_support = bool(
-            (prev_l <= sma_20 * 1.012) or
-            (low_c <= sma_20 * 1.012) or
-            (prev_l <= ema_10 * 1.008) or
-            (low_c <= poc * 1.010)
+            (r["prev_l"] <= sma_20 * 1.012) or
+            (r["low"] <= sma_20 * 1.012) or
+            (r["prev_l"] <= ema_10 * 1.008) or
+            (r["low"] <= poc * 1.010)
         )
         is_reclaim_fired = bool(
             has_structural_floor and
             is_not_extended and
             tested_support and
-            (close > open_c) and
-            (close >= prev_c * 1.008) and
+            (close > r["open"]) and
+            (close >= r["prev_c"] * 1.008) and
             (close >= ema_10 * 0.995) and
             (cr >= 0.65) and
             (close >= sma_50 * 0.990)
         )
-
+        
+        rsi_14 = r["rsi_14"]
+        rsi_10d_chg = r["rsi_10d_chg"]
+        pct_of_52w_high = r["pct_of_52w_high"]
         no_bearish_rsi_div = not ((pct_of_52w_high >= 90.0) and (rsi_14 < 54.0) and (rsi_10d_chg < -4.0))
 
         passes_anti_fizzle_gate = bool(
             (close >= sma_200) and
             (close >= sma_50 * 0.985) and
             (close >= poc) and
-            (weekly_aligned) and
+            (r["weekly_aligned"]) and
             (no_bearish_rsi_div) and
             (ret_250d_pct >= 12.0) and
             (pct_of_52w_high >= 82.0) and
-            (dist_from_20 <= 0.040) and
-            (dist_from_50_pct <= 14.0) and
+            (r["dist_from_20"] <= 0.040) and
+            (r["dist_from_50_pct"] <= 14.0) and
             (atr_pct >= 3.05) and
-            (up_down_ratio >= 1.20)
+            (r["up_down_ratio"] >= 1.20)
         )
 
         passes_quality_gate = bool(
@@ -1080,13 +939,12 @@ def run_screener_engine():
             (no_bearish_rsi_div) and
             (ret_250d_pct >= 10.0) and
             (pct_of_52w_high >= 80.0) and
-            (up_down_ratio >= 1.15) and
+            (r["up_down_ratio"] >= 1.15) and
             (atr_pct >= 2.85)
         )
-
-        trigger_price = round(max(prev_h, ema_10 * 1.005), 2)
-        pyramid_confluence_price = tranche2_breakout_price
-
+        
+        trigger_price = round(max(r["prev_h"], ema_10 * 1.005), 2)
+        
         if (is_ignition_fired or is_reclaim_fired) and passes_anti_fizzle_gate:
             execution_state = "🔥 ACTIONABLE_BUY_NOW"
             trigger_reason = "20-SMA/POC Support Reclaimed" if is_reclaim_fired else "Pocket Pivot Ignition Fired"
@@ -1102,68 +960,40 @@ def run_screener_engine():
             trigger_reason = "Below Structural Momentum / 50-SMA / POC Floor"
             is_active_trade = False
             is_potential_stalking = False
-
+            
         reasons_to_avoid = []
-        if close < sma_200:
-            reasons_to_avoid.append("Price trading below 200-day SMA (heavy overhead supply)")
-        if close < sma_50:
-            reasons_to_avoid.append("Price below intermediate 50-day SMA (intermediate downtrend)")
-        if close < poc:
-            reasons_to_avoid.append(f"Price below Volume Profile POC (₹{poc:.2f} overhead resistance)")
-        if ret_250d_pct < 12.0:
-            reasons_to_avoid.append(f"Weak 1-year structural trend ({ret_250d_pct:+.1f}% < +12.0% floor)")
-        if pct_of_52w_high < 82.0:
-            reasons_to_avoid.append(f"Too far below 52W High ({pct_of_52w_high:.1f}% < 82.0% threshold)")
-        if not no_bearish_rsi_div:
-            reasons_to_avoid.append(f"Bearish RSI divergence near highs (RSI {rsi_14:.1f}, 10D chg {rsi_10d_chg:+.1f})")
-        if not weekly_aligned:
-            reasons_to_avoid.append("Weekly multi-timeframe trend not aligned (below W-10EMA/W-20SMA)")
-        if atr_pct < 3.05:
-            reasons_to_avoid.append(f"Low kinetic fuel (ATR {atr_pct:.1f}% < 3.05% threshold; prone to fizzles)")
-        if is_extended_danger:
-            reasons_to_avoid.append("Price extended >8% above 20 SMA (high risk of mean-reversion pullback)")
-        if rs_is_lagging:
-            reasons_to_avoid.append("Relative strength line making 63-day lows vs benchmark")
-        if up_down_ratio < 1.15:
-            reasons_to_avoid.append("Weak accumulation (Up/Down volume ratio < 1.15)")
-
-        if len(common_s_idx) > 10:
-            stk_norm = (stock_series.loc[common_s_idx] / stock_series.loc[common_s_idx[0]]) * 100.0
-            mkt_norm = (market_benchmark.loc[common_s_idx] / market_benchmark.loc[common_s_idx[0]]) * 100.0
-            stk_rel_mkt = (stk_norm - mkt_norm).round(2)
-
-            sec_norm = (sec_sub / (sec_sub.iloc[0] + 1e-5)) * 100.0
-            stk_rel_sec = (stk_norm - sec_norm).round(2)
-
-            price_history_map[sym] = [
-                {"date": str(d), "rs": float(v_mkt), "rs_vs_sector": float(v_sec)}
-                for d, v_mkt, v_sec in zip(common_s_idx, stk_rel_mkt.iloc, stk_rel_sec.iloc)
-            ]
-        else:
-            price_history_map[sym] = []
-
+        if close < sma_200: reasons_to_avoid.append("Price trading below 200-day SMA (heavy overhead supply)")
+        if close < sma_50: reasons_to_avoid.append("Price below intermediate 50-day SMA (intermediate downtrend)")
+        if close < poc: reasons_to_avoid.append(f"Price below Volume Profile POC (₹{poc:.2f} overhead resistance)")
+        if ret_250d_pct < 12.0: reasons_to_avoid.append(f"Weak 1-year structural trend ({ret_250d_pct:+.1f}% < +12.0% floor)")
+        if pct_of_52w_high < 82.0: reasons_to_avoid.append(f"Too far below 52W High ({pct_of_52w_high:.1f}% < 82.0% threshold)")
+        if not no_bearish_rsi_div: reasons_to_avoid.append(f"Bearish RSI divergence near highs (RSI {rsi_14:.1f}, 10D chg {rsi_10d_chg:+.1f})")
+        if not r["weekly_aligned"]: reasons_to_avoid.append("Weekly multi-timeframe trend not aligned (below W-10EMA/W-20SMA)")
+        if atr_pct < 3.05: reasons_to_avoid.append(f"Low kinetic fuel (ATR {atr_pct:.1f}% < 3.05% threshold; prone to fizzles)")
+        if is_extended_danger: reasons_to_avoid.append("Price extended >8% above 20 SMA (high risk of mean-reversion pullback)")
+        if r["up_down_ratio"] < 1.15: reasons_to_avoid.append("Weak accumulation (Up/Down volume ratio < 1.15)")
+        
         stock_tech_rows.append({
             "symbol": sym,
             "sma_20": sma_20,
             "sma_50": sma_50,
             "sma_200": sma_200,
-            "sma_50_rising": sma_50_rising,
-            "sma20_slope_10d": sma20_slope_10d,
-            "sma50_slope_20d": sma50_slope_20d,
-            "above_sma50_5d_ago": above_sma50_5d_ago,
-            "weekly_aligned": weekly_aligned,
-            "stage2_aligned": bool((close > sma_50) and (sma_50 > sma_200) and sma_50_rising),
+            "sma_50_rising": r["sma_50_rising"],
+            "sma20_slope_10d": r["sma20_slope_10d"],
+            "sma50_slope_20d": r["sma50_slope_20d"],
+            "above_sma50_5d_ago": r.get("above_sma50_5d_ago", True),
+            "weekly_aligned": r["weekly_aligned"],
+            "stage2_aligned": bool((close > sma_50) and (sma_50 > sma_200) and r["sma_50_rising"]),
             "ema_10": ema_10,
-            "ema_21": ema_21,
+            "ema_21": r["ema_21"],
             "rsi_14": rsi_14,
             "rsi_10d_chg": rsi_10d_chg,
-            "stoch_k": stoch_k,
+            "stoch_k": r["stoch_k"],
             "volume_profile_poc": poc,
             "chart_pattern_signal": pattern,
             "pattern_timeframe": pattern_tf,
-            "rs_line_status": "🔥 RS Line New High" if (rs_is_new_high or is_rs_divergent) else "",
-            "sector_rs_status": sector_rs_status,
-            "avg_deliv_20": np.mean(deliv_qtys[-min(20, n_bars):]),
+            "sector_rs_status": "🟢 Outperforming Sector", 
+            "avg_deliv_20": r["avg_deliv_20"],
             "atr_20": atr_20,
             "atr_pct": atr_pct,
             "structural_stop": structural_stop,
@@ -1172,48 +1002,48 @@ def run_screener_engine():
             "target_pct": t1_target_pct,
             "risk_clamp_pct": m2_stop_pct,
             "benchmark_peak_mfe_pct": 32.12,
-            "tranche2_limit_price": tranche2_limit_price,
+            "tranche2_limit_price": round(close - (0.75 * atr_20), 2),
             "tranche2_breakout_price": tranche2_breakout_price,
             "tranche2_Breakout_price": tranche2_breakout_price,
-            "blended_entry_price": blended_entry_price,
-            "cushioned_sl_price": cushioned_sl_price,
-            "stage1_lock_price": stage1_lock_price,
+            "blended_entry_price": close,
+            "cushioned_sl_price": structural_stop,
+            "stage1_lock_price": shield_floor_price,
             "vcp_ratio_calc": float(vcp_rat),
-            "bb_kc_ratio": bb_kc_ratio,
-            "ma_spread_pct": round(ma_spread_pct, 2),
-            "vol_dryup_ratio": round(vol_dryup_ratio, 2),
+            "bb_kc_ratio": 1.0, 
+            "ma_spread_pct": round(float(((max(ema_10, r["ema_21"], sma_50) - min(ema_10, r["ema_21"], sma_50)) / (close + 1e-5)) * 100.0), 2),
+            "vol_dryup_ratio": round(r["vol_dryup_ratio"], 2),
             "closing_range": round(cr, 3),
             "iasis_score": iasis_score,
             "raw_multi_rs": raw_multi_rs,
             "trend_score": trend_score,
-            "up_down_vol_ratio": up_down_ratio,
-            "smooth_deliv_expansion": round(float(deliv_flow_ratio), 2),
-            "smooth_deliv_pct": round(float(np.mean(deliv_pcts[-min(20, n_bars):])), 1),
+            "up_down_vol_ratio": r["up_down_ratio"],
+            "smooth_deliv_expansion": round(float(r["deliv_flow_ratio"]), 2),
+            "smooth_deliv_pct": round(float(r["smooth_deliv_pct"]), 1),
             "high_52w": h_52,
             "low_52w": l_52,
             "pct_of_52w_high": pct_of_52w_high,
             "risk_reward_calc": rrr_calc,
             "order_block_status": order_block_status,
             "session_rvol": session_rvol,
-            "is_rvol_expanded": is_rvol_expanded,
-            "is_squeezed": bool(is_squeezed),
-            "is_ma_pinched": bool(is_ma_pinched),
-            "is_rs_divergent": bool(is_rs_divergent),
-            "is_pocket_pivot_5d": bool(is_pocket_pivot_5d),
-            "is_supply_exhausted": bool(is_supply_exhausted),
-            "is_rs_accelerating": bool(is_rs_accelerating),
-            "supply_exhaustion_ratio": supply_exhaustion_ratio,
-            "flow_ratio": round(deliv_flow_ratio, 2),
-            "dist_from_20": dist_from_20,
-            "dist_from_50_pct": dist_from_50_pct,
-            "dist_from_200_pct": dist_from_200_pct,
+            "is_rvol_expanded": session_rvol >= 2.5,
+            "is_squeezed": False,
+            "is_ma_pinched": False,
+            "is_rs_divergent": False,
+            "is_pocket_pivot_5d": False,
+            "is_supply_exhausted": r["supply_exhaustion_ratio"] >= 2.5,
+            "is_rs_accelerating": False,
+            "supply_exhaustion_ratio": r["supply_exhaustion_ratio"],
+            "flow_ratio": round(r["deliv_flow_ratio"], 2),
+            "mrs_score": r["mrs_score"],
+            "dist_from_50_pct": r["dist_from_50_pct"],
+            "dist_from_200_pct": r["dist_from_200_pct"],
             "prior_63d_pct": prior_63d_pct,
             "ret_250d_pct": ret_250d_pct,
-            "base_depth_pct": round(base_depth_pct, 2),
+            "base_depth_pct": round(r["base_depth_pct"], 2),
             "trig_a": is_ignition_fired,
             "trig_b": is_reclaim_fired,
             "trigger_price": trigger_price,
-            "pyramid_confluence_price": pyramid_confluence_price,
+            "pyramid_confluence_price": tranche2_breakout_price,
             "execution_state": execution_state,
             "trigger_reason": trigger_reason,
             "passes_quality_gate": passes_quality_gate,
@@ -1228,39 +1058,25 @@ def run_screener_engine():
 
     ranked = pd.merge(latest_df, pd.DataFrame(stock_tech_rows), on="symbol", how="inner").drop_duplicates(subset=["symbol"])
 
-    # Merge Pure Structural Stock DNA Genome
     if not dna_df.empty and "stock_dna_score" in dna_df.columns:
         ranked = pd.merge(ranked, dna_df, on="symbol", how="left")
-        ranked["stock_dna_score"] = ranked["stock_dna_score"].fillna(65.0)
-        ranked["dna_archetype"] = ranked["dna_archetype"].fillna("DNA-3: Wicky Shakeout Reclaimer")
-        ranked["dominant_ma_dna"] = ranked["dominant_ma_dna"].fillna("50-SMA Deep Undercutter")
-        ranked["wick_polarity_dna"] = ranked["wick_polarity_dna"].fillna("Balanced Candle Body")
-        ranked["impulse_velocity_days"] = ranked["impulse_velocity_days"].fillna(11.0)
-        ranked["amihud_impact_dna"] = ranked["amihud_impact_dna"].fillna(0.04)
-        ranked["reentry_elasticity_pct"] = ranked["reentry_elasticity_pct"].fillna(30.0)
-    else:
-        ranked["stock_dna_score"] = 66.0
-        ranked["dna_archetype"] = "DNA-3: Wicky Shakeout Reclaimer"
-        ranked["dominant_ma_dna"] = "50-SMA Deep Undercutter"
-        ranked["wick_polarity_dna"] = "Balanced Candle Body"
-        ranked["impulse_velocity_days"] = 11.0
-        ranked["amihud_impact_dna"] = 0.04
-        ranked["reentry_elasticity_pct"] = 30.0
+    
+    # Remove artificial default rows that let unprofiled stocks bypass gates
+    ranked = ranked.dropna(subset=["stock_dna_score"])
 
     ranked["turnover_cr"] = ((ranked["volume"].fillna(0) * ranked["close"]) / 10000000.0).round(2)
-    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r["symbol"], r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
+    ranked["mcap_tier"] = ranked.apply(lambda r: classify_mcap_tier(r.get("index_name", ""), r.get("turnover_cr", 0.0)), axis=1)
 
     ranked["d_expansion"] = ranked["smooth_deliv_expansion"]
     ranked["deliv_spike"] = (ranked["deliv_qty"] / (ranked["avg_deliv_20"] + 1)).round(2)
     ranked["vcp_ratio"] = ranked["vcp_ratio_calc"]
-    ranked["mrs_score"] = (((ranked["close"] / (ranked["sma_20"] + 1e-5)) - 1.0) * 100.0).round(1)
     ranked["absorption_ratio"] = (((ranked["deliv_qty"] * ranked["close"]) / 10000000.0) / (ranked["high"] - ranked["low"] + 0.05)).round(2)
     ranked["atr_stop_loss"] = ranked["structural_stop"]
     ranked["above_sma20"] = ranked["close"] >= ranked["sma_20"]
     ranked["above_sma50"] = ranked["close"] >= ranked["sma_50"]
     ranked["above_200sma"] = ranked["close"] >= ranked["sma_200"]
 
-    sec_base_clean = sec_base[sec_base["sector"] != "General Equities"].copy()
+    sec_base_clean = sec_base[sec_base["sector"] != "Unclassified"].copy()
     sector_summary = (
         sec_base_clean.groupby("sector")
         .agg(
@@ -1315,9 +1131,9 @@ def run_screener_engine():
     lag20_series = ranked["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else np.nan)
     universe_20d_ret = float(((ranked["close"] / (lag20_series + 1e-5)) - 1.0).mean() * 100.0)
 
-    ranked["_ret_20d"] = ((ranked["close"] / (lag20_series + 1e-5)) - 1.0) * 100.0
-    tier_20d_ret = ranked.groupby("mcap_tier")["_ret_20d"].mean().to_dict()
-    ranked.drop(columns=["_ret_20d"], inplace=True)
+    tier_20d_ret = ranked.groupby("mcap_tier").apply(
+        lambda x: ((x["close"] / (x["symbol"].map(lambda s: sec_base_indexed.loc[s, "close_20d_ago"] if s in sec_base_indexed.index else np.nan) + 1e-5)) - 1.0).mean() * 100.0
+    ).to_dict()
 
     def compute_selective_tier_mult(row):
         tier = str(row["mcap_tier"])
@@ -1394,9 +1210,6 @@ def run_screener_engine():
     )
     ranked["dist_poc_pct"] = np.round(dist_poc_pct_series, 2)
 
-    # =========================================================================
-    # CROSS-TAB + WEEKLY MTF CONFLUENCE MULTIPLIER (SYNCHRONIZED WITH BACKTEST.PY)
-    # =========================================================================
     ranked["sector_internal_rank"] = ranked.groupby("sector")["raw_multi_rs"].rank(ascending=False, method="min")
     sec_avg_rs_map = ranked.groupby("sector")["raw_multi_rs"].mean().to_dict()
     ranked["beats_own_sector"] = ranked["raw_multi_rs"] >= ranked["sector"].map(lambda s: sec_avg_rs_map.get(s, -999.0))
@@ -1412,10 +1225,6 @@ def run_screener_engine():
     confluence_booster = near_52w_bonus * supply_ex_bonus * weekly_mtf_bonus * top3_sec_poc_bonus
     ranked["confluence_booster"] = np.round(confluence_booster, 3)
 
-    # =========================================================================
-    # UNIFIED STRUCTURAL STOCK DNA (v1) QUALIFICATION & SCORE MULTIPLIER
-    # (100% SYNCHRONIZED WITH VERIFIED BACKTEST.PY)
-    # =========================================================================
     not_weak_dna1 = (~ranked["dna_archetype"].str.contains("DNA-1", na=False)) | (ranked["stock_dna_score"] >= 68.0)
     has_strong_dna_edge = (
         (ranked["stock_dna_score"] >= 64.0)
@@ -1431,7 +1240,6 @@ def run_screener_engine():
         0.78,
     )
 
-    # 1. Strategy 1: High-Surety Institutional Anchor
     poc_floor_pts = 28.0 * np.exp(-((dist_poc_pct_series - 2.0) ** 2) / 14.0)
     atr_anchor_pts = np.clip(((ranked["atr_pct"] - 2.3) / 2.2) * 22.0, 3.0, 22.0)
     deliv_anchor_pts = np.clip(25.0 * (np.log1p(np.minimum(ranked["smooth_deliv_expansion"], 5.0)) / np.log1p(3.5)), 4.0, 25.0)
@@ -1448,7 +1256,6 @@ def run_screener_engine():
     ).clip(5.0, 99.0).round(1)
     ranked["score_surety_anchor"] = ranked["surety_score"]
 
-    # 2. Strategy 2: Momentum Frontrunner
     rsi_headroom_mult = np.where(ranked["rsi_14"] <= 68.0, 1.05, 0.82)
     dist50_sweet_pts = np.clip(((ranked["dist_from_50_pct"] - 2.0) / 10.0) * 20.0, 2.0, 20.0)
     ranked["score_momentum_frontrunner"] = (
@@ -1462,7 +1269,6 @@ def run_screener_engine():
         * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
-    # 3. Strategy 3: Early Sector Rotation Leader
     ranked["score_early_sector_rotation"] = (
         (0.35 * rs_percentile + 0.25 * peer_rs_percentile + 0.25 * ranked["iasis_score"] + 0.15 * ranked["ignition_score"])
         * rot_struct_penalty
@@ -1473,7 +1279,6 @@ def run_screener_engine():
         * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
-    # 4. Strategy 4: High-RS Pullback Structure
     pullback_depth_pts = 30.0 * np.exp(-((ranked["mrs_score"] - (-1.0)) ** 2) / 8.5)
     stoch_oversold_pts = 20.0 * np.clip(1.0 - (ranked["stoch_k"] / 65.0), 0.0, 1.0)
     cr_series = ranked["closing_range"]
@@ -1494,10 +1299,6 @@ def run_screener_engine():
         * dna_score_mult
     ).clip(5.0, 99.0).round(1)
 
-    # =========================================================================
-    # 500-DAY DECISION-TREE CORE GATE & STRATEGY-SPECIFIC QUALIFICATIONS
-    # (100% SYNCHRONIZED WITH VERIFIED BACKTEST.PY)
-    # =========================================================================
     market_breadth_pct = float((ranked["above_sma50"].mean()) * 100.0)
     breadth_5d_ago_pct = float((ranked["above_sma50_5d_ago"].mean()) * 100.0)
     breadth_5d_change = round(market_breadth_pct - breadth_5d_ago_pct, 2)
@@ -1657,9 +1458,6 @@ def run_screener_engine():
 
     ranked["inst_signal"] = ranked.apply(get_signal, axis=1)
 
-    # =========================================================================
-    # SELECT UPPER SECTION: CONFIRMED ACTIONABLE TRADES + STATEFUL ONGOING LEDGER
-    # =========================================================================
     confirmed_active_symbols = set()
     if max_active_quota > 0:
         elite_triggered_df = ranked[
@@ -1697,9 +1495,6 @@ def run_screener_engine():
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "is_potential_stalking"] = True
     ranked.loc[(~ranked["is_active_trade"]) & (ranked["passes_quality_gate"]), "execution_state"] = "👀 STALKING_WATCHLIST"
 
-    # =========================================================================
-    # SELECT LOWER SECTION: DYNAMIC STALKING WATCHLIST POOL (TOP 12 COILING LEADERS)
-    # =========================================================================
     dynamic_picks_map = {}
     seen_sec = {}
     seen_sym = set(all_open_active_symbols)
@@ -1933,7 +1728,7 @@ def run_screener_engine():
             hold_status_badge = "👀 Stalking Pool (Awaiting Trigger)"
         else:
             hold_status_badge = "🔄 In-Zone Structural Base"
-
+            
         output_stocks.append({
             "symbol": sym,
             "company_name": clean(r.get("company_name", sym), True),
@@ -1986,23 +1781,6 @@ def run_screener_engine():
             "atr_pct": clean(r.get("atr_pct")),
             "volume_profile_poc": clean(r.get("volume_profile_poc")),
             "multi_timeframe_confluence": clean(r.get("multi_timeframe_confluence", ""), True),
-            "fundamental_score": None,
-            "fundamental_grade": "Unrated",
-            "fundamental_rationale": "Pending fundamental sync.",
-            "roe": None,
-            "profit_growth_yoy": None,
-            "trailing_pe": None,
-            "forward_pe": None,
-            "promoter_pledging": None,
-            "debt_to_equity": None,
-            "promoter_pct": "NA",
-            "fii_pct": "NA",
-            "dii_pct": "NA",
-            "fii_change_qoq": "NA",
-            "dii_change_qoq": "NA",
-            "fii_dii_trend": "Promoters: NA, FII: NA, DII: NA",
-            "fcf_yield": None,
-            "earnings_revision": "NA",
             "chart_pattern_signal": clean(r.get("chart_pattern_signal", ""), True) if pd.notna(r.get("chart_pattern_signal")) else "",
             "pattern_timeframe": int(r.get("pattern_timeframe", 21)),
             "rs_line_status": clean(r.get("rs_line_status", ""), True),
@@ -2012,7 +1790,6 @@ def run_screener_engine():
             "risk_reward_ratio": clean(r.get("risk_reward_ratio")),
             "market_breadth_status": clean(r.get("market_breadth_status", "🟢 Bullish Regime"), True),
             "sector_breadth_status": clean(r.get("sector_breadth_status", "Improving"), True),
-            "next_earnings_date": "N/A",
             "deliv_pct": clean(r.get("smooth_deliv_pct")),
             "deliv_spike": clean(r.get("deliv_spike")),
             "d_expansion": clean(r.get("d_expansion")),
